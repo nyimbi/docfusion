@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - AI Discovery Query Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep document discovery from spending SearXNG searches on blank or malformed AI-generated query rows when deterministic tender identifiers are available.
+
+Changes in this slice:
+- Validate AI discovery query rows for non-empty query text before sorting and searching.
+- Trim accepted AI query strings and file-type query strings before deduplication.
+- Fall back to deterministic enhanced tender queries when AI output contains no usable queries.
+- Reset per-test service mock implementations in document discovery coverage to prevent cross-case query leakage.
+
+Verification:
+- `npm test -- document-discovery-agent.test.ts --run` passed with 5 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-discovery-to-submission-core` passed with 137 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Competitive Discriminator Fallbacks
 
 Status: implemented and verified.

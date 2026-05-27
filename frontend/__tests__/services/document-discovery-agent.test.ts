@@ -106,6 +106,11 @@ const baseOpportunity = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	firecrawlScrapeMock.mockReset();
+	fetchMock.mockReset();
+	vi.mocked(quickComplete).mockReset();
+	vi.mocked(searchSearxng).mockReset();
+	vi.mocked(searchDocuments).mockReset();
 	vi.stubGlobal("fetch", fetchMock);
 	insertedValues.length = 0;
 	opportunityUpdates.length = 0;
@@ -260,6 +265,50 @@ describe("discoverDocumentsWithAgent", () => {
 		expect(insertedValues[0]).toEqual(expect.objectContaining({
 			description: expect.stringContaining("notice id match"),
 		}));
+	});
+
+	it("falls back to deterministic search queries when AI returns unusable query rows", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "no primary document links",
+		});
+		vi.mocked(quickComplete).mockResolvedValue(JSON.stringify({
+			queries: [{ purpose: "missing query", priority: 10 }, { query: "   ", priority: 9 }],
+			fileTypeQueries: ["", "   "],
+		}));
+		vi.mocked(searchSearxng).mockImplementation(async (query: string) => ({
+			query,
+			number_of_results: 1,
+			results: [{
+				title: "BID-2026-001 Records Platform RFP",
+				url: "https://buyer.example/files/BID-2026-001-records-platform-rfp.pdf",
+				content: "Buyer Ministry tender document for BID-2026-001 records platform",
+				engine: "bing",
+				score: 8,
+			}],
+		}));
+		vi.mocked(searchDocuments).mockResolvedValue([]);
+
+		const result = await discoverDocumentsWithAgent("opp-1", 2);
+
+		expect(result.success).toBe(true);
+		expect(result.strategiesSucceeded).toEqual(["web_search"]);
+		expect(searchSearxng).toHaveBeenCalledWith(
+			"\"BID-2026-001\" filetype:pdf",
+			expect.objectContaining({
+				categories: ["general", "files"],
+			})
+		);
+		expect(vi.mocked(searchSearxng).mock.calls.every(([query]) =>
+			typeof query === "string" && query.trim().length > 0
+		)).toBe(true);
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				documentName: "BID-2026-001 Records Platform RFP",
+				sourceUrl: "https://buyer.example/files/BID-2026-001-records-platform-rfp.pdf",
+				isSelected: true,
+			}),
+		]);
 	});
 
 	it("caps alternative portal confidence while preserving evidence signals", async () => {

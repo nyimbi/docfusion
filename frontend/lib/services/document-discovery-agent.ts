@@ -126,16 +126,27 @@ Previous failed strategies: ${context.previousAttempts.join(", ") || "None"}`;
     // Parse JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      const queries = (parsed.queries || [])
-        .sort((a: { priority: number }, b: { priority: number }) => b.priority - a.priority)
-        .map((q: { query: string }) => q.query);
+      const parsed = JSON.parse(jsonMatch[0]) as { queries?: unknown; fileTypeQueries?: unknown };
+      const rawQueries: unknown[] = Array.isArray(parsed.queries) ? parsed.queries : [];
+      const queries = rawQueries
+        .filter((q): q is { query: string; priority?: number } =>
+          !!q &&
+          typeof q === "object" &&
+          typeof (q as { query?: unknown }).query === "string" &&
+          (q as { query: string }).query.trim().length > 0
+        )
+        .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+        .map(q => q.query.trim());
       
       // Add filetype-specific queries for better document discovery
-      const fileTypeQueries = parsed.fileTypeQueries || [];
+      const rawFileTypeQueries: unknown[] = Array.isArray(parsed.fileTypeQueries) ? parsed.fileTypeQueries : [];
+      const fileTypeQueries = rawFileTypeQueries.map(query => String(query).trim()).filter(Boolean);
       
       // Combine and deduplicate
       const allQueries = [...new Set([...fileTypeQueries, ...queries])];
+      if (allQueries.length === 0) {
+        return generateEnhancedFallbackQueries(context);
+      }
       
       logger.debug(`[Discovery Agent] AI generated ${allQueries.length} search queries`);
       return allQueries.slice(0, 12); // Max 12 queries
