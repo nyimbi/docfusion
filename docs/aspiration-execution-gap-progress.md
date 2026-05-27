@@ -16,6 +16,20 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Full Non-Live Platform Proof Refresh
+
+Status: verified.
+
+Purpose: recheck the complete non-live platform proof after the latest AI fallback and artifact-integrity hardening slices.
+
+Verification:
+- `npm run platform:proof -- --all` passed.
+- Covered Wave 0 typecheck/unit/runtime proof, Wave 1 browser/API proof, Wave 2 RFP upload and parse/storage proof, Wave 3 compliance/evidence readiness, Wave 4 planning/collaboration and capture pipeline scope, Wave 5 AI/content governance, Wave 6 final submission and approval/production/browser proof, Wave 7 import/operations governance, Wave 8 strategic capability workflows/browser proof, and Wave 9 discovery/RFP/response/readiness/export/discovery-to-submission proof.
+
+Remaining after this verification:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Continue non-DB hardening around generated outputs and live discovery while that external database path remains unavailable.
+
 ### 2026-05-27 - Blank AI Generated Resume Fallbacks
 
 Status: implemented and verified.
