@@ -86,6 +86,7 @@ vi.mock("@/lib/db/schema-competitors", () => ({
 
 import { getProviderManager } from "@/lib/ai/providers";
 import {
+	analyzeWinLossPatterns,
 	calculateProposalROI,
 	compareToCompetitors,
 	createDebrief,
@@ -311,5 +312,75 @@ describe("Win/loss action auth", () => {
 			],
 		});
 		expect(result.success && result.data.join(" ")).not.toContain("Unable to generate AI insights");
+	});
+
+	test("derives heuristic pattern confidence from observed win/loss evidence", async () => {
+		const insertedPatterns: Record<string, unknown>[] = [];
+		dbMock.select.mockImplementationOnce(() => createChainableQuery([
+			{
+				debrief: {
+					id: "debrief-win-1",
+					outcome: "win",
+					strengthsIdentified: ["agency experience"],
+					weaknessesIdentified: [],
+					costScore: 88,
+				},
+				opportunity: null,
+			},
+			{
+				debrief: {
+					id: "debrief-win-2",
+					outcome: "win",
+					strengthsIdentified: ["agency experience"],
+					weaknessesIdentified: ["thin staffing"],
+					costScore: 82,
+				},
+				opportunity: null,
+			},
+			{
+				debrief: {
+					id: "debrief-loss-1",
+					outcome: "loss",
+					strengthsIdentified: [],
+					weaknessesIdentified: ["thin staffing"],
+					costScore: 45,
+				},
+				opportunity: null,
+			},
+		]));
+		dbMock.insert.mockImplementation(() => {
+			const chain = createChainableQuery([]);
+			(chain.values as ReturnType<typeof vi.fn>).mockImplementation((value: Record<string, unknown>) => {
+				insertedPatterns.push(value);
+				return chain;
+			});
+			(chain.returning as ReturnType<typeof vi.fn>).mockImplementation(async () => [
+				{ id: `pattern-${insertedPatterns.length}`, ...insertedPatterns[insertedPatterns.length - 1] },
+			]);
+			return chain;
+		});
+
+		const result = await analyzeWinLossPatterns();
+
+		expect(result.success).toBe(true);
+		expect(insertedPatterns).toHaveLength(3);
+		expect(insertedPatterns[0]).toMatchObject({
+			patternName: "Strong agency experience",
+			winCorrelation: 0.8,
+			confidence: 0.63,
+		});
+		expect(insertedPatterns[0].description).toContain("2 win(s) and 0 loss(es)");
+		expect(insertedPatterns[1]).toMatchObject({
+			patternName: "Recurring thin staffing Issue",
+			winCorrelation: -0.5,
+			confidence: 0.63,
+		});
+		expect(insertedPatterns[2]).toMatchObject({
+			patternName: "Cost Competitiveness",
+			confidence: 0.77,
+		});
+		if (result.success) {
+			expect(result.data.confidence).toBe(0.68);
+		}
 	});
 });

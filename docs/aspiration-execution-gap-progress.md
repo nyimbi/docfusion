@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evidence-Based Win/Loss Pattern Confidence
+
+Status: implemented and verified.
+
+Purpose: stop heuristic win/loss pattern analysis from assigning fixed confidence and correlation values instead of reflecting observed debrief evidence.
+
+Changes in this slice:
+- Derive strength and weakness pattern correlations from win-versus-loss occurrence rates.
+- Derive heuristic pattern confidence from sample size, occurrence count, and outcome evidence.
+- Derive pricing pattern confidence from sample size, scored-debrief coverage, and cost-score separation.
+- Replace the fixed heuristic overall confidence with the average confidence of generated patterns.
+- Add regression coverage proving persisted pattern confidence and correlation values come from observed win/loss evidence.
+
+Verification:
+- `npm test -- winloss-auth.test.ts` passed with 13 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 132 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue replacing generic confidence values in response-support analysis paths where they are not backed by explicit evidence signals.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Evidence-Based Competitive SWOT Fallbacks
 
 Status: implemented and verified.

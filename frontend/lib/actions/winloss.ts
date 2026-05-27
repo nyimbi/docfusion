@@ -779,7 +779,7 @@ export async function analyzeWinLossPatterns(): Promise<ActionResult<PatternAnal
 				strengthFrequency,
 				weaknessFrequency
 			);
-			overallConfidence = 0.6;
+			overallConfidence = averagePatternConfidence(aiPatterns);
 		}
 
 		// Store patterns in database
@@ -998,15 +998,18 @@ function generateHeuristicPatterns(
 
 	// Add strength-based patterns
 	if (strengthFrequency.length > 0) {
+		const topStrength = strengthFrequency[0];
+		const winMatches = countDebriefsWithItem(wins, "strengthsIdentified", topStrength.item);
+		const lossMatches = countDebriefsWithItem(losses, "strengthsIdentified", topStrength.item);
 		patterns.push({
 			patternType: "strength",
-			patternName: `Strong ${strengthFrequency[0].item}`,
-			description: `Identified as a strength in ${strengthFrequency[0].count} proposals. Appears to correlate with positive outcomes.`,
-			winCorrelation: 0.6,
-			confidence: 0.5 + Math.min(0.3, strengthFrequency[0].count * 0.1),
+			patternName: `Strong ${topStrength.item}`,
+			description: `Identified as a strength in ${topStrength.count} proposals, including ${winMatches} win(s) and ${lossMatches} loss(es).`,
+			winCorrelation: calculateOutcomeCorrelation(winMatches, wins.length, lossMatches, losses.length),
+			confidence: calculateHeuristicPatternConfidence(wins.length + losses.length, topStrength.count, winMatches + lossMatches),
 			recommendations: [
 				{
-					recommendation: `Continue emphasizing ${strengthFrequency[0].item} in proposals`,
+					recommendation: `Continue emphasizing ${topStrength.item} in proposals`,
 					priority: "high",
 					effort: "low",
 				},
@@ -1016,15 +1019,18 @@ function generateHeuristicPatterns(
 
 	// Add weakness-based patterns
 	if (weaknessFrequency.length > 0) {
+		const topWeakness = weaknessFrequency[0];
+		const winMatches = countDebriefsWithItem(wins, "weaknessesIdentified", topWeakness.item);
+		const lossMatches = countDebriefsWithItem(losses, "weaknessesIdentified", topWeakness.item);
 		patterns.push({
 			patternType: "weakness",
-			patternName: `Recurring ${weaknessFrequency[0].item} Issue`,
-			description: `Identified as a weakness in ${weaknessFrequency[0].count} proposals. May be contributing to losses.`,
-			winCorrelation: -0.5,
-			confidence: 0.5 + Math.min(0.3, weaknessFrequency[0].count * 0.1),
+			patternName: `Recurring ${topWeakness.item} Issue`,
+			description: `Identified as a weakness in ${topWeakness.count} proposals, including ${winMatches} win(s) and ${lossMatches} loss(es).`,
+			winCorrelation: calculateOutcomeCorrelation(winMatches, wins.length, lossMatches, losses.length),
+			confidence: calculateHeuristicPatternConfidence(wins.length + losses.length, topWeakness.count, winMatches + lossMatches),
 			recommendations: [
 				{
-					recommendation: `Develop action plan to address ${weaknessFrequency[0].item}`,
+					recommendation: `Develop action plan to address ${topWeakness.item}`,
 					priority: "high",
 					effort: "medium",
 				},
@@ -1033,17 +1039,19 @@ function generateHeuristicPatterns(
 	}
 
 	// Add pricing pattern if data available
-	const avgWinCost = wins.filter(w => w.debrief.costScore).reduce((sum, w) => sum + (w.debrief.costScore || 0), 0) / wins.length || 0;
-	const avgLossCost = losses.filter(l => l.debrief.costScore).reduce((sum, l) => sum + (l.debrief.costScore || 0), 0) / losses.length || 0;
+	const winsWithCost = wins.filter(w => w.debrief.costScore);
+	const lossesWithCost = losses.filter(l => l.debrief.costScore);
+	const avgWinCost = winsWithCost.reduce((sum, w) => sum + (w.debrief.costScore || 0), 0) / winsWithCost.length || 0;
+	const avgLossCost = lossesWithCost.reduce((sum, l) => sum + (l.debrief.costScore || 0), 0) / lossesWithCost.length || 0;
 
 	if (avgWinCost > 0 && avgLossCost > 0) {
 		const costDiff = avgWinCost - avgLossCost;
 		patterns.push({
 			patternType: "pricing",
 			patternName: "Cost Competitiveness",
-			description: `Average cost score on wins: ${avgWinCost.toFixed(1)}, on losses: ${avgLossCost.toFixed(1)}`,
+			description: `Average cost score on ${winsWithCost.length} scored win(s): ${avgWinCost.toFixed(1)}, on ${lossesWithCost.length} scored loss(es): ${avgLossCost.toFixed(1)}`,
 			winCorrelation: costDiff > 0 ? 0.4 : -0.4,
-			confidence: 0.5,
+			confidence: calculatePricingPatternConfidence(wins.length + losses.length, winsWithCost.length + lossesWithCost.length, costDiff),
 			recommendations: [
 				{
 					recommendation: costDiff > 0
@@ -1057,6 +1065,61 @@ function generateHeuristicPatterns(
 	}
 
 	return patterns;
+}
+
+function normalizePatternItem(item: string): string {
+	return item.toLowerCase().trim();
+}
+
+function countDebriefsWithItem(
+	rows: Array<{ debrief: Debrief; opportunity: typeof opportunities.$inferSelect | null }>,
+	field: "strengthsIdentified" | "weaknessesIdentified",
+	item: string
+): number {
+	const normalized = normalizePatternItem(item);
+	return rows.filter(row => {
+		const values = (row.debrief[field] as string[]) || [];
+		return values.some(value => normalizePatternItem(value) === normalized);
+	}).length;
+}
+
+function calculateOutcomeCorrelation(
+	winMatches: number,
+	totalWins: number,
+	lossMatches: number,
+	totalLosses: number
+): number {
+	const winRate = totalWins > 0 ? winMatches / totalWins : 0;
+	const lossRate = totalLosses > 0 ? lossMatches / totalLosses : 0;
+	return Math.round(Math.max(-0.8, Math.min(0.8, winRate - lossRate)) * 100) / 100;
+}
+
+function calculateHeuristicPatternConfidence(
+	totalDebriefs: number,
+	occurrenceCount: number,
+	outcomeEvidenceCount: number
+): number {
+	const sampleSignal = Math.min(0.2, totalDebriefs * 0.04);
+	const occurrenceSignal = Math.min(0.3, occurrenceCount * 0.08);
+	const outcomeSignal = Math.min(0.2, outcomeEvidenceCount * 0.05);
+	return Math.round(Math.max(0.25, Math.min(0.85, 0.25 + sampleSignal + occurrenceSignal + outcomeSignal)) * 100) / 100;
+}
+
+function calculatePricingPatternConfidence(
+	totalDebriefs: number,
+	scoredDebriefs: number,
+	costDiff: number
+): number {
+	const sampleSignal = Math.min(0.2, totalDebriefs * 0.04);
+	const scoreCoverageSignal = totalDebriefs > 0 ? Math.min(0.25, (scoredDebriefs / totalDebriefs) * 0.25) : 0;
+	const separationSignal = Math.min(0.15, Math.abs(costDiff) / 100);
+	return Math.round(Math.max(0.25, Math.min(0.8, 0.25 + sampleSignal + scoreCoverageSignal + separationSignal)) * 100) / 100;
+}
+
+function averagePatternConfidence(patterns: Array<{ confidence: number }>): number {
+	if (patterns.length === 0) return 0;
+	const average = patterns.reduce((sum, pattern) => sum + pattern.confidence, 0) / patterns.length;
+	return Math.round(average * 100) / 100;
 }
 
 // ============================================================================
