@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Win Theme Injection Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep win-theme injection support from storing blank injection points when AI emits non-empty arrays with malformed injection objects.
+
+Changes in this slice:
+- Validate AI injection suggestions for non-empty section name, suggested text, and rationale before storing.
+- Normalize accepted injection theme IDs, insert position, page number, context text, and impact score.
+- Reuse deterministic injection suggestions when AI output contains no usable injection objects.
+- Add regression coverage for an AI response of `{ "injections": [{}] }`.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts --run` passed with 21 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 155 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Cost Suggestion Fallbacks
 
 Status: implemented and verified.

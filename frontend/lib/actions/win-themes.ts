@@ -2376,38 +2376,49 @@ Respond in JSON format:
 				throw new Error("No JSON found in AI response");
 			}
 
-			const parsed = JSON.parse(jsonMatch[0]) as {
-				injections: Array<{
-					themeId?: string;
-					sectionName: string;
-					pageNumber: number;
-					originalText: string;
-					suggestedText: string;
-					insertPosition: "before" | "after" | "replace" | "inline";
-					rationale: string;
-					impactScore: number;
-				}>;
-			};
+			const parsed = JSON.parse(jsonMatch[0]) as { injections?: unknown };
 			if (!Array.isArray(parsed.injections) || parsed.injections.length === 0) {
 				throw new Error("AI response did not include injection suggestions");
 			}
 
-			const drafts = parsed.injections.map((injection): InjectionDraft => {
-				const themeId = injection.themeId || themes[0].id;
-				const injectionType: InjectionType =
-					injection.insertPosition === "replace" ? "replace" :
-					injection.insertPosition === "inline" ? "enhance" : "insert";
-				return {
-					themeId,
-					sectionName: injection.sectionName,
-					pageNumber: injection.pageNumber,
-					originalText: injection.originalText,
-					suggestedText: injection.suggestedText,
-					injectionType,
-					rationale: injection.rationale,
-					impactScore: Math.max(0, Math.min(1, injection.impactScore / 100)),
-				};
-			});
+			const validThemeIds = new Set(themes.map(theme => theme.id));
+			const drafts = parsed.injections
+				.map((injection): InjectionDraft | null => {
+					if (
+						!isRecord(injection) ||
+						!isNonBlankText(injection.sectionName) ||
+						!isNonBlankText(injection.suggestedText) ||
+						!isNonBlankText(injection.rationale)
+					) {
+						return null;
+					}
+					const themeId = isNonBlankText(injection.themeId) && validThemeIds.has(injection.themeId.trim())
+						? injection.themeId.trim()
+						: themes[0].id;
+					const insertPosition = isNonBlankText(injection.insertPosition)
+						? injection.insertPosition.trim()
+						: "after";
+					const injectionType: InjectionType =
+						insertPosition === "replace" ? "replace" :
+						insertPosition === "inline" ? "enhance" : "insert";
+					const sectionName = injection.sectionName.trim();
+					return {
+						themeId,
+						sectionName,
+						pageNumber: Math.round(clampNumber(injection.pageNumber, 1, 1000, 1)),
+						originalText: isNonBlankText(injection.originalText)
+							? injection.originalText.trim()
+							: `${sectionName} section context for win-theme reinforcement.`,
+						suggestedText: injection.suggestedText.trim(),
+						injectionType,
+						rationale: injection.rationale.trim(),
+						impactScore: clampNumber(injection.impactScore, 0, 100, 50) / 100,
+					};
+				})
+				.filter((draft): draft is InjectionDraft => draft !== null);
+			if (drafts.length === 0) {
+				throw new Error("AI response did not include usable injection suggestions");
+			}
 
 			return { success: true, data: await storeInjectionDrafts(drafts, themes, input.opportunityId) };
 		} catch (parseError) {

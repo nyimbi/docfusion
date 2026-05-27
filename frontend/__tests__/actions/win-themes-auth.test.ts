@@ -902,6 +902,70 @@ describe("win theme authorization", () => {
 		expect(result.data?.[0]?.sectionName).toBe("Transition Plan");
 	});
 
+	it("falls back to deterministic injection suggestions when AI returns unusable injection objects", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ injections: [{}] }) });
+		const insertedValues: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "33333333-3333-4333-8333-333333333333",
+					opportunityId: "22222222-2222-4222-8222-222222222222",
+					themeStatement: "Datacraft reduces delivery risk with proven implementation controls.",
+					shortVersion: "Proven delivery controls",
+					themeType: "risk_mitigation",
+					supportingEvidence: ["Three similar migrations completed on time", "ISO 27001 delivery governance"],
+					keywords: ["risk", "delivery", "controls"],
+					evaluationCriteriaIds: ["criteria-1"],
+					targetSections: ["Technical Approach", "Transition Plan"],
+					isActive: true,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "occ-1",
+					themeId: "33333333-3333-4333-8333-333333333333",
+					sectionName: "Technical Approach",
+					textExcerpt: "Existing delivery controls mention.",
+				}],
+			}));
+		dbMock.insert.mockImplementation(() => createChain({
+			onValues: (value) => insertedValues.push(value),
+			result: [{
+				id: "injection-1",
+				themeId: "33333333-3333-4333-8333-333333333333",
+				documentId: "22222222-2222-4222-8222-222222222222",
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				pageNumber: 1,
+				textContext: "Transition Plan section context for deterministic win-theme reinforcement.",
+				suggestedText: "Proven delivery controls Proof: Three similar migrations completed on time; ISO 27001 delivery governance.",
+				injectionType: "enhance",
+				rationale: "Deterministic fallback from active win theme with keywords: risk, delivery, controls.",
+				impactScore: 0.86,
+				status: "pending",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+		}));
+
+		const result = await generateInjectionSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			maxSuggestions: 1,
+		});
+
+		expect(result.success).toBe(true);
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				status: "pending",
+				suggestedText: expect.stringContaining("Proven delivery controls"),
+				rationale: expect.stringContaining("Deterministic fallback"),
+			}),
+		]);
+		expect(result.data?.[0]?.sectionName).toBe("Transition Plan");
+	});
+
 	it("scopes theme updates to opportunities assigned to the actor", async () => {
 		let updateWhere: unknown;
 		dbMock.update.mockReturnValueOnce(createChain({
