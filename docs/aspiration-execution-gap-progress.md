@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Deterministic Practice Recording Analysis
+
+Status: implemented and verified.
+
+Purpose: make oral presentation practice analysis produce repeatable timing and filler-word evidence instead of random simulated scores.
+
+Changes in this slice:
+- Replace random practice recording analysis with deterministic scoring from recording duration, planned slide timing, and transcript-like feedback text.
+- Allocate actual slide durations by estimated slide duration share and compute coverage scores from target variance.
+- Count filler words from available feedback text and explicitly recommend transcript-backed notes when filler evidence is unavailable.
+- Add regression coverage for deterministic pacing, slide coverage, filler counts, and persisted analysis payloads.
+- Extend the Wave 9 presentation proof manifest with presentation auth/practice analysis coverage.
+
+Verification:
+- `npm test -- presentations-auth.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 11 tests.
+- `npm run platform:proof -- --run wave9-presentation-export-artifacts` from `frontend/` passed, running 9 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Evaluation Criteria Mapping Suggestions
 
 Status: implemented and verified.

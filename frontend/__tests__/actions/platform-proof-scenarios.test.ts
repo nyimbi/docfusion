@@ -197,6 +197,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-020"]),
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:presentations-export",
+					"vitest:presentations-auth",
 				]),
 			}),
 		]);

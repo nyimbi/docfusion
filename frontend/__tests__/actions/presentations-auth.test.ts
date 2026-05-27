@@ -91,6 +91,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+	analyzePracticeRecording,
 	createPresentation,
 	listPresentations,
 	recordPractice,
@@ -189,5 +190,53 @@ describe("presentation action auth", () => {
 				recordedBy: sessionContext.userId,
 			})
 		);
+	});
+
+	it("analyzes practice recordings deterministically from timing and feedback text", async () => {
+		const updateChain = createChain([]);
+		dbMock.select
+			.mockReturnValueOnce(createChain([
+				{
+					id: "recording-1",
+					presentationId: "presentation-1",
+					duration: 300,
+					aiFeedback: "Um our technical delivery proof is strong, uh, and you know the close is clear.",
+				},
+			]))
+			.mockReturnValueOnce(createChain([
+				{
+					id: "presentation-1",
+					organizationId: sessionContext.organizationId,
+				},
+			]))
+			.mockReturnValueOnce(createChain([
+				{ id: "slide-1", presentationId: "presentation-1", slideNumber: 1, estimatedDuration: 120 },
+				{ id: "slide-2", presentationId: "presentation-1", slideNumber: 2, estimatedDuration: 180 },
+			]));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await analyzePracticeRecording("recording-1");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		expect(result.data.pacingAnalysis).toMatchObject({
+			averageWPM: 150,
+			variationScore: 100,
+			pauseScore: 75,
+		});
+		expect(result.data.contentCoverage).toEqual([
+			expect.objectContaining({ slideId: "slide-1", duration: 120, coverageScore: 100 }),
+			expect.objectContaining({ slideId: "slide-2", duration: 180, coverageScore: 100 }),
+		]);
+		expect(result.data.fillerWordAnalysis).toEqual([
+			{ word: "um", count: 1, timestamps: [] },
+			{ word: "uh", count: 1, timestamps: [] },
+			{ word: "like", count: 0, timestamps: [] },
+			{ word: "you know", count: 1, timestamps: [] },
+		]);
+		expect(updateChain.set).toHaveBeenCalledWith(expect.objectContaining({
+			overallScore: result.data.overallScore,
+			fillerWordAnalysis: result.data.fillerWordAnalysis,
+		}));
 	});
 });

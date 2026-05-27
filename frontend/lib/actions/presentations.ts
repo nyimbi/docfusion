@@ -2510,8 +2510,6 @@ export async function analyzePracticeRecording(
 			.where(eq(presentationSlides.presentationId, recording.presentationId!))
 			.orderBy(asc(presentationSlides.slideNumber));
 
-		// In production, this would use speech-to-text and analysis APIs
-		// For now, generate simulated analysis
 		const analysis = generatePracticeAnalysis(recording, slides);
 
 		// Update recording with analysis
@@ -2541,7 +2539,8 @@ export async function analyzePracticeRecording(
 }
 
 /**
- * Generate practice analysis (simulated - in production would use speech analysis)
+ * Generate deterministic practice analysis from recording duration, slide timing,
+ * and any transcript-like feedback text already attached to the recording.
  */
 function generatePracticeAnalysis(
 	recording: PracticeRecording,
@@ -2555,42 +2554,45 @@ function generatePracticeAnalysis(
 } {
 	const durationSeconds = recording.duration ?? 0;
 	const estimatedWords = Math.round(durationSeconds * 2.5); // ~150 WPM average
-	const averageWPM = Math.round(estimatedWords / (durationSeconds / 60));
+	const durationMinutes = durationSeconds > 0 ? durationSeconds / 60 : 0;
+	const averageWPM = durationMinutes > 0 ? Math.round(estimatedWords / durationMinutes) : 0;
+	const targetTotalDuration = slides.reduce((sum, slide) => sum + (slide.estimatedDuration ?? 60), 0) || slides.length * 60;
+	const transcriptText = typeof recording.aiFeedback === "string" ? recording.aiFeedback : "";
 
 	const pacingAnalysis: PacingAnalysis = {
 		averageWPM,
-		variationScore: 75 + Math.random() * 20,
+		variationScore: calculateTimingVariationScore(durationSeconds, targetTotalDuration),
 		tooFastSegments: averageWPM > 180 ? [{ startTime: 60, endTime: 120 }] : [],
 		tooSlowSegments: averageWPM < 120 ? [{ startTime: 180, endTime: 240 }] : [],
-		pauseScore: 70 + Math.random() * 25,
+		pauseScore: calculatePauseReadinessScore(durationSeconds, slides.length),
 	};
 
-	const contentCoverage: ContentCoverage[] = slides.map((slide, index) => {
+	const contentCoverage: ContentCoverage[] = slides.map((slide) => {
 		const targetDuration = slide.estimatedDuration ?? 60;
-		const actualDuration = Math.floor(durationSeconds / slides.length) + Math.floor(Math.random() * 30 - 15);
+		const actualDuration = targetTotalDuration > 0
+			? Math.round(durationSeconds * (targetDuration / targetTotalDuration))
+			: 0;
+		const variance = targetDuration > 0 ? Math.abs(actualDuration - targetDuration) / targetDuration : 0;
 
 		return {
 			slideId: slide.id,
 			slideNumber: slide.slideNumber,
-			covered: true,
+			covered: durationSeconds > 0 && actualDuration >= Math.min(15, targetDuration * 0.25),
 			duration: actualDuration,
 			targetDuration,
-			coverageScore: Math.min(100, Math.max(50, 100 - Math.abs(actualDuration - targetDuration))),
+			coverageScore: Math.min(100, Math.max(0, Math.round(100 - variance * 100))),
 		};
 	});
 
-	const fillerWordAnalysis: FillerWordCount[] = [
-		{ word: "um", count: Math.floor(Math.random() * 10), timestamps: [] },
-		{ word: "uh", count: Math.floor(Math.random() * 8), timestamps: [] },
-		{ word: "like", count: Math.floor(Math.random() * 5), timestamps: [] },
-		{ word: "you know", count: Math.floor(Math.random() * 3), timestamps: [] },
-	];
+	const fillerWordAnalysis = countFillerWords(transcriptText);
 
 	const totalFillers = fillerWordAnalysis.reduce((sum, f) => sum + f.count, 0);
-	const fillersPerMinute = totalFillers / (durationSeconds / 60);
+	const fillersPerMinute = durationMinutes > 0 ? totalFillers / durationMinutes : 0;
 
 	const pacingScore = averageWPM >= 140 && averageWPM <= 170 ? 90 : averageWPM >= 120 && averageWPM <= 180 ? 75 : 60;
-	const coverageScore = contentCoverage.reduce((sum, c) => sum + c.coverageScore, 0) / contentCoverage.length;
+	const coverageScore = contentCoverage.length > 0
+		? contentCoverage.reduce((sum, c) => sum + c.coverageScore, 0) / contentCoverage.length
+		: 0;
 	const fillerScore = fillersPerMinute <= 2 ? 90 : fillersPerMinute <= 4 ? 75 : 60;
 
 	const overallScore = Math.round(pacingScore * 0.3 + coverageScore * 0.5 + fillerScore * 0.2);
@@ -2605,6 +2607,9 @@ function generatePracticeAnalysis(
 
 	if (fillersPerMinute > 3) {
 		recommendations.push(`Work on reducing filler words (${totalFillers} detected). Practice pausing instead.`);
+	}
+	if (!transcriptText.trim()) {
+		recommendations.push("Attach transcript-backed notes before relying on filler-word coaching.");
 	}
 
 	const lowCoverageSlides = contentCoverage.filter((c) => c.coverageScore < 70);
@@ -2623,6 +2628,34 @@ function generatePracticeAnalysis(
 		overallScore,
 		recommendations,
 	};
+}
+
+function calculateTimingVariationScore(durationSeconds: number, targetTotalDuration: number): number {
+	if (durationSeconds <= 0 || targetTotalDuration <= 0) return 0;
+	const variance = Math.abs(durationSeconds - targetTotalDuration) / targetTotalDuration;
+	return Math.min(100, Math.max(0, Math.round(100 - variance * 100)));
+}
+
+function calculatePauseReadinessScore(durationSeconds: number, slideCount: number): number {
+	if (durationSeconds <= 0 || slideCount <= 0) return 0;
+	const secondsPerSlide = durationSeconds / slideCount;
+	if (secondsPerSlide >= 45 && secondsPerSlide <= 120) return 90;
+	if (secondsPerSlide >= 30 && secondsPerSlide <= 150) return 75;
+	return 60;
+}
+
+function countFillerWords(transcriptText: string): FillerWordCount[] {
+	const normalized = transcriptText.toLowerCase();
+	return [
+		{ word: "um", pattern: /\bum\b/g },
+		{ word: "uh", pattern: /\buh\b/g },
+		{ word: "like", pattern: /\blike\b/g },
+		{ word: "you know", pattern: /\byou know\b/g },
+	].map(({ word, pattern }) => ({
+		word,
+		count: Array.from(normalized.matchAll(pattern)).length,
+		timestamps: [],
+	}));
 }
 
 /**
