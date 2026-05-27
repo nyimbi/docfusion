@@ -397,9 +397,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		wave: 9,
 		title: "Live persisted import-to-response proof",
 		kind: "live-safe",
-		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		proofTargets: ["F-001", "F-005", "F-008", "F-020", "S-001"],
 		requiresLiveServices: true,
-		description: "Persists a live discovered opportunity, source document, parsed RFP, requirements, and response drafts into PostgreSQL, verifies tenant-scoped rows, then cleans them up.",
+		description: "Persists a live discovered opportunity, source document, parsed RFP, requirements, response drafts, and generated win themes into PostgreSQL, verifies tenant-scoped rows, then cleans them up.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-persisted-import-response.ts"],

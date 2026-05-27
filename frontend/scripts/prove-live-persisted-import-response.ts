@@ -21,6 +21,7 @@ import {
 	proposalDocuments,
 	rfpDocuments,
 	rfpRequirements,
+	winThemes,
 } from "@/lib/db/schema";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { checkDoclingHealth, convertDocument } from "@/lib/services/docling-client";
@@ -47,6 +48,7 @@ interface PersistedProofIds {
 	requirementIds: string[];
 	documentIds: string[];
 	proposalDocumentIds: string[];
+	winThemeIds: string[];
 }
 
 interface LivePersistedImportResponseProof {
@@ -80,6 +82,7 @@ interface LivePersistedImportResponseProof {
 		responseDocumentCount: number;
 		responseDocumentTypes: ProposalDocumentType[];
 		totalDraftWordCount: number;
+		winThemeSeedCount: number;
 		readinessStatus: string;
 		readinessWarnings: string[];
 	};
@@ -92,8 +95,10 @@ interface LivePersistedImportResponseProof {
 			requirementRows: number;
 			proposalDocumentRows: number;
 			responseDocumentRows: number;
+			winThemeRows: number;
 			responseDocumentTypes: string[];
 			minResponseDocumentWordCount: number;
+			winThemeCriteriaIds: string[];
 		};
 	};
 	schema?: {
@@ -207,6 +212,7 @@ async function proveLivePersistedImportResponse(
 			responseDocumentCount: responsePackage.documents.length,
 			responseDocumentTypes: responsePackage.documents.map((document) => document.documentType),
 			totalDraftWordCount: responsePackage.totalWordCount,
+			winThemeSeedCount: responsePackage.winThemeSeeds.length,
 			readinessStatus: responsePackage.readiness.status,
 			readinessWarnings: responsePackage.readiness.warnings,
 		},
@@ -559,6 +565,34 @@ async function persistProofRecords(
 		throw new Error("Persisted proof proposal document insert count mismatch");
 	}
 
+	const createdWinThemes = await db.insert(winThemes).values(responsePackage.winThemeSeeds.map((seed, index) => ({
+		opportunityId: createdOpportunity.id,
+		themeStatement: seed.statement,
+		shortVersion: seed.shortVersion,
+		themeType: seed.type,
+		priority: index + 1,
+		supportingEvidence: seed.supportingEvidence,
+		relatedProjects: [],
+		evaluationCriteriaIds: seed.evaluationCriteriaIds,
+		keywords: seed.keywords,
+		variations: [seed.rationale],
+		targetSections: seed.targetDocumentTypes,
+		minOccurrences: Math.max(2, Math.min(4, seed.targetDocumentTypes.length || 3)),
+		isActive: true,
+		createdBy: userId,
+	}))).returning({ id: winThemes.id });
+	const winThemeIds = createdWinThemes.map((theme) => theme.id);
+	cleanup.register({
+		id: createdOpportunity.id,
+		kind: "win_themes",
+		cleanup: async () => {
+			await db.delete(winThemes).where(inArray(winThemes.id, winThemeIds));
+		},
+	});
+	if (createdWinThemes.length !== responsePackage.winThemeSeeds.length) {
+		throw new Error("Persisted proof win theme insert count mismatch");
+	}
+
 	const ids: PersistedProofIds = {
 		organizationId,
 		userId,
@@ -568,6 +602,7 @@ async function persistProofRecords(
 		requirementIds: createdRequirements.map((requirement) => requirement.id),
 		documentIds,
 		proposalDocumentIds: createdProposalDocuments.map((document) => document.id),
+		winThemeIds,
 	};
 	return {
 		ids,
@@ -603,8 +638,13 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 		eq(proposalDocuments.opportunityId, ids.opportunityId),
 		eq(proposalDocuments.organizationId, ids.organizationId)
 	));
+	const winThemeRows = await db.select({
+		id: winThemes.id,
+		evaluationCriteriaIds: winThemes.evaluationCriteriaIds,
+	}).from(winThemes).where(inArray(winThemes.id, ids.winThemeIds));
 	const responseDocumentTypes = proposalDocumentRows.map((row) => row.documentType).sort();
 	const minResponseDocumentWordCount = Math.min(...responseDocumentRows.map((row) => row.wordCount));
+	const winThemeCriteriaIds = [...new Set(winThemeRows.flatMap((row) => row.evaluationCriteriaIds ?? []))].sort();
 
 	if (opportunityRows.length !== 1) throw new Error("Persisted proof opportunity verification failed");
 	if (opportunityDocumentRows.length !== 1) throw new Error("Persisted proof opportunity document verification failed");
@@ -612,6 +652,7 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 	if (requirementRows.length < 3) throw new Error("Persisted proof requirement verification found too few rows");
 	if (proposalDocumentRows.length !== 6) throw new Error("Persisted proof proposal document verification failed");
 	if (responseDocumentRows.length !== 6) throw new Error("Persisted proof response document verification failed");
+	if (winThemeRows.length < 1) throw new Error("Persisted proof win theme verification failed");
 	if (minResponseDocumentWordCount < 250) throw new Error("Persisted proof response documents are too thin");
 
 	return {
@@ -621,8 +662,10 @@ async function verifyPersistedProofRows(ids: PersistedProofIds): Promise<NonNull
 		requirementRows: requirementRows.length,
 		proposalDocumentRows: proposalDocumentRows.length,
 		responseDocumentRows: responseDocumentRows.length,
+		winThemeRows: winThemeRows.length,
 		responseDocumentTypes,
 		minResponseDocumentWordCount,
+		winThemeCriteriaIds,
 	};
 }
 
@@ -634,6 +677,7 @@ async function countRemainingProofRows(ids: PersistedProofIds): Promise<Record<s
 		requirementRows,
 		proposalDocumentRows,
 		responseDocumentRows,
+		winThemeRows,
 	] = await Promise.all([
 		db.select({ id: opportunities.id }).from(opportunities).where(eq(opportunities.id, ids.opportunityId)),
 		db.select({ id: opportunityDocuments.id }).from(opportunityDocuments).where(eq(opportunityDocuments.id, ids.opportunityDocumentId)),
@@ -641,6 +685,7 @@ async function countRemainingProofRows(ids: PersistedProofIds): Promise<Record<s
 		db.select({ id: rfpRequirements.id }).from(rfpRequirements).where(eq(rfpRequirements.rfpDocumentId, ids.rfpDocumentId)),
 		db.select({ id: proposalDocuments.id }).from(proposalDocuments).where(eq(proposalDocuments.opportunityId, ids.opportunityId)),
 		db.select({ id: documents.id }).from(documents).where(inArray(documents.id, ids.documentIds)),
+		db.select({ id: winThemes.id }).from(winThemes).where(inArray(winThemes.id, ids.winThemeIds)),
 	]);
 	return {
 		opportunities: opportunityRows.length,
@@ -649,6 +694,7 @@ async function countRemainingProofRows(ids: PersistedProofIds): Promise<Record<s
 		rfpRequirements: requirementRows.length,
 		proposalDocuments: proposalDocumentRows.length,
 		responseDocuments: responseDocumentRows.length,
+		winThemes: winThemeRows.length,
 	};
 }
 
@@ -723,6 +769,8 @@ async function writeArtifacts(
 			`requirement-rows:${proof.persisted?.verified.requirementRows ?? 0}`,
 			`proposal-document-rows:${proof.persisted?.verified.proposalDocumentRows ?? 0}`,
 			`response-document-rows:${proof.persisted?.verified.responseDocumentRows ?? 0}`,
+			`win-theme-rows:${proof.persisted?.verified.winThemeRows ?? 0}`,
+			`win-theme-criteria:${proof.persisted?.verified.winThemeCriteriaIds.length ?? 0}`,
 			`cleanup-remaining:${Object.values(proof.cleanup?.remainingRows ?? {}).reduce((total, count) => total + count, 0)}`,
 		],
 		topology_tier: "live-connectivity",
@@ -732,7 +780,7 @@ async function writeArtifacts(
 		cleanup_status: disposition === "pass" ? "restored" : "cleanup-pending",
 		disposition,
 		notes: disposition === "pass"
-			? "Live opportunity, source document, parsed RFP, requirements, and response draft records were persisted, verified, and cleaned up."
+			? "Live opportunity, source document, parsed RFP, requirements, response draft records, and win themes were persisted, verified, and cleaned up."
 			: proof.error ?? "Live persisted import-to-response proof failed.",
 	}], {
 		title: "Platform Live Persisted Import Response Evidence",

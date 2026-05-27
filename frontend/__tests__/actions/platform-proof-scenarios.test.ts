@@ -201,7 +201,7 @@ describe("platform proof scenarios", () => {
 			expect.objectContaining({
 				id: "live-persisted-import-response",
 				kind: "live-safe",
-				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020"]),
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-008", "F-020", "S-001"]),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-persisted-import-response-evidence.md",
 				]),

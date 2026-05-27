@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Persisted Proof Covers Win Themes
+
+Status: implemented and code-verified; live PostgreSQL proof blocked by database connectivity.
+
+Purpose: extend the live persisted import-to-response proof so it verifies not only opportunity, source document, RFP, requirements, and response draft persistence, but also generated win-theme strategy rows.
+
+Changes in this slice:
+- Persist live response package win-theme seeds as `win_themes` rows during the live persisted import-response proof.
+- Verify persisted win-theme rows and their evaluator criteria IDs alongside tenant-scoped opportunity, source document, RFP, requirement, proposal document, and response document rows.
+- Include win-theme rows in cleanup verification so live proof runs leave no strategy rows behind.
+- Add win-theme row and criteria counts to proof evidence artifact IDs.
+- Update the live persisted proof scenario contract to include strategic capability target `S-001`.
+
+Verification:
+- `npm test -- platform-proof-scenarios.test.ts live-response-package.test.ts win-themes-auth.test.ts` from `frontend/` passed, running 18 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- Attempted `npm run platform:proof -- --include-live-safe --run live-persisted-import-response` from `frontend/`, but the PostgreSQL endpoint refused the connection: `connect ECONNREFUSED 88.80.188.224:5432`. No passing live evidence was recorded for this slice.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable so win-theme row persistence is proven against the live database.
+- Add UI review/approval for generated win-theme seeds before bulk persistence.
+
 ### 2026-05-27 - Persist Response Win Theme Seeds
 
 Status: implemented and verified.
