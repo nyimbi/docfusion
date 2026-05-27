@@ -78,6 +78,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 	});
 	const parser = parserForSourceUrl(SOURCE_URL);
 	let markdown = result.data?.markdown ?? result.data?.html ?? "";
+	let html = result.data?.html ?? "";
 	let links = result.data?.links ?? [];
 	let title = result.data?.metadata?.title;
 	let scrapeMethod: "firecrawl" | "browser_fallback" = "firecrawl";
@@ -88,6 +89,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 		fallbackReason = result.error ?? "Firecrawl returned no configured source content";
 		const fallback = await scrapeConfiguredSourceWithBrowser(fallbackReason);
 		markdown = fallback.markdown;
+		html = fallback.html;
 		links = fallback.links;
 		title = fallback.title;
 		scrapeMethod = "browser_fallback";
@@ -95,7 +97,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 	}
 
 	let parsed = await parser.parse({
-		html: markdown,
+		html,
 		markdown,
 		links,
 		url: SOURCE_URL,
@@ -104,12 +106,13 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 		fallbackReason = `Firecrawl returned content but ${parser.name} found no source opportunities`;
 		const fallback = await scrapeConfiguredSourceWithBrowser(fallbackReason);
 		markdown = fallback.markdown;
+		html = fallback.html;
 		links = fallback.links;
 		title = fallback.title;
 		scrapeMethod = "browser_fallback";
 		browserServiceUrl = BROWSER_SCRAPER_URL;
 		parsed = await parser.parse({
-			html: markdown,
+			html,
 			markdown,
 			links,
 			url: SOURCE_URL,
@@ -120,8 +123,17 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 	}
 
 	const firstTitle = parsed.opportunities[0]?.title ?? "";
+	if (firstTitle.trim().length === 0) {
+		throw new Error("Source opportunity title was empty after normalization");
+	}
 	if (/\b(Title|Ref No|Deadline|Posted)\b/i.test(firstTitle)) {
 		throw new Error(`Source opportunity title was not normalized: ${firstTitle}`);
+	}
+	const malformedCountry = parsed.opportunities
+		.slice(0, 5)
+		.find((opportunity) => /<br|https?:\/\//i.test(String(opportunity.countryRegion ?? "")));
+	if (malformedCountry) {
+		throw new Error(`Source opportunity country was not normalized: ${malformedCountry.countryRegion}`);
 	}
 
 	return {
@@ -146,6 +158,7 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 async function scrapeConfiguredSourceWithBrowser(fallbackReason: string): Promise<{
 	title?: string;
 	markdown: string;
+	html: string;
 	links: string[];
 }> {
 	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, SOURCE_URL, {
@@ -160,6 +173,7 @@ async function scrapeConfiguredSourceWithBrowser(fallbackReason: string): Promis
 	return {
 		title: result.data?.metadata?.title,
 		markdown,
+		html: result.data?.html ?? markdown,
 		links: result.data?.links ?? [],
 	};
 }
@@ -174,6 +188,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("procurement-notices.undp.org")) return getParser("undp") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
+	if (host.includes("dgmarket.com")) return getParser("dgmarket") ?? genericParser;
 	return genericParser;
 }
 

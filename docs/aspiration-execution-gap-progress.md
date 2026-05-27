@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - DGMarket Default Discovery Coverage
+
+Status: implemented and verified.
+
+Purpose: expand configured opportunity discovery with DGMarket coverage while keeping parser output normalized enough for response-package intake.
+
+Changes in this slice:
+- Add DGMarket to the default configured discovery source list.
+- Harden the DGMarket parser for rendered listing HTML from the connectivity-host scrape path.
+- Preserve detail links from DGMarket markdown table rows as both `portalUrl` and `documentUrl`.
+- Filter DGMarket category/navigation links so they do not become false opportunity records.
+- Route the live configured-source proof harness to the DGMarket parser and preserve Firecrawl HTML separately from markdown.
+- Add live proof guards for empty titles and country fields polluted with rendered markup or URLs.
+- Extend the Wave 9 discovery bridge proof to include DGMarket parser and default-source coverage.
+
+Verification:
+- `npm test -- dgmarket-parser.test.ts default-discovery-sources.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 10 focused tests.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 60 Wave 9 discovery bridge tests.
+- `LIVE_SOURCE_DISCOVERY_URL=https://www.dgmarket.com npm run platform:proof -- --include-live-safe --run live-source-discovery` from `frontend/` passed; Firecrawl returned 16 normalized DGMarket opportunities with stable titles, notice IDs, countries, and portal URLs.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Documents Page Win Theme Review Surface
 
 Status: implemented and verified.

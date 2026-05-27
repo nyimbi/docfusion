@@ -147,6 +147,8 @@ describe("platform proof scenarios", () => {
 				id: "wave9-discovery-rfp-response-bridge",
 				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
 				expectedArtifacts: expect.arrayContaining([
+					"vitest:dgmarket-parser",
+					"vitest:default-discovery-sources",
 					"vitest:discovery-opportunity-import",
 					"vitest:opportunity-documents-scope",
 					"vitest:rfp-document-service",

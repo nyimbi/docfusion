@@ -6,13 +6,14 @@ import {
 } from "@/lib/services/default-discovery-sources";
 
 describe("default discovery sources", () => {
-	it("preloads live-proven configured procurement sources", () => {
+	it("preloads live-proven and browser-fallback-capable configured procurement sources", () => {
 		expect(DEFAULT_DISCOVERY_SOURCE_URLS).toEqual([
 			"https://tenders.go.ke/tenders",
 			"https://www.ungm.org/Public/Notice",
 			"https://procurement-notices.undp.org",
 			"https://projects.worldbank.org/en/projects-operations/procurement",
 			"https://www.afdb.org/en/projects-and-operations/procurement",
+			"https://www.dgmarket.com",
 			"https://www.comesa.int/category/open-tenders/",
 			"https://www.un.org/procurement/solicitations-opportunities",
 			"https://www.unicef.org/supply/service-contracts-tender-calendar",

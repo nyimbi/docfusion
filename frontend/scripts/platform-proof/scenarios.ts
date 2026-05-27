@@ -298,6 +298,8 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			args: [
 				"test",
 				"--",
+				"dgmarket-parser.test.ts",
+				"default-discovery-sources.test.ts",
 				"discovery-opportunity-import.test.ts",
 				"opportunity-documents-scope.test.ts",
 				"rfp-document-service.test.ts",
@@ -305,6 +307,8 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			],
 		},
 		expectedArtifacts: [
+			"vitest:dgmarket-parser",
+			"vitest:default-discovery-sources",
 			"vitest:discovery-opportunity-import",
 			"vitest:opportunity-documents-scope",
 			"vitest:rfp-document-service",
