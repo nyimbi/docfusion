@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Discovery Services Revalidation
+
+Status: verified.
+
+Purpose: verify the configured live search and scrape services that underpin opportunity discovery.
+
+Verification:
+- Updated the local ignored `frontend/.env.local` SearXNG endpoint to `https://search.lindela.io`, matching the platform routing note.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` passed with run `live_discovery_20260527T150450Z`.
+- SearXNG returned 9 opportunity-relevant results for `tenders.go.ke` via `https://search.lindela.io`.
+- Firecrawl returned usable markdown for `https://example.com` with length 180.
+- Browser fallback service at `http://84.247.181.100:3003` returned usable markdown with length 528.
+
+Remaining after this slice:
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+- Continue hardening live opportunity discovery beyond service availability into source-specific document intake and response generation.
+
 ### 2026-05-27 - Full Non-Live Platform Proof After Win/Loss Hardening
 
 Status: verified.
