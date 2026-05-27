@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Final Checklist Enforces Evaluator Win Themes
+
+Status: implemented and verified.
+
+Purpose: prevent final submission from passing when response readiness reports that evaluator criteria are not mapped to win-theme strategy coverage.
+
+Changes in this slice:
+- Extend final submission checklist readiness parsing with optional `winThemeCriteriaCoverage` and `winThemeSeedCount` metrics.
+- Add an evaluator criteria win-theme coverage checklist item.
+- Treat missing evaluator/win-theme coverage metrics as advisory for older response-readiness receipts.
+- Block final submission when a current response-readiness receipt reports partial evaluator-to-win-theme coverage.
+- Add focused regression coverage for a 50% evaluator criteria win-theme mapping gap.
+
+Verification:
+- `npm test -- final-submission-checklist-workflow.test.ts` from `frontend/` passed, running 12 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave6-final-submission-gate` from `frontend/` passed, running 21 tests across final checklist and submission workflows.
+
+Remaining after this slice:
+- Surface evaluator/win-theme coverage in the final submission UI so capture managers can see the exact strategy gap before submission.
+- Rerun persisted live database proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Persisted Proof Covers Win Themes
 
 Status: implemented and code-verified; live PostgreSQL proof blocked by database connectivity.

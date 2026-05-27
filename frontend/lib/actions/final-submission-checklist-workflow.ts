@@ -67,6 +67,8 @@ type ResponsePackageReadinessSnapshot = {
 		documentsDrafted: number;
 		sectionsDrafted: number;
 		complianceEntriesCreated: number;
+		winThemeCriteriaCoverage: number | null;
+		winThemeSeedCount: number | null;
 	};
 };
 
@@ -310,6 +312,7 @@ function buildChecklistItems(
 		}
 	}
 	items.push(responsePackageReadinessItem(responsePackageReadiness));
+	items.push(evaluatorWinThemeCoverageItem(responsePackageReadiness));
 	items.push(complianceLockItem(matrices));
 	items.push(claimEvidenceItem(claims));
 	items.push(themeConsistencyItem(themeAnalyses));
@@ -368,6 +371,38 @@ function responsePackageReadinessSuccessMessage(readiness: ResponsePackageReadin
 	return `Response package covers ${formatPercent(readiness.metrics.requirementCoverage)} of accepted requirements across ${readiness.metrics.documentsDrafted} drafted document${readiness.metrics.documentsDrafted === 1 ? "" : "s"}`;
 }
 
+function evaluatorWinThemeCoverageItem(
+	readiness: ResponsePackageReadinessSnapshot | null
+): FinalSubmissionChecklistItem {
+	const coverage = readiness?.metrics.winThemeCriteriaCoverage;
+	if (!readiness || coverage === null || coverage === undefined) {
+		return {
+			id: "evidence:evaluator-win-theme-coverage",
+			category: "evidence",
+			label: "Evaluator criteria win-theme coverage",
+			required: false,
+			passed: false,
+			message: "Response readiness did not report evaluator-to-win-theme coverage",
+			subjectId: readiness?.workflowInstanceId ?? null,
+			assignedRole: "capture_manager",
+		};
+	}
+
+	const passed = coverage >= 1;
+	return {
+		id: "evidence:evaluator-win-theme-coverage",
+		category: "evidence",
+		label: "Evaluator criteria win-theme coverage",
+		required: true,
+		passed,
+		message: passed
+			? `Evaluator criteria are covered by ${readiness.metrics.winThemeSeedCount ?? 0} win theme seed${readiness.metrics.winThemeSeedCount === 1 ? "" : "s"}`
+			: `Only ${formatPercent(coverage)} of evaluator criteria are mapped to win themes`,
+		subjectId: readiness.workflowInstanceId,
+		assignedRole: "capture_manager",
+	};
+}
+
 function responsePackageReadinessFailureMessage(readiness: ResponsePackageReadinessSnapshot): string {
 	if (readiness.status === "unknown") {
 		return "Response package readiness status is unrecognized; rerun response package drafting";
@@ -416,6 +451,8 @@ function responsePackageReadinessMetrics(value: unknown): ResponsePackageReadine
 		documentsDrafted: numberMetric(metrics.documentsDrafted),
 		sectionsDrafted: numberMetric(metrics.sectionsDrafted),
 		complianceEntriesCreated: numberMetric(metrics.complianceEntriesCreated),
+		winThemeCriteriaCoverage: optionalRatioMetric(metrics.winThemeCriteriaCoverage),
+		winThemeSeedCount: optionalNumberMetric(metrics.winThemeSeedCount),
 	};
 }
 
@@ -425,6 +462,15 @@ function stringArray(value: unknown): string[] {
 
 function numberMetric(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function optionalNumberMetric(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function optionalRatioMetric(value: unknown): number | null {
+	const metric = optionalNumberMetric(value);
+	return metric === null ? null : clampRatio(metric);
 }
 
 function clampRatio(value: number): number {

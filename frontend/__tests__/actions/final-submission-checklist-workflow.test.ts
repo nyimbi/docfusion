@@ -283,6 +283,8 @@ const readyResponsePackageWorkflow = {
 				documentsDrafted: 3,
 				sectionsDrafted: 9,
 				complianceEntriesCreated: 3,
+				winThemeCriteriaCoverage: 1,
+				winThemeSeedCount: 3,
 			},
 		},
 	},
@@ -807,6 +809,67 @@ describe("final submission checklist workflow", () => {
 				}),
 			})
 		);
+	});
+
+	it("blocks final submission when evaluator criteria are not mapped to win themes", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({
+				result: [
+					docFixture(),
+					docFixture({
+						proposalDocumentId: "pd-management",
+						documentId: "doc-management",
+						documentType: "management_plan",
+						title: "Management Plan",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-management", proposalDocumentId: "pd-management" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+					docFixture({
+						proposalDocumentId: "pd-cost",
+						documentId: "doc-cost",
+						documentType: "cost_proposal",
+						title: "Cost Proposal",
+						metadata: {
+							finalArtifact: { ...finalArtifact, documentId: "doc-cost", proposalDocumentId: "pd-cost" },
+							finalSubmissionSignoff: { signedBy: "executive-1", signedAt: "2026-05-05T00:00:00.000Z" },
+						},
+					}),
+				],
+			}))
+			.mockReturnValueOnce(createChain({ result: [lockedMatrix] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [cleanThemeAnalysis] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					...readyResponsePackageWorkflow,
+					id: "response-package-workflow-criteria-gap",
+					metadata: {
+						readiness: {
+							...readyResponsePackageWorkflow.metadata.readiness,
+							metrics: {
+								...readyResponsePackageWorkflow.metadata.readiness.metrics,
+								winThemeCriteriaCoverage: 0.5,
+								winThemeSeedCount: 1,
+							},
+						},
+					},
+				}],
+			}));
+
+		const result = await evaluateFinalSubmissionChecklistWorkflow("opp-1");
+
+		expect(result.allowed).toBe(false);
+		expect(result.blockers.join("\n")).toContain("Evaluator criteria win-theme coverage");
+		expect(result.blockers.join("\n")).toContain("Only 50% of evaluator criteria are mapped to win themes");
+		expect(result.items.find((item) => item.id === "evidence:evaluator-win-theme-coverage")).toMatchObject({
+			category: "evidence",
+			required: true,
+			passed: false,
+			subjectId: "response-package-workflow-criteria-gap",
+			assignedRole: "capture_manager",
+		});
 	});
 
 	it("blocks known critical win-theme consistency gaps before final submission", async () => {
