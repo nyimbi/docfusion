@@ -547,6 +547,129 @@ function responseSeedToThemeSuggestion(
 	};
 }
 
+const CRITERIA_MAPPING_STOPWORDS = new Set([
+	"and",
+	"are",
+	"for",
+	"from",
+	"into",
+	"must",
+	"our",
+	"shall",
+	"that",
+	"the",
+	"this",
+	"through",
+	"with",
+	"will",
+	"your",
+]);
+
+function tokenizeCriteriaMappingText(value: string): string[] {
+	return Array.from(new Set(value
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, " ")
+		.split(/\s+/)
+		.map((term) => term.trim())
+		.filter((term) => term.length >= 3 && !CRITERIA_MAPPING_STOPWORDS.has(term))));
+}
+
+function textList(value: unknown): string[] {
+	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function themeMappingText(theme: DBWinTheme): string {
+	return [
+		theme.themeStatement,
+		theme.shortVersion,
+		theme.themeType,
+		...textList(theme.supportingEvidence),
+		...textList(theme.keywords),
+	].filter(Boolean).join(" ");
+}
+
+function scoreThemeForCriterion(
+	theme: DBWinTheme,
+	criterion: LiveResponseEvaluationSignal
+): { relevanceScore: number; notes: string } | null {
+	const criterionTerms = tokenizeCriteriaMappingText([
+		criterion.text,
+		criterion.sourceSection,
+		criterion.weight,
+		criterion.documentType,
+		criterion.responseStrategy,
+	].filter(Boolean).join(" "));
+	const themeTerms = new Set(tokenizeCriteriaMappingText(themeMappingText(theme)));
+	const overlappingTerms = criterionTerms.filter((term) => themeTerms.has(term));
+	const keywordTerms = textList(theme.keywords).flatMap(tokenizeCriteriaMappingText);
+	const keywordOverlap = keywordTerms.filter((term) => criterionTerms.includes(term)).length;
+	const evidenceMentionsCriterion = textList(theme.supportingEvidence)
+		.some((evidence) => evidence.toLowerCase().includes(criterion.id.toLowerCase()));
+
+	let score = Math.min(60, overlappingTerms.length * 12);
+	score += Math.min(20, keywordOverlap * 10);
+	if (evidenceMentionsCriterion) score += 20;
+	if (theme.themeType === "risk_mitigation" && /\brisk|transition|governance|schedule\b/i.test(criterion.responseStrategy)) {
+		score += 8;
+	}
+	if (theme.themeType === "proof_point" && /\bproof|evidence|past performance|reference\b/i.test(criterion.responseStrategy)) {
+		score += 8;
+	}
+
+	const relevanceScore = Math.min(95, Math.round(score));
+	if (relevanceScore < 35) return null;
+	return {
+		relevanceScore,
+		notes: `Suggested from ${overlappingTerms.slice(0, 4).join(", ") || "theme evidence"} overlap with evaluator criterion.`,
+	};
+}
+
+function criteriaNameForRequirement(requirement: typeof rfpRequirements.$inferSelect): string {
+	const label = requirement.title || requirement.requirementText;
+	return [requirement.sourceSection ?? requirement.requirementNumber, label].filter(Boolean).join(": ");
+}
+
+function buildSuggestedCriteriaMappings(input: {
+	opportunityId: string;
+	evaluationRequirements: (typeof rfpRequirements.$inferSelect)[];
+	themes: DBWinTheme[];
+}): CriteriaThemeMapping[] {
+	return input.evaluationRequirements.map((requirement) => {
+		const criterion = requirementToEvaluationSignal(requirement);
+		if (!criterion) {
+			throw new Error("Cannot build criteria mapping for a non-evaluation requirement");
+		}
+		const mappedThemes = input.themes.flatMap((theme) => {
+			const existingCriteriaIds = textList(theme.evaluationCriteriaIds);
+			if (existingCriteriaIds.includes(criterion.id)) {
+				return [{
+					themeId: theme.id,
+					relevanceScore: 100,
+					notes: "Already mapped to this evaluator criterion.",
+				}];
+			}
+			const scored = scoreThemeForCriterion(theme, criterion);
+			return scored ? [{ themeId: theme.id, ...scored }] : [];
+		}).sort((left, right) => right.relevanceScore - left.relevanceScore).slice(0, 4);
+		const coverageScore = Math.min(
+			100,
+			mappedThemes.reduce((total, mapping, index) => total + (index === 0 ? mapping.relevanceScore : Math.round(mapping.relevanceScore / 3)), 0)
+		);
+
+		return {
+			id: `mapping-${criterion.id}`,
+			opportunityId: input.opportunityId,
+			criteriaId: criterion.id,
+			criteriaName: criteriaNameForRequirement(requirement),
+			criteriaWeight: typeof requirement.evaluationWeight === "number" ? requirement.evaluationWeight : undefined,
+			mappedThemes,
+			coverageScore,
+			isAdequate: mappedThemes.some((mapping) => mapping.relevanceScore >= 100) || (mappedThemes.length >= 2 && coverageScore >= 70),
+			updatedAt: new Date(),
+		};
+	});
+}
+
 /**
  * Map database occurrence to API type.
  */
@@ -2445,13 +2568,50 @@ export async function suggestCriteriaMappings(
 	opportunityId: string
 ): Promise<GetCriteriaMappingsResult> {
 	try {
-		await requireWinThemeContext();
+		const userContext = await requireWinThemeContext();
+		const validated = z.string().uuid("Invalid opportunity ID").parse(opportunityId);
 
-		// In a full implementation, use AI to suggest mappings
-		// For now, return current mappings
-		return getCriteriaMappings(opportunityId);
+		await requireAssignedOpportunity(validated, userContext);
+		const requirements = await db
+			.select()
+			.from(rfpRequirements)
+			.where(
+				and(
+					eq(rfpRequirements.opportunityId, validated),
+					eq(rfpRequirements.organizationId, userContext.organizationId)
+				)
+			)
+			.orderBy(asc(rfpRequirements.requirementNumber), asc(rfpRequirements.createdAt));
+		const evaluationRequirements = requirements.filter((requirement) =>
+			requirement.complianceStatus !== "not_applicable" &&
+			isAcceptedRfpRequirement(requirement) &&
+			Boolean(requirementToEvaluationSignal(requirement))
+		);
+
+		if (evaluationRequirements.length === 0) {
+			return getCriteriaMappings(validated);
+		}
+
+		const themes = await db
+			.select()
+			.from(winThemes)
+			.where(
+				and(visibleOpportunityThemesCondition(validated, userContext), eq(winThemes.isActive, true))
+			);
+
+		return {
+			success: true,
+			data: buildSuggestedCriteriaMappings({
+				opportunityId: validated,
+				evaluationRequirements,
+				themes,
+			}),
+		};
 	} catch (error) {
 		logger.error("Error suggesting criteria mappings:", error);
+		if (error instanceof z.ZodError) {
+			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
+		}
 		return { success: false, error: `Failed to suggest mappings: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }

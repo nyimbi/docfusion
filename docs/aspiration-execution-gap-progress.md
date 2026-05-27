@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Evaluation Criteria Mapping Suggestions
+
+Status: implemented and verified.
+
+Purpose: make criteria mapping suggestions connect active win themes to accepted evaluator criteria instead of echoing only mappings that already exist.
+
+Changes in this slice:
+- Replace the criteria suggestion placeholder with deterministic scoring against accepted evaluation requirements.
+- Preserve direct criteria-theme mappings as score-100 results.
+- Suggest additional active themes by matching evaluator criteria, response strategy, theme statement, evidence, and keywords.
+- Return criterion names, weights, coverage scores, adequacy flags, relevance scores, and mapping notes for operator review.
+- Add regression coverage for direct and suggested criteria mappings.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts` from `frontend/` passed, running 9 tests.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 28 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Deterministic Win Theme Suggestions
 
 Status: implemented and verified.

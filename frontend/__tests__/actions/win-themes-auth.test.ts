@@ -83,7 +83,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { createThemesFromResponseSeeds, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, getResponseWinThemeSeedReview, getThemeSuggestions, scanForOccurrences, suggestCriteriaMappings, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -446,6 +446,74 @@ describe("win theme authorization", () => {
 			evaluationCriteriaIds: ["LIVE-EVAL-001", "LIVE-EVAL-002"],
 		});
 		expect(result.data?.evaluationCriteriaIds).toEqual(["LIVE-EVAL-001", "LIVE-EVAL-002"]);
+	});
+
+	it("suggests criteria mappings from accepted evaluation requirements and active themes", async () => {
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "55555555-5555-4555-8555-555555555555",
+					requirementNumber: "M.2.1",
+					title: "Technical evaluation approach",
+					requirementText: "Evaluation criteria: technical approach carries 40 percent of the score.",
+					sourceSection: "Section M.2.1",
+					category: "technical",
+					subcategory: null,
+					priority: "mandatory",
+					evaluationWeight: 40,
+					responseStrategy: "Tie technical controls to delivery evidence and measurable risk reduction.",
+					complianceStatus: "partial",
+					metadata: { workflow: { state: "accepted" } },
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [
+					{
+						id: "11111111-1111-4111-8111-111111111111",
+						themeStatement: "Technical delivery proof backed by measurable controls.",
+						shortVersion: "Technical delivery proof",
+						themeType: "proof_point",
+						supportingEvidence: ["Delivery evidence and technical controls reduce evaluator risk."],
+						evaluationCriteriaIds: [],
+						keywords: ["technical", "delivery", "evidence"],
+						isActive: true,
+					},
+					{
+						id: "33333333-3333-4333-8333-333333333333",
+						themeStatement: "Already mapped technical score certainty.",
+						shortVersion: "Mapped technical score",
+						themeType: "differentiator",
+						supportingEvidence: ["Evaluator criterion 55555555-5555-4555-8555-555555555555"],
+						evaluationCriteriaIds: ["55555555-5555-4555-8555-555555555555"],
+						keywords: ["technical"],
+						isActive: true,
+					},
+				],
+			}));
+
+		const result = await suggestCriteriaMappings("22222222-2222-4222-8222-222222222222");
+
+		expect(result.success).toBe(true);
+		expect(result.data?.[0]).toMatchObject({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			criteriaId: "55555555-5555-4555-8555-555555555555",
+			criteriaName: "Section M.2.1: Technical evaluation approach",
+			criteriaWeight: 40,
+			isAdequate: true,
+		});
+		expect(result.data?.[0]?.mappedThemes).toEqual([
+			{
+				themeId: "33333333-3333-4333-8333-333333333333",
+				relevanceScore: 100,
+				notes: "Already mapped to this evaluator criterion.",
+			},
+			expect.objectContaining({
+				themeId: "11111111-1111-4111-8111-111111111111",
+				relevanceScore: expect.any(Number),
+				notes: expect.stringContaining("technical"),
+			}),
+		]);
 	});
 
 	it("scopes theme updates to opportunities assigned to the actor", async () => {
