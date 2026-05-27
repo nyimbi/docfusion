@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Portfolio Expansion Recheck
+
+Status: verified with live-source failures.
+
+Purpose: refresh additional source-specific response-readiness candidates after the portfolio triage work, so the ranking can include more than UNGM and COMESA when live sources expose current response-ready material.
+
+Attempted:
+- `npm run platform:proof -- --run live-world-bank-response-readiness --include-live-safe` failed with run `live_world_bank_response_readiness_20260527T180622Z`; the live World Bank page parse returned no active source opportunities.
+- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` failed with run `live_afdb_response_readiness_20260527T180709Z`; AFDB returned no response-ready opportunity with source material.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` failed with run `live_kenya_ppip_response_readiness_20260527T180736Z`; Docling extracted 0 characters from the selected source document.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T181350Z`.
+
+Result:
+- Portfolio triage read 43 response-readiness proof artifacts, ignored failed/no-response entries, retained 4 completed response-package candidates, deduplicated them to 2 live opportunities, and kept the same verified order: UNGM `pursue_now`, COMESA `review_before_pursuit`.
+
+Remaining after this slice:
+- Revisit World Bank, AFDB, and Kenya PPIP live response-readiness acquisition after their source pages/API outputs expose response-ready source material again or after source-specific fallback logic is improved.
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+
 ### 2026-05-27 - Live Response Portfolio Operator Brief
 
 Status: implemented and verified.
