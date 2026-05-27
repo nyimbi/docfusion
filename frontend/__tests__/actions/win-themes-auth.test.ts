@@ -5,6 +5,7 @@ const requireUserContextMock = vi.hoisted(() => vi.fn());
 interface ChainConfig {
 	result?: unknown[];
 	onSet?: (value: Record<string, unknown>) => void;
+	onValues?: (value: unknown) => void;
 	onWhere?: (value: unknown) => void;
 }
 
@@ -15,6 +16,10 @@ function createChain(config: ChainConfig = {}) {
 	}
 	chain.set = vi.fn((value: Record<string, unknown>) => {
 		config.onSet?.(value);
+		return chain;
+	});
+	chain.values = vi.fn((value: unknown) => {
+		config.onValues?.(value);
 		return chain;
 	});
 	chain.where = vi.fn((value: unknown) => {
@@ -78,7 +83,7 @@ vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
 }));
 
-import { scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
+import { createThemesFromResponseSeeds, scanForOccurrences, updateTheme } from "@/lib/actions/win-themes";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -89,6 +94,64 @@ beforeEach(() => {
 });
 
 describe("win theme authorization", () => {
+	it("creates opportunity win themes from live response package seeds", async () => {
+		let insertedValues: unknown;
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({ result: [{ maxOrder: 2 }] }));
+		dbMock.insert.mockReturnValueOnce(createChain({
+			result: [{
+				id: "33333333-3333-4333-8333-333333333333",
+				opportunityId: "22222222-2222-4222-8222-222222222222",
+				themeStatement: "Datacraft will win technical scoring with delivery proof.",
+				shortVersion: "Technical scoring proof",
+				themeType: "differentiator",
+				priority: 3,
+				supportingEvidence: ["Evaluator criterion LIVE-EVAL-001"],
+				relatedProjects: [],
+				evaluationCriteriaIds: ["LIVE-EVAL-001"],
+				keywords: ["technical", "proof"],
+				ghostTheme: null,
+				targetCompetitor: null,
+				isActive: true,
+				createdBy: "theme-user-1",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+				updatedAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+			onValues: (value) => {
+				insertedValues = value;
+			},
+		}));
+
+		const result = await createThemesFromResponseSeeds({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			seeds: [{
+				statement: "Datacraft will win technical scoring with delivery proof.",
+				shortVersion: "Technical scoring proof",
+				type: "differentiator",
+				priority: 1,
+				evaluationCriteriaIds: ["LIVE-EVAL-001"],
+				requirementIds: ["LIVE-REQ-001"],
+				targetDocumentTypes: ["technical_approach"],
+				supportingEvidence: ["Evaluator criterion LIVE-EVAL-001"],
+				keywords: ["technical", "proof"],
+				rationale: "Map technical controls to score.",
+			}],
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.data?.created[0]?.evaluationCriteriaIds).toEqual(["LIVE-EVAL-001"]);
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				evaluationCriteriaIds: ["LIVE-EVAL-001"],
+				targetSections: ["technical_approach"],
+				variations: ["Map technical controls to score."],
+				priority: 3,
+			}),
+		]);
+	});
+
 	it("persists evaluation criteria mappings on theme updates", async () => {
 		let patch: Record<string, unknown> | undefined;
 		dbMock.update.mockReturnValueOnce(createChain({

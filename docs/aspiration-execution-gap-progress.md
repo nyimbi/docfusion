@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Persist Response Win Theme Seeds
+
+Status: implemented and verified.
+
+Purpose: turn generated live response win-theme seeds into durable opportunity win-theme records, closing the path from source document criteria to reusable strategy objects.
+
+Changes in this slice:
+- Add response win-theme seed input/result types to the win-theme API surface.
+- Add a server action that validates live response package seed records, verifies opportunity assignment scope, skips duplicate theme statements or already-covered evaluator criteria, and inserts new win-theme rows.
+- Persist seed evaluator criteria IDs, target response document types, supporting evidence, keywords, and rationale into win-theme fields.
+- Add regression coverage proving generated seed data is inserted with criteria mappings and target sections intact.
+
+Verification:
+- `npm test -- win-themes-auth.test.ts live-response-package.test.ts` from `frontend/` passed, running 13 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` from `frontend/` passed, running 15 strategic capability tests across competitive win themes, resource reuse, and search/RAG health.
+
+Remaining after this slice:
+- Add UI review/approval for generated win-theme seeds before bulk persistence.
+- Connect review comments and final checklist evidence to the same evaluator criteria IDs.
+
 ### 2026-05-27 - Live Response Win Theme Seeds
 
 Status: implemented and verified.

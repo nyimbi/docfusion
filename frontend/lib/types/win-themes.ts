@@ -144,6 +144,25 @@ export interface UpdateWinThemeInput {
 	ghostTheme?: Omit<GhostTheme, "id"> | null;
 }
 
+export interface ResponseWinThemeSeedInput {
+	id?: string;
+	statement: string;
+	shortVersion: string;
+	type: WinThemeType;
+	priority?: ThemePriority;
+	evaluationCriteriaIds?: string[];
+	requirementIds?: string[];
+	targetDocumentTypes?: string[];
+	supportingEvidence?: string[];
+	keywords?: string[];
+	rationale?: string;
+}
+
+export interface CreateThemesFromResponseSeedsInput {
+	opportunityId: string;
+	seeds: ResponseWinThemeSeedInput[];
+}
+
 // =============================================================================
 // Theme Suggestions
 // =============================================================================
@@ -619,6 +638,7 @@ export interface ActionResult<T> {
 export type GetThemesResult = ActionResult<WinTheme[]>;
 export type GetThemeResult = ActionResult<WinTheme>;
 export type CreateThemeResult = ActionResult<WinTheme>;
+export type CreateThemesFromResponseSeedsResult = ActionResult<{ created: WinTheme[]; skipped: number }>;
 export type UpdateThemeResult = ActionResult<WinTheme>;
 export type DeleteThemeResult = ActionResult<{ deleted: boolean }>;
 export type ReorderThemesResult = ActionResult<{ reordered: boolean }>;

@@ -46,6 +46,7 @@ import type {
 	WinTheme,
 	WinThemeId,
 	CreateWinThemeInput,
+	CreateThemesFromResponseSeedsInput,
 	UpdateWinThemeInput,
 	ThemeSuggestion,
 	ThemeSuggestionId,
@@ -75,6 +76,7 @@ import type {
 	GetThemesResult,
 	GetThemeResult,
 	CreateThemeResult,
+	CreateThemesFromResponseSeedsResult,
 	UpdateThemeResult,
 	DeleteThemeResult,
 	ReorderThemesResult,
@@ -127,6 +129,25 @@ const createWinThemeSchema = z.object({
 const updateWinThemeSchema = createWinThemeSchema.partial().omit({ opportunityId: true }).extend({
 	status: z.enum(["draft", "active", "approved", "archived"]).optional(),
 	displayOrder: z.number().int().min(1).optional(),
+});
+
+const responseWinThemeSeedSchema = z.object({
+	id: z.string().optional(),
+	statement: z.string().min(10, "Theme statement must be at least 10 characters").max(2000),
+	shortVersion: z.string().max(100, "Short version must be 100 characters or less"),
+	type: z.enum(["value_prop", "differentiator", "proof_point", "risk_mitigation"]),
+	priority: z.number().int().min(1).max(5).optional().default(3) as z.ZodType<ThemePriority>,
+	evaluationCriteriaIds: z.array(z.string()).optional().default([]),
+	requirementIds: z.array(z.string()).optional().default([]),
+	targetDocumentTypes: z.array(z.string()).optional().default([]),
+	supportingEvidence: z.array(z.string()).optional().default([]),
+	keywords: z.array(z.string()).optional().default([]),
+	rationale: z.string().optional(),
+});
+
+const createThemesFromResponseSeedsSchema = z.object({
+	opportunityId: z.string().uuid("Invalid opportunity ID"),
+	seeds: z.array(responseWinThemeSeedSchema).min(1).max(12),
 });
 
 const competitorInputSchema = z.object({
@@ -311,6 +332,10 @@ function mapDBThemeToWinTheme(row: DBWinTheme): WinTheme {
 		createdAt: row.createdAt || new Date(),
 		updatedAt: row.updatedAt || new Date(),
 	};
+}
+
+function normalizeThemeStatement(statement: string): string {
+	return statement.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 /**
@@ -503,6 +528,83 @@ export async function createTheme(input: CreateWinThemeInput): Promise<CreateThe
 			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
 		}
 		return { success: false, error: `Failed to create theme: ${error instanceof Error ? error.message : "Unknown error"}` };
+	}
+}
+
+/**
+ * Persist generated live response package win-theme seeds as opportunity win themes.
+ *
+ * @param input - Opportunity and generated seed records
+ * @returns Created win themes and skipped duplicate count
+ */
+export async function createThemesFromResponseSeeds(
+	input: CreateThemesFromResponseSeedsInput
+): Promise<CreateThemesFromResponseSeedsResult> {
+	try {
+		const userContext = await requireWinThemeContext();
+		const validated = createThemesFromResponseSeedsSchema.parse(input);
+
+		await requireAssignedOpportunity(validated.opportunityId, userContext);
+		const existingThemes = await db
+			.select()
+			.from(winThemes)
+			.where(visibleOpportunityThemesCondition(validated.opportunityId, userContext));
+		const existingStatements = new Set(existingThemes.map((theme) => normalizeThemeStatement(theme.themeStatement)));
+		const existingCriteriaIds = new Set(existingThemes.flatMap((theme) => theme.evaluationCriteriaIds ?? []));
+		const displayOrder = await getNextDisplayOrder(validated.opportunityId, userContext);
+		const seenStatements = new Set(existingStatements);
+		const seenCriteriaIds = new Set(existingCriteriaIds);
+		const uniqueSeeds = validated.seeds.filter((seed) => {
+			const normalizedStatement = normalizeThemeStatement(seed.statement);
+			if (seenStatements.has(normalizedStatement)) return false;
+			const criteriaIds = seed.evaluationCriteriaIds ?? [];
+			if (criteriaIds.length > 0 && criteriaIds.every((criteriaId) => seenCriteriaIds.has(criteriaId))) return false;
+			seenStatements.add(normalizedStatement);
+			for (const criteriaId of criteriaIds) {
+				seenCriteriaIds.add(criteriaId);
+			}
+			return true;
+		});
+
+		if (uniqueSeeds.length === 0) {
+			return { success: true, data: { created: [], skipped: validated.seeds.length } };
+		}
+
+		const createdThemes = await db
+			.insert(winThemes)
+			.values(uniqueSeeds.map((seed, index) => ({
+				opportunityId: validated.opportunityId,
+				themeStatement: seed.statement,
+				shortVersion: seed.shortVersion,
+				themeType: seed.type as ThemeType,
+				priority: displayOrder + index,
+				supportingEvidence: seed.supportingEvidence,
+				relatedProjects: [],
+				evaluationCriteriaIds: seed.evaluationCriteriaIds,
+				keywords: seed.keywords,
+				variations: seed.rationale ? [seed.rationale] : [],
+				targetSections: seed.targetDocumentTypes,
+				minOccurrences: Math.max(2, Math.min(4, seed.targetDocumentTypes.length || 3)),
+				isActive: true,
+				createdBy: userContext.userId,
+			})))
+			.returning();
+
+		revalidatePath(`/opportunities/${validated.opportunityId}`);
+
+		return {
+			success: true,
+			data: {
+				created: createdThemes.map(mapDBThemeToWinTheme),
+				skipped: validated.seeds.length - createdThemes.length,
+			},
+		};
+	} catch (error) {
+		logger.error("Error creating themes from response seeds:", error);
+		if (error instanceof z.ZodError) {
+			return { success: false, error: error.issues.map((issue: z.ZodIssue) => issue.message).join(", ") };
+		}
+		return { success: false, error: `Failed to create themes from response seeds: ${error instanceof Error ? error.message : "Unknown error"}` };
 	}
 }
 
