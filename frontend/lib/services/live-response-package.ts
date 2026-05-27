@@ -531,6 +531,7 @@ function buildDocumentMarkdown(input: {
 			return `- ${criterion.id} (${criterion.sourceSection ?? "source"}${weight}): ${criterion.text} Win response: ${criterion.responseStrategy}`;
 		})
 		: ["- No explicit evaluator or scoring criterion was assigned to this document type; validate evaluator criteria before final approval."];
+	const sourceCitationLines = buildSourceCitationLines(input.requirements, input.evaluationCriteria);
 	const snippetLines = input.snippets.slice(0, 8).map((snippet) =>
 		`- ${snippet.shortcut}: ${snippet.name} (${snippet.topicCategory})`
 	);
@@ -558,16 +559,38 @@ function buildDocumentMarkdown(input: {
 		"## Evaluator Alignment Plan",
 		...evaluationLines,
 		"",
+		"## Source Citation Map",
+		...sourceCitationLines,
+		"",
 		"## Datacraft Evidence To Weave In",
 		...snippetLines,
 		"",
 		"## Review Gates",
-		"- Replace generic claims with direct source references before final submission.",
+		"- Verify every Source Citation Map item is reflected in the final compliance matrix and response narrative.",
 		"- Confirm every mandatory source requirement is mapped to a compliance matrix row.",
 		"- Confirm every explicit evaluator criterion is mapped to a win theme, proof point, and response section.",
 		"- Confirm pricing, assumptions, exclusions, and evidence citations are approved before rendering final artifacts.",
 		"",
 	].join("\n");
+}
+
+function buildSourceCitationLines(
+	requirements: LiveResponseRequirementSignal[],
+	evaluationCriteria: LiveResponseEvaluationSignal[]
+): string[] {
+	const lines = [
+		...requirements.map((requirement) =>
+			`- Source requirement ${requirement.id} from ${requirement.sourceSection ?? "source document"}: "${compactText(requirement.text, 220)}"`
+		),
+		...evaluationCriteria.map((criterion) => {
+			const weight = criterion.weight ? ` (${criterion.weight})` : "";
+			return `- Evaluator criterion ${criterion.id} from ${criterion.sourceSection ?? "source document"}${weight}: "${compactText(criterion.text, 220)}"`;
+		}),
+	];
+
+	return lines.length > 0
+		? lines
+		: ["- No source citations were extracted for this draft; refresh source parsing before final submission."];
 }
 
 function requirementsForDocumentType(

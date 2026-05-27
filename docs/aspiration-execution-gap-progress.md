@@ -5961,3 +5961,25 @@ Verification:
 Remaining after this slice:
 - Continue replacing generic proposal/support narratives with opportunity-specific evidence and source references.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Live Response Source Citation Maps
+
+Status: implemented and verified.
+
+Purpose: make deterministic live response drafts carry explicit source citation maps instead of relying on a review reminder to replace generic claims later.
+
+Changes in this slice:
+- Add a `Source Citation Map` section to every generated live response draft.
+- List source requirement IDs, source sections, evaluator criterion IDs, evaluation weights, and quoted source text per draft.
+- Replace the generic “replace generic claims” review gate with a concrete requirement to verify the source citation map against the compliance matrix and response narrative.
+- Add regression coverage proving generated drafts include source citation maps and no longer contain the generic-claim gate text.
+
+Verification:
+- `npm test -- live-response-package.test.ts` passed with 9 tests.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue strengthening generated live response drafts with deeper evidence citation and rendered artifact checks.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

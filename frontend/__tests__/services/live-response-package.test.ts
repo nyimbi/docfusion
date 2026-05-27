@@ -151,7 +151,10 @@ describe("live response package builder", () => {
 			expect(document.wordCount).toBeGreaterThan(250);
 			expect(document.markdown).toContain("## Source-Driven Response Plan");
 			expect(document.markdown).toContain("## Evaluator Alignment Plan");
+			expect(document.markdown).toContain("## Source Citation Map");
+			expect(document.markdown).toContain("Source requirement LIVE-REQ-");
 			expect(document.markdown).toContain("## Datacraft Evidence To Weave In");
+			expect(document.markdown).not.toContain("Replace generic claims");
 			expect(document.markdown).not.toMatch(/\{\{[^}]+\}\}/);
 			expect(document.requirementIds).toHaveLength(new Set(document.requirementIds).size);
 			expect(document.evaluationCriteriaIds).toHaveLength(new Set(document.evaluationCriteriaIds).size);
@@ -160,6 +163,7 @@ describe("live response package builder", () => {
 		const technicalApproach = responsePackage.documents.find((document) => document.documentType === "technical_approach");
 		expect(technicalApproach?.markdown).toContain("penetration testing");
 		expect(technicalApproach?.markdown).toContain("LIVE-EVAL-001");
+		expect(technicalApproach?.markdown).toContain("Evaluator criterion LIVE-EVAL-001 from Evaluation Criteria");
 		expect(technicalApproach?.markdown).toContain("Win response:");
 		expect(technicalApproach?.requirementIds.length).toBeGreaterThan(0);
 		expect(technicalApproach?.evaluationCriteriaIds.length).toBeGreaterThan(0);
