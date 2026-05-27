@@ -59,6 +59,65 @@ function normalizeRequirementPageSize(pageSize: number | undefined, fallback = 5
 	return Math.max(1, Math.min(maximum, Math.floor(pageSize)));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function nullableText(value: unknown): string | null {
+	return isNonBlankText(value) ? value.trim() : null;
+}
+
+const REQUIREMENT_CATEGORIES = new Set<RequirementCategory>([
+	"technical",
+	"legal",
+	"compliance",
+	"financial",
+	"experience",
+	"personnel",
+	"security",
+	"administrative",
+]);
+
+const REQUIREMENT_PRIORITIES = new Set<RequirementPriority>([
+	"mandatory",
+	"preferred",
+	"optional",
+]);
+
+const REQUIREMENT_RISK_LEVELS = new Set<RiskLevel>([
+	"low",
+	"medium",
+	"high",
+	"critical",
+]);
+
+function normalizeExtractedRequirement(value: unknown, fallbackSource: string): ExtractedRequirement | null {
+	if (!isRecord(value) || !isNonBlankText(value.text)) return null;
+	const category = isNonBlankText(value.category) && REQUIREMENT_CATEGORIES.has(value.category.trim() as RequirementCategory)
+		? value.category.trim() as RequirementCategory
+		: null;
+	const priority = isNonBlankText(value.priority) && REQUIREMENT_PRIORITIES.has(value.priority.trim() as RequirementPriority)
+		? value.priority.trim() as RequirementPriority
+		: "optional";
+	const suggestedRiskLevel = isNonBlankText(value.riskLevel) && REQUIREMENT_RISK_LEVELS.has(value.riskLevel.trim() as RiskLevel)
+		? value.riskLevel.trim() as RiskLevel
+		: "medium";
+
+	return {
+		text: value.text.trim(),
+		category,
+		subcategory: nullableText(value.subcategory),
+		source: nullableText(value.source) ?? fallbackSource,
+		sourcePageRef: null,
+		priority,
+		suggestedRiskLevel,
+	};
+}
+
 type RequirementWorkflowAction = "accept" | "reject" | "reopen";
 
 interface RequirementWorkflowTransitionInput {
@@ -1236,45 +1295,33 @@ Provide your extraction as JSON.`;
 		}
 
 		const analysis = JSON.parse(jsonMatch[0]) as {
-			requirements?: Array<{
-				text: string;
-				category?: string;
-				subcategory?: string;
-				priority?: string;
-				riskLevel?: string;
-				source?: string;
-			}>;
-			documentInfo?: {
-				title: string | null;
-				organization: string | null;
-				deadline: string | null;
-			};
-			confidence?: number;
-			reasoning?: string;
+			requirements?: unknown;
+			documentInfo?: unknown;
+			confidence?: unknown;
 		};
+		const fallbackSource = documentContent.slice(0, 200);
+		const rawRequirements: unknown[] = Array.isArray(analysis.requirements) ? analysis.requirements : [];
+		const extractedRequirements = rawRequirements
+			.map((req) => normalizeExtractedRequirement(req, fallbackSource))
+			.filter((req): req is ExtractedRequirement => req !== null);
+		if (extractedRequirements.length === 0) {
+			throw new Error("AI response did not include usable requirements");
+		}
 
-		const extractedRequirements: ExtractedRequirement[] = (analysis.requirements || []).map(
-			(req) => ({
-				text: req.text,
-				category: (req.category as RequirementCategory) ?? null,
-				subcategory: req.subcategory ?? null,
-				source: req.source ?? documentContent.slice(0, 200),
-				sourcePageRef: null,
-				priority: (req.priority as RequirementPriority) ?? "optional",
-				suggestedRiskLevel: (req.riskLevel as RiskLevel) ?? "medium",
-			})
-		);
-
-		const confidence = Math.max(0.3, Math.min(1.0, analysis.confidence ?? 0.85));
+		const rawConfidence = typeof analysis.confidence === "number" && Number.isFinite(analysis.confidence)
+			? analysis.confidence
+			: 0.85;
+		const confidence = Math.max(0.3, Math.min(1.0, rawConfidence));
+		const documentInfo = isRecord(analysis.documentInfo) ? analysis.documentInfo : {};
 
 		const processingTime = Date.now() - startTime;
 
 		return {
 			requirements: extractedRequirements,
 			documentInfo: {
-				title: analysis.documentInfo?.title ?? null,
-				organization: analysis.documentInfo?.organization ?? null,
-				deadline: analysis.documentInfo?.deadline ?? null,
+				title: nullableText(documentInfo.title),
+				organization: nullableText(documentInfo.organization),
+				deadline: nullableText(documentInfo.deadline),
 				totalPages: null,
 			},
 			confidence,

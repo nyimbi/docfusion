@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Unusable AI Requirement Extraction Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep RFP intake from returning blank extracted requirements when AI emits syntactically valid requirement arrays with malformed objects.
+
+Changes in this slice:
+- Validate AI-extracted requirement rows for non-empty requirement text before returning them.
+- Normalize accepted category, priority, risk level, source text, and document metadata.
+- Reuse heuristic requirement extraction when AI output contains no usable requirements.
+- Add focused regression coverage for an AI response of `{ "requirements": [{}] }`.
+- Add the extraction regression to the Wave 3 compliance/evidence platform proof manifest.
+
+Verification:
+- `npm test -- requirements-extraction.test.ts --run` passed with 1 test.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave3-compliance-evidence-readiness` passed with 97 tests.
+
+Remaining after this slice:
+- Continue auditing discovery and response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Unusable AI Win Theme Injection Fallbacks
 
 Status: implemented and verified.
