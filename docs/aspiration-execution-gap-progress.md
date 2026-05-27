@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI Document Generation Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep document structure and diagram generation from returning successful empty artifacts when AI returns valid but content-free output.
+
+Changes in this slice:
+- Treat AI document-structure responses with an empty array as unusable and reuse the existing deterministic outline fallback.
+- Treat blank Mermaid diagram code after code-fence cleanup as unusable and reuse deterministic diagram generation.
+- Add regression coverage for empty structure arrays and blank diagram code.
+
+Verification:
+- `npm test -- document-generation-auth.test.ts --run` passed with 7 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave5-ai-content-governance` passed with 40 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Pricing Production Fallbacks
 
 Status: implemented and verified.

@@ -229,6 +229,9 @@ Guidelines:
 			if (!Array.isArray(structure)) {
 				throw new Error("Response is not an array");
 			}
+			if (structure.length === 0) {
+				throw new Error("Response contained no structure nodes");
+			}
 
 			// Ensure all items have required fields
 			structure = structure.map((item, index) => ({
@@ -655,6 +658,9 @@ export async function generateDiagram(
 			.replace(/^```\s*/i, "")
 			.replace(/```\s*$/i, "")
 			.trim();
+		if (code.length === 0) {
+			throw new Error("AI diagram response was empty");
+		}
 
 		return {
 			type: "mermaid",

@@ -69,6 +69,24 @@ describe("document generation action auth", () => {
 		expect(initializeAIConfigMock).not.toHaveBeenCalled();
 	});
 
+	it("generates a deterministic structure when AI returns an empty structure array", async () => {
+		providerCompleteMock.mockResolvedValueOnce({ content: "[]" });
+		const { generateDocumentStructure } = await import("@/lib/actions/document-generation");
+
+		const result = await generateDocumentStructure({
+			prompt: "Draft a response plan for a digital health platform",
+			minSections: 2,
+			maxSections: 4,
+		});
+
+		expect(result.length).toBeGreaterThan(0);
+		expect(result[0]).toEqual(expect.objectContaining({
+			type: "chapter",
+			title: expect.stringContaining("Draft a response plan"),
+		}));
+		expect(result[0].children?.length).toBeGreaterThan(0);
+	});
+
 	it("rejects spoofed document creation owners before inserting", async () => {
 		const { createDocumentFromStructure } = await import("@/lib/actions/document-generation");
 
@@ -165,5 +183,21 @@ describe("document generation action auth", () => {
 		expect(result.code).toContain("Intake request");
 		expect(result.code).toContain("S1 --> S2");
 		expect(providerCompleteMock).not.toHaveBeenCalled();
+	});
+
+	it("generates a deterministic diagram when AI returns blank diagram code", async () => {
+		providerCompleteMock.mockResolvedValueOnce({ content: "```mermaid\n   \n```" });
+		const { generateDiagram } = await import("@/lib/actions/document-generation");
+
+		const result = await generateDiagram({
+			type: "flowchart",
+			description: "Intake request. Validate requirements. Produce response.",
+		});
+
+		expect(result).toMatchObject({
+			type: "mermaid",
+			code: expect.stringContaining("flowchart TD"),
+		});
+		expect(result.description).toContain("AI diagram generation failed");
 	});
 });
