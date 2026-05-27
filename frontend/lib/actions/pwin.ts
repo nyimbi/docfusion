@@ -155,6 +155,31 @@ export interface PwinRecommendation {
 	timeframe: "immediate" | "short_term" | "long_term";
 }
 
+const PWIN_PRIORITIES = ["high", "medium", "low"] as const;
+const PWIN_EFFORTS = ["low", "medium", "high"] as const;
+const PWIN_TIMEFRAMES = ["immediate", "short_term", "long_term"] as const;
+
+function isNonBlankText(value: unknown): value is string {
+	return typeof value === "string" && value.trim().length > 0;
+}
+
+function isPwinRecommendation(value: unknown): value is PwinRecommendation {
+	if (!value || typeof value !== "object") return false;
+	const recommendation = value as Record<string, unknown>;
+	return (
+		isNonBlankText(recommendation.recommendation) &&
+		isNonBlankText(recommendation.factorName) &&
+		typeof recommendation.expectedImpact === "number" &&
+		Number.isFinite(recommendation.expectedImpact) &&
+		typeof recommendation.priority === "string" &&
+		(PWIN_PRIORITIES as readonly string[]).includes(recommendation.priority) &&
+		typeof recommendation.effort === "string" &&
+		(PWIN_EFFORTS as readonly string[]).includes(recommendation.effort) &&
+		typeof recommendation.timeframe === "string" &&
+		(PWIN_TIMEFRAMES as readonly string[]).includes(recommendation.timeframe)
+	);
+}
+
 /**
  * Risk factor identified in PWin assessment.
  */
@@ -1372,11 +1397,20 @@ Provide 3-5 specific recommendations prioritizing high-impact factors.`;
 		return [];
 	}
 
-	const parsed = JSON.parse(jsonMatch[0]) as PwinRecommendation[];
+	const parsed = JSON.parse(jsonMatch[0]) as unknown;
+	if (!Array.isArray(parsed)) {
+		return [];
+	}
+	const validRecommendations = parsed.filter(isPwinRecommendation);
+	if (validRecommendations.length === 0) {
+		return [];
+	}
 
 	// Add factorId mapping
-	return parsed.map(rec => ({
+	return validRecommendations.map(rec => ({
 		...rec,
+		recommendation: rec.recommendation.trim(),
+		factorName: rec.factorName?.trim(),
 		factorId: scores.find(s => s.factorName.toLowerCase() === rec.factorName?.toLowerCase())?.factorId,
 	}));
 }

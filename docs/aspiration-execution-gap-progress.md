@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Empty AI PWin Recommendation Fallbacks
+
+Status: implemented and verified.
+
+Purpose: keep AI PWin recommendation generation from suppressing useful heuristic recommendations when the provider returns non-empty but unusable objects.
+
+Changes in this slice:
+- Validate AI PWin recommendation rows for non-empty recommendation/factor text, finite expected impact, and supported priority/effort/timeframe values.
+- Ignore unusable AI recommendation rows and fall back to heuristic recommendations when none remain.
+- Trim accepted AI recommendation text and factor names before mapping factor IDs.
+- Add regression coverage for an AI response of `[{}]`.
+
+Verification:
+- `npm test -- pwin-opportunity-scope.test.ts --run` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave8-strategic-capability-workflows` passed with 149 tests.
+
+Remaining after this slice:
+- Continue auditing response-support AI actions for valid-but-empty generated content.
+- Rerun the DB-backed live persisted import-response proof after PostgreSQL connectivity is restored.
+
 ### 2026-05-27 - Empty AI Win-Theme Fallbacks
 
 Status: implemented and verified.

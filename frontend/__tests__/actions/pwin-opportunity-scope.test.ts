@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireUserContextMock = vi.hoisted(() => vi.fn());
+const aiProviderMock = vi.hoisted(() => ({
+	initialize: vi.fn(),
+	isAvailable: vi.fn(async () => false),
+	complete: vi.fn(async () => ({ content: "[]" })),
+}));
 
 interface ChainConfig {
 	result?: unknown[];
@@ -66,11 +71,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("@/lib/ai/providers", () => ({
-	getProviderManager: vi.fn(() => ({
-		initialize: vi.fn(),
-		isAvailable: vi.fn(async () => false),
-		complete: vi.fn(async () => ({ content: "[]" })),
-	})),
+	getProviderManager: vi.fn(() => aiProviderMock),
 }));
 
 import {
@@ -89,6 +90,8 @@ beforeEach(() => {
 		userId: "pwin-user-1",
 		organizationId: "org-1",
 	});
+	aiProviderMock.isAvailable.mockResolvedValue(false);
+	aiProviderMock.complete.mockResolvedValue({ content: "[]" });
 });
 
 describe("PWin opportunity scoping", () => {
@@ -320,6 +323,79 @@ describe("PWin opportunity scoping", () => {
 			expect(result.data[0].recommendation).toContain("expected +4 PWin points");
 			expect(result.data[0].recommendation).toContain("current score 7/10");
 		}
+		expect(updateValues).toEqual({
+			recommendations: result.success ? result.data : [],
+		});
+	});
+
+	it("uses heuristic recommendations when AI returns unusable recommendation objects", async () => {
+		aiProviderMock.isAvailable.mockResolvedValue(true);
+		aiProviderMock.complete.mockResolvedValue({ content: JSON.stringify([{}]) });
+		const assessment = {
+			id: "assessment-1",
+			organizationId: "org-1",
+			calculatedPwin: 61,
+			factorScores: [
+				{
+					factorId: "factor-solution",
+					factorName: "Solution Fit",
+					score: 7,
+					weight: 2,
+				},
+				{
+					factorId: "factor-price",
+					factorName: "Price Competitiveness",
+					score: 8,
+					weight: 1,
+				},
+			],
+			sensitivityAnalysis: [
+				{
+					factorId: "factor-solution",
+					factorName: "Solution Fit",
+					currentScore: 7,
+					impactIfImproved: 4,
+					improvementPotential: 2,
+				},
+				{
+					factorId: "factor-price",
+					factorName: "Price Competitiveness",
+					currentScore: 8,
+					impactIfImproved: 2,
+					improvementPotential: 1,
+				},
+			],
+		};
+		let updateValues: unknown;
+		const updateChain = createChain();
+		updateChain.set.mockImplementation((value: unknown) => {
+			updateValues = value;
+			return updateChain;
+		});
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{
+				id: "33333333-3333-4333-8333-333333333333",
+				title: "Revenue authority platform",
+				organization: "Revenue Authority",
+				assignedTo: "pwin-user-1",
+			}] }))
+			.mockReturnValueOnce(createChain({ result: [assessment] }));
+		dbMock.update.mockReturnValueOnce(updateChain);
+
+		const result = await getRecommendationsToImprovePwin("33333333-3333-4333-8333-333333333333");
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data).toHaveLength(2);
+			expect(result.data[0]).toMatchObject({
+				factorId: "factor-solution",
+				factorName: "Solution Fit",
+				priority: "low",
+				expectedImpact: 4,
+			});
+			expect(result.data[0].recommendation).toContain("expected +4 PWin points");
+		}
+		expect(aiProviderMock.complete).toHaveBeenCalled();
 		expect(updateValues).toEqual({
 			recommendations: result.success ? result.data : [],
 		});
