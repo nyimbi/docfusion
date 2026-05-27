@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - UN Procurement Live Source Recovery
+
+Status: implemented and verified.
+
+Purpose: add a parser and live proof for the UN Procurement solicitations page that Firecrawl can fetch but cannot currently normalize into opportunities without browser-rendered HTML.
+
+Changes in this slice:
+- Add a UN Procurement parser for browser-rendered Drupal solicitation cards.
+- Route `www.un.org/procurement/...` configured sources to the UN Procurement parser.
+- Extend the live configured-source proof to use browser fallback when Firecrawl fails or returns content that the source parser cannot extract.
+- Add the live-proven UN Procurement URL to the default discovery source list.
+- Add focused parser and import coverage for UN Procurement browser-rendered source imports.
+
+Verification:
+- `npm test -- default-discovery-sources.test.ts un-procurement-parser.test.ts discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts` from `frontend/` passed, running 30 tests.
+- `npx tsc --noEmit --pretty false` from `frontend/` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 55 tests across discovery import, opportunity documents, RFP document service, and proposal document scope.
+- `LIVE_SOURCE_DISCOVERY_URL=https://www.un.org/procurement/solicitations-opportunities npm run platform:proof -- --include-live-safe --run live-source-discovery` from `frontend/` passed. It used browser fallback through `http://84.247.181.100:3003`, parsed 22 UN Procurement opportunities, and wrote live evidence run `live_source_discovery_20260527T030921Z`.
+
+Remaining after this slice:
+- If UN Procurement publishes detail links per solicitation in a future page variant, enrich `portalUrl`/`rfpLink` to point at those detail pages instead of the listing page.
+- Rerun the live persisted import-response proof when PostgreSQL is reachable.
+
 ### 2026-05-27 - Configured Source Browser Fallback
 
 Status: implemented and verified.
@@ -35,7 +58,7 @@ Verification:
 - `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` from `frontend/` passed, running 54 tests across discovery import, opportunity documents, RFP document service, and proposal document scope.
 
 Remaining after this slice:
-- Run a live source proof against a previously blocked source such as `www.un.org/procurement/solicitations-opportunities` once the browser service can reach and render it reliably.
+- Keep adding source-specific parsers when browser-rendered configured sources expose structured listings that generic markdown parsing cannot read reliably.
 - Rerun the live persisted import-response proof when PostgreSQL is reachable.
 
 ### 2026-05-27 - Live Discovery Health Refresh

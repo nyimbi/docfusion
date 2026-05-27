@@ -7,6 +7,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://projects.worldbank.org/en/projects-operations/procurement",
 	"https://www.afdb.org/en/projects-and-operations/procurement",
 	"https://www.comesa.int/category/open-tenders/",
+	"https://www.un.org/procurement/solicitations-opportunities",
 	"https://www.unicef.org/supply/service-contracts-tender-calendar",
 	"https://www.unicef.org/supply/tender-calendars",
 ] as const;

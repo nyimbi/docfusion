@@ -783,6 +783,71 @@ describe("discoverAndImportOpportunities", () => {
 		}), "user-1");
 	});
 
+	it("imports UN Procurement configured sources from browser-rendered listing cards", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "Firecrawl DNS safety check failed",
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				content: `
+					<li class="views-row">
+						<div class="views-field views-field-title custom-card-title">WS2006276746</div>
+						<span class="start">09 Jun 2026 </span>
+						<time datetime="2026-06-09T15:00:00Z" class="datetime">15:00</time>
+						<div class="views-field views-field-field-text-75-1 custom-card-title-field">
+							<div class="field-content">Provision of Cisco Core, Distribution and Datacenter Solutions</div>
+						</div>
+						<div class="views-field views-field-name tender-custom-field tender-commodity-group-field">
+							<span class="field-content">Communications Equipment</span>
+						</div>
+					</li>
+				`,
+				pageStatusCode: 200,
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.un.org/procurement/solicitations-opportunities"],
+			sourceScrapeLimit: 5,
+			browserFallback: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Provision of Cisco Core, Distribution and Datacenter Solutions",
+			source: "un_procurement",
+			sourceId: "un-procurement-ws2006276746",
+			noticeId: "WS2006276746",
+			sourcePlatform: "UN Procurement",
+			sourceFile: "source:https://www.un.org/procurement/solicitations-opportunities",
+			category: "Communications Equipment",
+			opportunityType: "tender",
+			tags: ["external-discovery", "source-scrape", "un-procurement", "unpd", "solicitation"],
+			metadata: expect.objectContaining({
+				unProcurement: expect.objectContaining({
+					noticeId: "WS2006276746",
+					commodityGroup: "Communications Equipment",
+				}),
+				discovery: expect.objectContaining({
+					scrapedWithBrowserFallback: true,
+					scrapeMethod: "browser_fallback",
+					browserFallbackReason: "Firecrawl DNS safety check failed",
+				}),
+			}),
+		}));
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "browser_fallback_used",
+				query: "source:https://www.un.org/procurement/solicitations-opportunities",
+				message: "Firecrawl DNS safety check failed",
+			}),
+		]);
+	});
+
 	it("persists service-run discoveries under the explicit import tenant", async () => {
 		getUserContextMock.mockResolvedValue({
 			userId: "interactive-user-1",
