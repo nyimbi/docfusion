@@ -124,6 +124,7 @@ interface LiveOpportunityResponseReadinessProof {
 	responseReadiness?: {
 		documentTypes: ProposalDocumentType[];
 		totalSectionSeeds: number;
+		pursuitFit: LiveResponsePackage["pursuitFit"];
 		sourceRequirementCount: number;
 		winThemeSeedCount: number;
 		relevantSnippetCount: number;
@@ -820,6 +821,7 @@ function proveResponseSeedReadiness(
 	return {
 		documentTypes: PROPOSAL_DOCUMENT_TYPES,
 		totalSectionSeeds,
+		pursuitFit: responsePackage.pursuitFit,
 		sourceRequirementCount: responsePackage.requirements.length,
 		winThemeSeedCount: responsePackage.winThemeSeeds.length,
 		relevantSnippetCount: responsePackage.relevantSnippetCount,
@@ -909,6 +911,9 @@ async function writeArtifacts(
 			`docling-status:${proof.document?.doclingStatus ?? "not-run"}`,
 			`source-extraction:${proof.document?.extractionMethod ?? "not-run"}`,
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
+			`pursuit-fit:${proof.responseReadiness?.pursuitFit.status ?? "not-run"}`,
+			`pursuit-fit-score:${proof.responseReadiness?.pursuitFit.score ?? 0}`,
+			`pursuit-recommendation:${proof.responseReadiness?.pursuitFit.recommendation ?? "not-run"}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
 			`evaluator-criteria:${proof.responseReadiness?.readiness.evaluationCriteriaIds.length ?? 0}`,
 			`win-theme-seeds:${proof.responseReadiness?.winThemeSeedCount ?? 0}`,

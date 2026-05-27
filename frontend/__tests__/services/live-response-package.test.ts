@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	LIVE_RESPONSE_DOCUMENT_TYPES,
 	assessLiveResponsePackageReadiness,
+	assessLiveResponsePursuitFit,
 	buildLiveResponsePackage,
 	buildLiveResponseWinThemeSeeds,
 	extractLiveResponseEvaluationSignals,
@@ -81,6 +82,37 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		expect(snippets.map((snippet) => snippet.shortcut)).toEqual(
 			expect.arrayContaining(["/dc-security", "/dc-technical"])
 		);
+	});
+
+	it("assesses pursuit fit separately from draft readiness", () => {
+		const strongFit = assessLiveResponsePursuitFit({
+			opportunity,
+			sourceText,
+			relevantSnippetCount: 20,
+		});
+		const weakFit = assessLiveResponsePursuitFit({
+			opportunity: {
+				title: "Tender for provision of staff medical insurance cover",
+				organization: "Regional Secretariat",
+				source: "comesa",
+				sourceId: "medical-insurance",
+				projectSummary: "The bidder shall provide staff medical insurance cover and claims administration.",
+			},
+			sourceText: "The tender requires insurance underwriting, hospital networks, claims processing, and medical cover administration.",
+			relevantSnippetCount: 0,
+		});
+
+		expect(strongFit).toMatchObject({
+			status: "strong_fit",
+			recommendation: "pursue",
+		});
+		expect(strongFit.score).toBeGreaterThanOrEqual(75);
+		expect(strongFit.matchedCapabilities).toEqual(expect.arrayContaining(["software", "security", "apis"]));
+		expect(weakFit).toMatchObject({
+			status: "weak_fit",
+			recommendation: "no_bid_unless_partnered",
+		});
+		expect(weakFit.riskFactors.join("\n")).toContain("insurance");
 	});
 
 	it("extracts evaluator criteria signals from scoring sections", () => {
@@ -199,6 +231,10 @@ The consultant must provide a technical methodology, work plan, personnel, simil
 		expect(responsePackage.winThemeSeeds.length).toBe(4);
 		expect(responsePackage.totalWordCount).toBeGreaterThan(2000);
 		expect(responsePackage.relevantSnippetCount).toBeGreaterThanOrEqual(12);
+		expect(responsePackage.pursuitFit).toMatchObject({
+			status: "strong_fit",
+			recommendation: "pursue",
+		});
 		expect(responsePackage.readiness.status).toBe("ready_for_review");
 		expect(responsePackage.readiness.blockers).toEqual([]);
 		expect(responsePackage.readiness.evaluationCriteriaIds).toEqual([
@@ -221,6 +257,7 @@ The consultant must provide a technical methodology, work plan, personnel, simil
 			reviewGateCoverage: 1,
 			sourceCitationCoverage: 1,
 			unresolvedPlaceholderCount: 0,
+			pursuitFitScore: responsePackage.pursuitFit.score,
 			winThemeSeedCount: 4,
 		});
 

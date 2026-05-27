@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Response Pursuit Fit Evidence
+
+Status: implemented and verified.
+
+Purpose: distinguish technical response-package readiness from whether Datacraft is actually positioned to win the opportunity, so the platform does not treat every parsed RFP as an equal pursue decision.
+
+Changes in this slice:
+- Added deterministic pursuit-fit assessment to live response packages with `strong_fit`, `review_required`, and `weak_fit` statuses.
+- Added fit score, matched Datacraft capability signals, risk factors, and pursuit recommendation to response package output.
+- Added readiness warnings when a technically draftable opportunity still needs bid/no-bid review or partner/no-bid consideration.
+- Added pursuit-fit score to readiness metrics and live response-readiness evidence rows.
+- Tightened fit keyword matching to word/phrase boundaries so domain-risk terms are not triggered by unrelated substrings.
+
+Verification:
+- `npm test -- live-response-package.test.ts --run` passed with 16 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe` passed with run `live_response_readiness_20260527T174956Z`, recording UNGM as `strong_fit`, score 89, recommendation `pursue`, with no pursuit risk factors.
+- `npm run platform:proof -- --run live-comesa-response-readiness --include-live-safe` passed with run `live_comesa_response_readiness_20260527T175037Z`, recording COMESA as `review_required`, score 72, recommendation `review_before_pursuit`, and an insurance-domain risk warning while still producing review-ready drafts.
+- Source triage also revalidated `live-unicef-source` with run `live_unicef_source_20260527T174126Z` and `live-dgmarket-source` with run `live_dgmarket_source_20260527T174126Z`; both remain discovery-only inputs until they expose full solicitation material suitable for response drafting.
+- `npm run platform:proof -- --all --wave 9` passed after the pursuit-fit change.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Fit scoring is deterministic and evidence-backed, but it should be calibrated with actual Datacraft bid/no-bid outcomes once persisted opportunity history is reachable.
+
 ### 2026-05-27 - COMESA Live DOCX Response Readiness
 
 Status: implemented and verified.

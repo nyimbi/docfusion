@@ -21,6 +21,7 @@ export const LIVE_RESPONSE_DOCUMENT_TYPES: ProposalDocumentType[] = [
 
 const RESPONSE_RELEVANCE_TERMS = [
 	"api",
+	"apis",
 	"architecture",
 	"compliance",
 	"consultancy",
@@ -36,6 +37,72 @@ const RESPONSE_RELEVANCE_TERMS = [
 	"software",
 	"testing",
 	"web application",
+];
+
+const STRATEGIC_CAPABILITY_TERMS = [
+	"api",
+	"apis",
+	"analytics",
+	"architecture",
+	"automation",
+	"case management",
+	"compliance",
+	"data",
+	"digital",
+	"governance",
+	"integration",
+	"intelligence",
+	"mobile",
+	"monitoring",
+	"payment",
+	"platform",
+	"records",
+	"reporting",
+	"security",
+	"software",
+	"system",
+	"workflow",
+];
+
+const DELIVERY_CAPABILITY_TERMS = [
+	"audit",
+	"capacity building",
+	"consultancy",
+	"consultant",
+	"implementation",
+	"methodology",
+	"project management",
+	"quality assurance",
+	"research",
+	"risk",
+	"survey",
+	"technical assistance",
+	"training",
+];
+
+const OPPORTUNITY_CONTEXT_TERMS = [
+	"africa",
+	"government",
+	"institution",
+	"procurement",
+	"regional",
+	"regulated",
+	"sovereign",
+	"united nations",
+	"world bank",
+];
+
+const FIT_RISK_TERMS = [
+	"catering",
+	"cleaning",
+	"construction",
+	"food services",
+	"food supply",
+	"furniture",
+	"insurance",
+	"medical supplies",
+	"pharmaceutical",
+	"vehicle",
 ];
 
 export interface LiveResponseRequirementSignal {
@@ -90,6 +157,15 @@ export interface LiveResponseDraftArtifact {
 	generatedAt: string;
 }
 
+export interface LiveResponsePursuitFitAssessment {
+	status: "strong_fit" | "review_required" | "weak_fit";
+	score: number;
+	matchedCapabilities: string[];
+	riskFactors: string[];
+	recommendation: "pursue" | "review_before_pursuit" | "no_bid_unless_partnered";
+	rationale: string;
+}
+
 export interface LiveResponsePackage {
 	opportunityTitle: string;
 	clientName: string;
@@ -102,6 +178,7 @@ export interface LiveResponsePackage {
 	totalWordCount: number;
 	relevantSnippetCount: number;
 	relevantSnippetShortcuts: string[];
+	pursuitFit: LiveResponsePursuitFitAssessment;
 	readiness: LiveResponseReadinessAssessment;
 }
 
@@ -130,6 +207,7 @@ export interface LiveResponseReadinessAssessment {
 		totalDraftWordCount: number;
 		relevantSnippetCount: number;
 		winThemeSeedCount: number;
+		pursuitFitScore: number;
 	};
 }
 
@@ -145,6 +223,11 @@ export function buildLiveResponsePackage(input: {
 	const requirements = extractLiveResponseRequirementSignals(input.sourceText);
 	const evaluationCriteria = extractLiveResponseEvaluationSignals(input.sourceText);
 	const relevantSnippets = selectLiveResponseSnippets(input.opportunity, input.sourceText);
+	const pursuitFit = assessLiveResponsePursuitFit({
+		opportunity: input.opportunity,
+		sourceText: input.sourceText,
+		relevantSnippetCount: relevantSnippets.length,
+	});
 	const sharedValues = {
 		client_name: clientName,
 		opportunity_name: input.opportunity.title,
@@ -213,6 +296,7 @@ export function buildLiveResponsePackage(input: {
 		totalWordCount: documents.reduce((total, document) => total + document.wordCount, 0),
 		relevantSnippetCount: relevantSnippets.length,
 		relevantSnippetShortcuts: relevantSnippets.map((snippet) => snippet.shortcut),
+		pursuitFit,
 		readiness: emptyReadinessAssessment(),
 	};
 	return {
@@ -272,6 +356,7 @@ export function assessLiveResponsePackageReadiness(
 		totalDraftWordCount: responsePackage.totalWordCount,
 		relevantSnippetCount: responsePackage.relevantSnippetCount,
 		winThemeSeedCount: responsePackage.winThemeSeeds.length,
+		pursuitFitScore: responsePackage.pursuitFit.score,
 	};
 
 	if (missingDocumentTypes.length > 0) {
@@ -342,6 +427,12 @@ export function assessLiveResponsePackageReadiness(
 	}
 	if (responsePackage.evaluationCriteria.length === 0) {
 		warnings.push("No explicit evaluator scoring criteria were extracted from the source text");
+	}
+	if (responsePackage.pursuitFit.status === "review_required") {
+		warnings.push(`Pursuit fit requires review before bid decision (${responsePackage.pursuitFit.score}/100): ${responsePackage.pursuitFit.rationale}`);
+	}
+	if (responsePackage.pursuitFit.status === "weak_fit") {
+		warnings.push(`Weak pursuit fit (${responsePackage.pursuitFit.score}/100): ${responsePackage.pursuitFit.rationale}`);
 	}
 
 	return {
@@ -619,6 +710,88 @@ export function selectLiveResponseSnippets(
 	});
 
 	return matching.length >= 12 ? matching : DATACRAFT_RESPONSE_SNIPPETS.slice(0, 12);
+}
+
+export function assessLiveResponsePursuitFit(input: {
+	opportunity: OpportunityData;
+	sourceText: string;
+	relevantSnippetCount?: number;
+}): LiveResponsePursuitFitAssessment {
+	const haystack = [
+		input.opportunity.title,
+		input.opportunity.organization,
+		input.opportunity.category,
+		input.opportunity.projectSummary,
+		input.opportunity.countryRegion,
+		input.sourceText,
+	].filter(Boolean).join(" ").toLowerCase();
+	const matchedStrategic = matchedTerms(haystack, STRATEGIC_CAPABILITY_TERMS);
+	const matchedDelivery = matchedTerms(haystack, DELIVERY_CAPABILITY_TERMS);
+	const matchedContext = matchedTerms(haystack, OPPORTUNITY_CONTEXT_TERMS);
+	const matchedRisks = matchedTerms(haystack, FIT_RISK_TERMS)
+		.filter((term) => matchedStrategic.length === 0 || term !== "medical supplies");
+	const matchedCapabilities = uniqueStrings([...matchedStrategic, ...matchedDelivery, ...matchedContext]);
+	const riskFactors = matchedRisks.map((term) => `${term} domain may require specialist partner or no-bid review`);
+	const strategicScore = Math.min(45, matchedStrategic.length * 7);
+	const deliveryScore = Math.min(25, matchedDelivery.length * 5);
+	const contextScore = Math.min(15, matchedContext.length * 3);
+	const evidenceScore = Math.min(15, Math.max(0, input.relevantSnippetCount ?? 0));
+	const riskPenalty = Math.min(35, matchedRisks.length * 12);
+	const score = clampScore(20 + strategicScore + deliveryScore + contextScore + evidenceScore - riskPenalty);
+	const status = score >= 75 && matchedStrategic.length >= 2
+		? "strong_fit"
+		: score >= 50 || matchedStrategic.length > 0 || matchedDelivery.length >= 3
+			? "review_required"
+			: "weak_fit";
+	const recommendation = status === "strong_fit"
+		? "pursue"
+		: status === "review_required"
+			? "review_before_pursuit"
+			: "no_bid_unless_partnered";
+	const rationale = buildPursuitFitRationale({
+		status,
+		score,
+		matchedCapabilities,
+		riskFactors,
+	});
+
+	return {
+		status,
+		score,
+		matchedCapabilities,
+		riskFactors,
+		recommendation,
+		rationale,
+	};
+}
+
+function matchedTerms(haystack: string, terms: string[]): string[] {
+	return terms.filter((term) => termPattern(term).test(haystack));
+}
+
+function termPattern(term: string): RegExp {
+	const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+	return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "iu");
+}
+
+function clampScore(value: number): number {
+	return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function buildPursuitFitRationale(input: {
+	status: LiveResponsePursuitFitAssessment["status"];
+	score: number;
+	matchedCapabilities: string[];
+	riskFactors: string[];
+}): string {
+	const capabilities = input.matchedCapabilities.slice(0, 6).join(", ") || "no clear Datacraft capability match";
+	const risks = input.riskFactors.slice(0, 3).join("; ");
+	const base = input.status === "strong_fit"
+		? `Strong Datacraft fit based on ${capabilities}.`
+		: input.status === "review_required"
+			? `Bid/no-bid review required; fit signals include ${capabilities}.`
+			: `Weak Datacraft fit; ${capabilities}.`;
+	return risks ? `${base} Risk factors: ${risks}.` : base;
 }
 
 export function flattenContent(content: DocumentContent): string {
@@ -1002,6 +1175,7 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			totalDraftWordCount: 0,
 			relevantSnippetCount: 0,
 			winThemeSeedCount: 0,
+			pursuitFitScore: 0,
 		},
 	};
 }
