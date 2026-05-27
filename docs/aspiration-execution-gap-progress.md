@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Response Readiness Revalidation
+
+Status: passed.
+
+Purpose: revalidate the live opportunity-to-response draft path after citation and final artifact hardening.
+
+Result:
+- Ran `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe`.
+- Proof run `live_response_readiness_20260527T082922Z` found 10 UNGM software opportunities and selected UN Secretariat notice `300700`.
+- Downloaded the source PDF successfully (`171406` bytes), extracted `3070` characters with Docling, and generated six Datacraft response draft artifacts.
+- Response readiness passed with source requirement coverage `1`, evidence cue coverage `1`, source citation coverage `1`, evidence citation coverage `1`, review gate coverage `1`, and `5527` total draft words.
+
+Remaining after this revalidation:
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
 ### 2026-05-27 - Final Artifact Storage Readback Receipts
 
 Status: implemented and verified.
