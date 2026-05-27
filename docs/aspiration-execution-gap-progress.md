@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-27 - Live Persisted Import Response Retry Still Blocked
+
+Status: attempted; externally blocked.
+
+Purpose: recheck the DB-backed live proof after the latest discovery, RFP intake, requirements extraction, and response-support hardening.
+
+Attempted:
+- Ran `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Proof run `live_persisted_import_response_20260527T141904Z` failed before source discovery or persistence because PostgreSQL refused the connection: `connect ECONNREFUSED 88.80.188.224:5432`.
+- Cleanup had no persisted rows to remove.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `npm run platform:proof -- --run live-persisted-import-response --include-live-safe`.
+- Continue non-DB hardening while the persisted live proof remains externally blocked.
+
 ### 2026-05-27 - RFP Discovery No-Document Failure
 
 Status: implemented and verified.
