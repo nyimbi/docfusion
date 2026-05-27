@@ -6800,3 +6800,24 @@ Verification:
 Remaining after this slice:
 - Continue strengthening source-document intake with live persisted proof once database connectivity is restored.
 - Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.
+
+### 2026-05-27 - Response Draft Artifact Integrity
+
+Status: implemented and verified.
+
+Purpose: ensure generated live response packages cannot be marked ready when draft artifact manifests are missing or stale.
+
+Changes in this slice:
+- Add deterministic markdown artifact manifests to every generated live response draft.
+- Track draft artifact filename, hash, byte size, and generation timestamp alongside each draft.
+- Add `draftArtifactIntegrityCoverage` to response package readiness metrics and block readiness when draft content no longer matches its artifact manifest.
+- Make the live response-readiness proof write, read back, and hash-check each draft artifact before recording proof evidence.
+
+Verification:
+- `npm test -- __tests__/services/live-response-package.test.ts --run` passed with 12 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 12 tests.
+
+Remaining after this slice:
+- Continue extending artifact integrity checks into DB-backed persisted import-response proof once PostgreSQL connectivity is restored.
+- Live persisted import-response proof still depends on restoring the blocked PostgreSQL connection to `88.80.188.224:5432`.

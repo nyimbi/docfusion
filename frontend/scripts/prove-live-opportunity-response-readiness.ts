@@ -1,5 +1,6 @@
 import "./load-env";
 
+import crypto from "node:crypto";
 import path from "node:path";
 import fs from "node:fs/promises";
 import {
@@ -81,6 +82,7 @@ interface LiveOpportunityResponseReadinessProof {
 		relevantSnippetCount: number;
 		relevantSnippetShortcuts: string[];
 		seededDocumentWordCounts: Record<string, number>;
+		draftArtifactHashes: Record<string, string>;
 		totalDraftWordCount: number;
 		draftArtifactPaths: string[];
 		readiness: LiveResponseReadinessAssessment;
@@ -226,6 +228,7 @@ function proveResponseSeedReadiness(
 	draftArtifactPaths: string[]
 ): NonNullable<LiveOpportunityResponseReadinessProof["responseReadiness"]> {
 	const seededDocumentWordCounts: Record<string, number> = {};
+	const draftArtifactHashes: Record<string, string> = {};
 	let totalSectionSeeds = 0;
 
 	for (const document of responsePackage.documents) {
@@ -234,6 +237,7 @@ function proveResponseSeedReadiness(
 			throw new Error(`Response draft for ${document.documentType} still contains required placeholders`);
 		}
 		seededDocumentWordCounts[document.documentType] = document.wordCount;
+		draftArtifactHashes[document.documentType] = document.artifact.contentHash;
 	}
 
 	if (responsePackage.requirements.length < 3) {
@@ -257,6 +261,7 @@ function proveResponseSeedReadiness(
 		relevantSnippetCount: responsePackage.relevantSnippetCount,
 		relevantSnippetShortcuts: responsePackage.relevantSnippetShortcuts.slice(0, 12),
 		seededDocumentWordCounts,
+		draftArtifactHashes,
 		totalDraftWordCount: responsePackage.totalWordCount,
 		draftArtifactPaths,
 		readiness: responsePackage.readiness,
@@ -290,9 +295,16 @@ async function writeResponsePackageArtifacts(responsePackage: LiveResponsePackag
 	await fs.mkdir(packageDir, { recursive: true });
 	const relativePaths: string[] = [];
 	for (const document of responsePackage.documents) {
-		const filename = `${document.documentType}.md`;
-		const filePath = path.resolve(packageDir, filename);
+		const filePath = path.resolve(packageDir, document.artifact.filename);
 		await fs.writeFile(filePath, document.markdown, "utf8");
+		const readback = await fs.readFile(filePath, "utf8");
+		const readbackHash = crypto.createHash("sha256").update(readback).digest("hex");
+		if (readbackHash !== document.artifact.contentHash) {
+			throw new Error(`Draft artifact readback hash mismatch for ${document.documentType}`);
+		}
+		if (Buffer.byteLength(readback, "utf8") !== document.artifact.sizeBytes) {
+			throw new Error(`Draft artifact readback size mismatch for ${document.documentType}`);
+		}
 		relativePaths.push(path.relative(WORKSPACE_ROOT, filePath));
 	}
 	await writeProofJson(packageDir, "response-package-summary.json", responsePackage);
@@ -324,6 +336,7 @@ async function writeArtifacts(
 			`readiness:${proof.responseReadiness?.readiness.status ?? "not-run"}`,
 			`readiness-source-coverage:${proof.responseReadiness?.readiness.metrics.sourceRequirementCoverage ?? 0}`,
 			`readiness-win-theme-criteria-coverage:${proof.responseReadiness?.readiness.metrics.winThemeCriteriaCoverage ?? 0}`,
+			`readiness-draft-artifact-integrity:${proof.responseReadiness?.readiness.metrics.draftArtifactIntegrityCoverage ?? 0}`,
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe opportunity response readiness",

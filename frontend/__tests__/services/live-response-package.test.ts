@@ -143,6 +143,7 @@ describe("live response package builder", () => {
 			winThemeCriteriaCoverage: 1,
 			evidenceCueCoverage: 1,
 			evidenceCitationCoverage: 1,
+			draftArtifactIntegrityCoverage: 1,
 			reviewGateCoverage: 1,
 			sourceCitationCoverage: 1,
 			unresolvedPlaceholderCount: 0,
@@ -157,6 +158,13 @@ describe("live response package builder", () => {
 			expect(document.markdown).toContain("Source requirement LIVE-REQ-");
 			expect(document.markdown).toContain("## Datacraft Evidence To Weave In");
 			expect(document.markdown).toContain("## Datacraft Evidence Citation Map");
+			expect(document.artifact).toMatchObject({
+				format: "markdown",
+				filename: `${document.documentType}.md`,
+				sizeBytes: Buffer.byteLength(document.markdown, "utf8"),
+				generatedAt: "2026-05-27T00:00:00.000Z",
+			});
+			expect(document.artifact.contentHash).toMatch(/^[a-f0-9]{64}$/);
 			for (const shortcut of document.relevantSnippetShortcuts) {
 				expect(document.markdown).toContain(`Evidence ${shortcut}:`);
 			}
@@ -297,6 +305,32 @@ Vendors interested in participating in the planned solicitation process should s
 		expect(readiness.warnings).toEqual(
 			expect.arrayContaining([
 				expect.stringContaining("incomplete Datacraft evidence citation mapping"),
+			])
+		);
+	});
+
+	it("blocks readiness when draft artifact manifests are stale", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-27T00:00:00.000Z"),
+		});
+		const brokenPackage = {
+			...responsePackage,
+			documents: responsePackage.documents.map((document) => ({
+				...document,
+				markdown: `${document.markdown}\nUntracked late edit.`,
+			})),
+		};
+
+		const readiness = assessLiveResponsePackageReadiness(brokenPackage);
+
+		expect(readiness.status).toBe("blocked");
+		expect(readiness.blockers.join("\n")).toContain("draft artifact integrity manifest");
+		expect(readiness.metrics.draftArtifactIntegrityCoverage).toBe(0);
+		expect(readiness.warnings).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("stale draft artifact integrity manifest"),
 			])
 		);
 	});

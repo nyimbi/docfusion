@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	DATACRAFT_RESPONSE_SNIPPETS,
 	getDatacraftProposalDocumentContent,
@@ -73,11 +74,20 @@ export interface LiveResponseDraftDocument {
 	documentType: ProposalDocumentType;
 	title: string;
 	markdown: string;
+	artifact: LiveResponseDraftArtifact;
 	wordCount: number;
 	sectionSeedCount: number;
 	requirementIds: string[];
 	evaluationCriteriaIds: string[];
 	relevantSnippetShortcuts: string[];
+}
+
+export interface LiveResponseDraftArtifact {
+	format: "markdown";
+	filename: string;
+	contentHash: string;
+	sizeBytes: number;
+	generatedAt: string;
 }
 
 export interface LiveResponsePackage {
@@ -112,6 +122,7 @@ export interface LiveResponseReadinessAssessment {
 		winThemeCriteriaCoverage: number;
 		evidenceCueCoverage: number;
 		evidenceCitationCoverage: number;
+		draftArtifactIntegrityCoverage: number;
 		reviewGateCoverage: number;
 		sourceCitationCoverage: number;
 		unresolvedPlaceholderCount: number;
@@ -159,11 +170,13 @@ export function buildLiveResponsePackage(input: {
 			snippets,
 			generatedAt,
 		});
+		const title = `${getDocumentTypeLabel(documentType)} - ${input.opportunity.title}`;
 
 		return {
 			documentType,
-			title: `${getDocumentTypeLabel(documentType)} - ${input.opportunity.title}`,
+			title,
 			markdown,
+			artifact: buildDraftArtifactManifest(documentType, markdown, generatedAt),
 			wordCount: countWords(markdown),
 			sectionSeedCount: getDatacraftProposalSectionSeeds(documentType).length,
 			requirementIds: assignedRequirements.map((requirement) => requirement.id),
@@ -233,6 +246,7 @@ export function assessLiveResponsePackageReadiness(
 	const coveredMandatoryRequirementCount = mandatoryRequirementIds.filter((id) => assignedRequirementIds.has(id)).length;
 	const documentsWithEvidence = responsePackage.documents.filter((document) => document.relevantSnippetShortcuts.length > 0).length;
 	const documentsWithEvidenceCitations = responsePackage.documents.filter(hasCompleteEvidenceCitationMap).length;
+	const documentsWithValidDraftArtifacts = responsePackage.documents.filter(hasValidDraftArtifactManifest).length;
 	const documentsWithReviewGates = responsePackage.documents.filter((document) => document.markdown.includes("## Review Gates")).length;
 	const documentsWithSourceCitations = responsePackage.documents.filter(hasCompleteSourceCitationMap).length;
 	const unresolvedPlaceholderCount = responsePackage.documents.reduce(
@@ -250,6 +264,7 @@ export function assessLiveResponsePackageReadiness(
 		winThemeCriteriaCoverage: ratio(winThemeCoveredEvaluationCriteriaCount, evaluationCriteriaIds.length),
 		evidenceCueCoverage: ratio(documentsWithEvidence, responsePackage.documents.length),
 		evidenceCitationCoverage: ratio(documentsWithEvidenceCitations, responsePackage.documents.length),
+		draftArtifactIntegrityCoverage: ratio(documentsWithValidDraftArtifacts, responsePackage.documents.length),
 		reviewGateCoverage: ratio(documentsWithReviewGates, responsePackage.documents.length),
 		sourceCitationCoverage: ratio(documentsWithSourceCitations, responsePackage.documents.length),
 		unresolvedPlaceholderCount,
@@ -295,6 +310,9 @@ export function assessLiveResponsePackageReadiness(
 	if (metrics.evidenceCitationCoverage < 1) {
 		blockers.push("At least one response draft is missing a complete Datacraft evidence citation map");
 	}
+	if (metrics.draftArtifactIntegrityCoverage < 1) {
+		blockers.push("At least one response draft has a missing or stale draft artifact integrity manifest");
+	}
 	if (metrics.reviewGateCoverage < 1) {
 		blockers.push("At least one response draft is missing review gates");
 	}
@@ -314,6 +332,9 @@ export function assessLiveResponsePackageReadiness(
 		}
 		if (!hasCompleteEvidenceCitationMap(document)) {
 			warnings.push(`${document.documentType} has incomplete Datacraft evidence citation mapping`);
+		}
+		if (!hasValidDraftArtifactManifest(document)) {
+			warnings.push(`${document.documentType} has a missing or stale draft artifact integrity manifest`);
 		}
 		if (!hasCompleteSourceCitationMap(document)) {
 			warnings.push(`${document.documentType} has incomplete source citation mapping`);
@@ -346,6 +367,33 @@ function hasCompleteSourceCitationMap(document: LiveResponseDraftDocument): bool
 function hasCompleteEvidenceCitationMap(document: LiveResponseDraftDocument): boolean {
 	if (!document.markdown.includes("## Datacraft Evidence Citation Map")) return false;
 	return document.relevantSnippetShortcuts.every((shortcut) => document.markdown.includes(shortcut));
+}
+
+function buildDraftArtifactManifest(
+	documentType: ProposalDocumentType,
+	markdown: string,
+	generatedAt: Date
+): LiveResponseDraftArtifact {
+	return {
+		format: "markdown",
+		filename: `${documentType}.md`,
+		contentHash: sha256Hex(markdown),
+		sizeBytes: Buffer.byteLength(markdown, "utf8"),
+		generatedAt: generatedAt.toISOString(),
+	};
+}
+
+function hasValidDraftArtifactManifest(document: LiveResponseDraftDocument): boolean {
+	return document.artifact?.format === "markdown"
+		&& document.artifact.filename === `${document.documentType}.md`
+		&& document.artifact.contentHash === sha256Hex(document.markdown)
+		&& document.artifact.sizeBytes === Buffer.byteLength(document.markdown, "utf8")
+		&& document.artifact.sizeBytes > 0
+		&& Boolean(document.artifact.generatedAt);
+}
+
+function sha256Hex(value: string): string {
+	return createHash("sha256").update(value).digest("hex");
 }
 
 export function extractLiveResponseRequirementSignals(sourceText: string): LiveResponseRequirementSignal[] {
@@ -903,13 +951,14 @@ function emptyReadinessAssessment(): LiveResponseReadinessAssessment {
 			sourceRequirementCoverage: 0,
 			mandatoryRequirementCoverage: 0,
 			evaluationCriteriaCoverage: 0,
-		winThemeCriteriaCoverage: 0,
-		evidenceCueCoverage: 0,
-		evidenceCitationCoverage: 0,
-		reviewGateCoverage: 0,
-		sourceCitationCoverage: 0,
-		unresolvedPlaceholderCount: 0,
-		minDocumentWordCount: 0,
+			winThemeCriteriaCoverage: 0,
+			evidenceCueCoverage: 0,
+			evidenceCitationCoverage: 0,
+			draftArtifactIntegrityCoverage: 0,
+			reviewGateCoverage: 0,
+			sourceCitationCoverage: 0,
+			unresolvedPlaceholderCount: 0,
+			minDocumentWordCount: 0,
 			totalDraftWordCount: 0,
 			relevantSnippetCount: 0,
 			winThemeSeedCount: 0,
