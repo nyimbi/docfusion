@@ -195,6 +195,33 @@ describe("win theme authorization", () => {
 		expect(result.data?.[0]?.suggestedKeywords.length).toBeGreaterThan(0);
 	});
 
+	it("returns deterministic theme suggestions when AI returns an empty suggestion list", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ suggestions: [] }) });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({ result: [] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+				}],
+			}));
+
+		const result = await generateThemeSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			count: 3,
+			additionalContext: "Past performance proof, cost efficiency, and local certified delivery team.",
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.length).toBeGreaterThan(0);
+		expect(data[0].statement.trim().length).toBeGreaterThan(0);
+		expect(data[0].suggestedKeywords.length).toBeGreaterThan(0);
+	});
+
 	it("returns deterministic reinforcement text when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
 		dbMock.select.mockReturnValueOnce(createChain({
@@ -227,6 +254,33 @@ describe("win theme authorization", () => {
 		expect(data?.placementSuggestion).toContain("section opening");
 	});
 
+	it("returns deterministic reinforcement text when AI returns empty options", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ options: [], placementSuggestion: "" }) });
+		dbMock.select.mockReturnValueOnce(createChain({
+			result: [{
+				id: "theme-1",
+				themeStatement: "validated transition governance",
+				shortVersion: "Transition governance",
+				supportingEvidence: ["two prior transition programs"],
+			}],
+		}));
+
+		const result = await generateReinforcementText({
+			themeId: "theme-1",
+			sectionId: "section-1",
+			tone: "technical",
+			optionCount: 2,
+			targetWordCount: 40,
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.options).toHaveLength(2);
+		expect(data.options[0].text).toContain("validated transition governance");
+		expect(data.placementSuggestion).toContain("section opening");
+	});
+
 	it("returns deterministic ghost themes when AI output is malformed", async () => {
 		aiCompleteMock.mockResolvedValueOnce({ content: "not json" });
 		dbMock.select
@@ -254,6 +308,30 @@ describe("win theme authorization", () => {
 		expect(result.data?.[0]?.statement).toContain("rapid transition governance");
 		expect(result.data?.[0]?.statement).toContain("slow mobilization");
 		expect(result.data?.[0]?.phrasings.length).toBeGreaterThan(1);
+	});
+
+	it("returns deterministic ghost themes when AI returns an empty ghost-theme list", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ ghostThemes: [] }) });
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "competitor-1",
+					competitorName: "IncumbentCo",
+					competitorWeaknesses: ["slow mobilization"],
+					ourDifferentiators: ["rapid transition governance"],
+					isIncumbent: true,
+				}],
+			}));
+
+		const result = await generateGhostThemeSuggestions("22222222-2222-4222-8222-222222222222");
+
+		expect(result.success).toBe(true);
+		if (!result.success) return;
+		const data = result.data!;
+		expect(data.length).toBeGreaterThan(0);
+		expect(data[0].statement).toContain("rapid transition governance");
+		expect(data[0].phrasings.length).toBeGreaterThan(1);
 	});
 
 	it("does not suggest win themes for evaluation criteria already covered by existing themes", async () => {
@@ -681,6 +759,69 @@ describe("win theme authorization", () => {
 			impactScore: 86,
 			impactLevel: "high",
 		});
+	});
+
+	it("falls back to deterministic injection suggestions when AI returns an empty list", async () => {
+		aiCompleteMock.mockResolvedValueOnce({ content: JSON.stringify({ injections: [] }) });
+		const insertedValues: unknown[] = [];
+		dbMock.select
+			.mockReturnValueOnce(createChain({ result: [{ id: "22222222-2222-4222-8222-222222222222" }] }))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "33333333-3333-4333-8333-333333333333",
+					opportunityId: "22222222-2222-4222-8222-222222222222",
+					themeStatement: "Datacraft reduces delivery risk with proven implementation controls.",
+					shortVersion: "Proven delivery controls",
+					themeType: "risk_mitigation",
+					supportingEvidence: ["Three similar migrations completed on time", "ISO 27001 delivery governance"],
+					keywords: ["risk", "delivery", "controls"],
+					evaluationCriteriaIds: ["criteria-1"],
+					targetSections: ["Technical Approach", "Transition Plan"],
+					isActive: true,
+				}],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{
+					id: "occ-1",
+					themeId: "33333333-3333-4333-8333-333333333333",
+					sectionName: "Technical Approach",
+					textExcerpt: "Existing delivery controls mention.",
+				}],
+			}));
+		dbMock.insert.mockImplementation(() => createChain({
+			onValues: (value) => insertedValues.push(value),
+			result: [{
+				id: "injection-1",
+				themeId: "33333333-3333-4333-8333-333333333333",
+				documentId: "22222222-2222-4222-8222-222222222222",
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				pageNumber: 1,
+				textContext: "Transition Plan section context for deterministic win-theme reinforcement.",
+				suggestedText: "Proven delivery controls Proof: Three similar migrations completed on time; ISO 27001 delivery governance.",
+				injectionType: "enhance",
+				rationale: "Deterministic fallback from active win theme with keywords: risk, delivery, controls.",
+				impactScore: 0.86,
+				status: "pending",
+				createdAt: new Date("2026-05-27T00:00:00.000Z"),
+			}],
+		}));
+
+		const result = await generateInjectionSuggestions({
+			opportunityId: "22222222-2222-4222-8222-222222222222",
+			maxSuggestions: 1,
+		});
+
+		expect(result.success).toBe(true);
+		expect(insertedValues).toEqual([
+			expect.objectContaining({
+				sectionId: "transition-plan",
+				sectionName: "Transition Plan",
+				status: "pending",
+				suggestedText: expect.stringContaining("Proven delivery controls"),
+			}),
+		]);
+		expect(result.data?.[0]?.sectionName).toBe("Transition Plan");
 	});
 
 	it("scopes theme updates to opportunities assigned to the actor", async () => {

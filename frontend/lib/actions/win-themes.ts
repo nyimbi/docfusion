@@ -1505,6 +1505,9 @@ Respond in JSON format:
 					suggestedKeywords: string[];
 				}>;
 			};
+			if (!Array.isArray(parsed.suggestions) || parsed.suggestions.length === 0) {
+				throw new Error("AI response did not include theme suggestions");
+			}
 
 			const suggestions: ThemeSuggestion[] = parsed.suggestions.map((s, i) => ({
 				id: `suggestion-${Date.now()}-${i}`,
@@ -2348,6 +2351,9 @@ Respond in JSON format:
 					impactScore: number;
 				}>;
 			};
+			if (!Array.isArray(parsed.injections) || parsed.injections.length === 0) {
+				throw new Error("AI response did not include injection suggestions");
+			}
 
 			const drafts = parsed.injections.map((injection): InjectionDraft => {
 				const themeId = injection.themeId || themes[0].id;
@@ -2680,6 +2686,9 @@ Respond in JSON format:
 					rationale: string;
 				}>;
 			};
+			if (!Array.isArray(parsed.ghostThemes) || parsed.ghostThemes.length === 0) {
+				throw new Error("AI response did not include ghost themes");
+			}
 
 			const suggestions: GhostThemeSuggestion[] = parsed.ghostThemes.map((g, i) => ({
 				id: `ghost-${Date.now()}-${i}`,
@@ -3068,6 +3077,9 @@ Respond in JSON format:
 				}>;
 				placementSuggestion: string;
 			};
+			if (!Array.isArray(parsed.options) || parsed.options.length === 0) {
+				throw new Error("AI response did not include reinforcement options");
+			}
 
 			return {
 				success: true,
