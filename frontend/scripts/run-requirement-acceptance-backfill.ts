@@ -252,7 +252,13 @@ async function evaluateCandidate(candidate: CandidateRow): Promise<
 	{ ok: true; assignedTo: string; dueDate: Date; responseDocumentId: string } | { ok: false; reason: string }
 > {
 	const assignedTo = candidate.requirement.assignedTo ?? candidate.opportunity.assignedTo ?? DEFAULT_ASSIGNED_TO;
-	const dueDate = normalizeDueDate(candidate.requirement.dueDate, candidate.opportunity.deadline);
+	const expiredReason = expiredCandidateDeadlineReason(candidate);
+	if (expiredReason) return { ok: false, reason: expiredReason };
+	const dueDate = normalizeDueDate(
+		candidate.requirement.dueDate,
+		candidate.rfpDocument.responseDeadline,
+		candidate.opportunity.deadline
+	);
 	const missing = acceptanceGateFailures(candidate.requirement, assignedTo, dueDate);
 	if (missing.length > 0) {
 		return { ok: false, reason: `acceptance gate missing ${missing.join(", ")}` };
@@ -618,11 +624,27 @@ function acceptanceGateFailures(
 	return missing;
 }
 
-function normalizeDueDate(requirementDueDate: Date | null, opportunityDeadline: Date | null): Date {
+function normalizeDueDate(
+	requirementDueDate: Date | null,
+	responseDeadline: Date | null,
+	opportunityDeadline: Date | null
+): Date {
 	const now = new Date();
 	if (requirementDueDate && !Number.isNaN(requirementDueDate.getTime()) && requirementDueDate > now) return requirementDueDate;
+	if (responseDeadline && !Number.isNaN(responseDeadline.getTime()) && responseDeadline > now) return responseDeadline;
 	if (opportunityDeadline && !Number.isNaN(opportunityDeadline.getTime()) && opportunityDeadline > now) return opportunityDeadline;
 	return DEFAULT_DUE_DATE && DEFAULT_DUE_DATE > now ? DEFAULT_DUE_DATE : new Date(Number.NaN);
+}
+
+function expiredCandidateDeadlineReason(candidate: CandidateRow): string | null {
+	const opportunityReason = expiredDeadlineReason("opportunity deadline", candidate.opportunity.deadline);
+	if (opportunityReason) return opportunityReason;
+	return expiredDeadlineReason("RFP response deadline", candidate.rfpDocument.responseDeadline);
+}
+
+function expiredDeadlineReason(label: string, value: Date | null): string | null {
+	if (!value || Number.isNaN(value.getTime()) || value >= new Date()) return null;
+	return `acceptance gate expired ${label} ${value.toISOString()}`;
 }
 
 function documentTypeForRequirement(category: string | null): ProposalDocumentType {

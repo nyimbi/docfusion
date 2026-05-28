@@ -129,6 +129,16 @@ async function main() {
 
 		for (const candidate of candidates) {
 			try {
+				const expiredReason = expiredCandidateReason(candidate);
+				if (expiredReason) {
+					proof.skipped.push({
+						opportunityId: candidate.opportunity.id,
+						rfpDocumentId: candidate.rfpDocument.id,
+						title: candidate.opportunity.title,
+						reason: expiredReason,
+					});
+					continue;
+				}
 				const responsePackage = buildLiveResponsePackage({
 					opportunity: toOpportunityData(candidate.opportunity),
 					sourceText: candidate.rfpDocument.extractedText ?? "",
@@ -203,6 +213,8 @@ async function selectBackfillCandidates(): Promise<CandidateRow[]> {
 			select 1 from proposal_documents
 			where proposal_documents.opportunity_id = ${rfpDocuments.opportunityId}
 		)`,
+		sql`(${opportunities.deadline} is null or ${opportunities.deadline} >= now())`,
+		sql`(${rfpDocuments.responseDeadline} is null or ${rfpDocuments.responseDeadline} >= now())`,
 	];
 	if (REQUIRE_PARSE_REVIEW_READY) {
 		conditions.push(sql`coalesce(${rfpDocuments.metadata}->'parseReview'->>'state', '') in ('accepted', 'auto_accepted')`);
@@ -502,6 +514,17 @@ function summarizeDryRun(candidate: CandidateRow, responsePackage: LiveResponseP
 		totalDraftWordCount: responsePackage.totalWordCount,
 		minDraftWordCount: Math.min(...responsePackage.documents.map((document) => document.wordCount)),
 	};
+}
+
+function expiredCandidateReason(candidate: CandidateRow): string | null {
+	const opportunityReason = expiredDeadlineReason("opportunity deadline", candidate.opportunity.deadline);
+	if (opportunityReason) return opportunityReason;
+	return expiredDeadlineReason("RFP response deadline", candidate.rfpDocument.responseDeadline);
+}
+
+function expiredDeadlineReason(label: string, value: Date | null): string | null {
+	if (!value || Number.isNaN(value.getTime()) || value >= new Date()) return null;
+	return `expired ${label} ${value.toISOString()}`;
 }
 
 function toOpportunityData(opportunity: typeof opportunities.$inferSelect): OpportunityData {
