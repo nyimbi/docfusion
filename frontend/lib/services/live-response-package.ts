@@ -1518,6 +1518,7 @@ function extractSourceDeadline(sourceText: string): { deadline: Date; evidenceSn
 
 function parseProcurementDate(value: string): Date | undefined {
 	const cleaned = value
+		.replace(/[*_`]+/gu, " ")
 		.replace(/\b(\d{1,2})\s*(st|nd|rd|th)\b/giu, "$1")
 		.replace(/\bat\s+/giu, " ")
 		.replace(/\btime\s*[:\-]?\s*/giu, " ")

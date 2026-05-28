@@ -239,6 +239,21 @@ The procuring entity invites eligible consultants to submit a technical and fina
 			].join("\n"),
 			generatedAt: new Date("2026-05-27T08:00:00.000Z"),
 		});
+		const boldMarkdownSchedule = buildLiveSubmissionSchedule({
+			opportunity: {
+				title: "Tender for Provision of Staff Medical Insurance Cover",
+				source: "comesa",
+				sourceId: "medical-insurance",
+				organization: "COMESA Secretariat",
+				projectSummary: "Staff medical insurance cover.",
+			},
+			sourceText: [
+				"**PUBLISHED: 12** **th** **MAY 2026**",
+				"**CLOSING DATE: 12** **TH** **JUNE 2026**",
+				"The bidder shall submit their proposals through two envelope systems before the deadline for submission of proposals.",
+			].join("\n"),
+			generatedAt: new Date("2026-05-28T08:00:00.000Z"),
+		});
 
 		expect(metadataSchedule).toMatchObject({
 			deadlineLabel: "2026-06-18",
@@ -250,6 +265,11 @@ The procuring entity invites eligible consultants to submit a technical and fina
 			deadlineSource: "source_text",
 			urgency: "critical",
 			submissionMethod: "Electronic tender box",
+		});
+		expect(boldMarkdownSchedule).toMatchObject({
+			deadlineLabel: "2026-06-12",
+			deadlineSource: "source_text",
+			urgency: "normal",
 		});
 		expect(sourceSchedule.submissionRequirements.join("\n")).toContain("Bidders must submit company profile");
 		expect(sourceSchedule.evidenceSnippets.join("\n")).toContain("CLOSING DATE: 28 TH MAY, 2026 TIME: 10.00 AM");

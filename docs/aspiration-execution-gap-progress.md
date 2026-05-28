@@ -8259,6 +8259,32 @@ Remaining after this slice:
 - Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Live Source Schedule Refresh
+
+Status: implemented and verified, with one live-source outage noted.
+
+Purpose: refresh the older live source artifacts created before submission schedules existed, so portfolio and handoff evidence is schedule-aware across more source kinds.
+
+Changes in this slice:
+- Hardened date parsing for Docling/Markdown output where date components are split by emphasis markers, e.g. `**CLOSING DATE: 12** **TH** **JUNE 2026**`.
+- Added a regression case proving Markdown-emphasized COMESA closing dates normalize into a source-text deadline.
+- Refreshed World Bank and COMESA response-readiness artifacts with submission schedule evidence.
+- Regenerated live portfolio triage and pursuit handoff so refreshed source deadlines appear in operator ranking and handoff evidence.
+
+Verification:
+- `npm test -- live-response-package.test.ts --run` passed with 21 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-world-bank-response-readiness --include-live-safe` passed with run `live_world_bank_response_readiness_20260528T005653Z`, extracting deadline `2026-06-03`, urgency `urgent`, and source-text evidence.
+- `npm run platform:proof -- --run live-comesa-response-readiness --include-live-safe` passed with run `live_comesa_response_readiness_20260528T005830Z`, extracting deadline `2026-06-12`, urgency `normal`, and source-text evidence after the Markdown emphasis parser fix.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T005939Z`, showing AFDB `normal` deadline `2026-06-11`, COMESA `normal` deadline `2026-06-12`, World Bank `urgent` deadline `2026-06-03`, and Kenya PPIP `critical` deadline `2026-05-28`.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T005954Z`, bundling source portfolio `live_opportunity_portfolio_triage_20260528T005939Z`, primary AFDB deadline `2026-06-11`, 3 review-queue candidates, and 32 linked artifacts.
+- `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe` for the default UNGM source failed twice with `UNGM notice search returned HTTP 503`; the older UNGM row therefore remains schedule-unknown until that source recovers or a fallback source path is added.
+
+Remaining after this slice:
+- Add a fallback path for UNGM when the public notice search endpoint returns HTTP 503.
+- Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.
