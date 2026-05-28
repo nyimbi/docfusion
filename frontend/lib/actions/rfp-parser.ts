@@ -48,6 +48,7 @@ import {
 	downloadFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 } from "@/lib/storage/linode-e3";
+import { cleanTextForUtf8Storage, extractReadableTextFromBinaryDocument } from "@/lib/documents/binary-text";
 import { extractXlsxText } from "@/lib/documents/spreadsheet-text";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
@@ -2391,6 +2392,17 @@ async function extractTextFromDocument(
 				}
 			}
 
+			case "doc": {
+				const text = extractReadableTextFromBinaryDocument(fileBuffer, {
+					minimumLength: 100,
+					requireProcurementSignal: true,
+				});
+				if (!text) {
+					logger.warn("[RFP Parser] Legacy DOC parsing requires extracted readable text; skipping binary decode");
+				}
+				return text;
+			}
+
 			case "html": {
 				// Parse HTML and extract text content
 				const htmlContent = fileBuffer.toString("utf-8");
@@ -2420,12 +2432,11 @@ async function extractTextFromDocument(
 			case "txt":
 			case "text":
 				// Plain text - return as is
-				return fileBuffer.toString("utf-8");
+				return cleanTextForUtf8Storage(fileBuffer.toString("utf-8"));
 
 			default:
-				// Unknown file type - attempt to read as UTF-8
-				logger.warn(`[RFP Parser] Unknown file type: ${fileType}, attempting UTF-8 decode`);
-				return fileBuffer.toString("utf-8");
+				logger.warn(`[RFP Parser] Unknown file type: ${fileType}, attempting sanitized UTF-8 decode`);
+				return cleanTextForUtf8Storage(fileBuffer.toString("utf-8"));
 		}
 	} catch (error) {
 		if (error instanceof Error && error.message === RFP_DOCUMENT_HASH_MISMATCH_ERROR) {

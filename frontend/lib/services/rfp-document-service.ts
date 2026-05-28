@@ -20,6 +20,7 @@ import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+import { cleanTextForUtf8Storage, extractReadableTextFromBinaryDocument } from "@/lib/documents/binary-text";
 import { extractXlsxText } from "@/lib/documents/spreadsheet-text";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
@@ -141,7 +142,7 @@ type FetchedSourceDocument = {
 type ExtractedDocumentText = {
   text: string;
   pageCount?: number;
-  extractor: "docling" | "local_pdftotext" | "local_pdf_parse" | "local_docx_parse" | "local_html_text" | "local_xlsx_parse";
+  extractor: "docling" | "local_pdftotext" | "local_pdf_parse" | "local_docx_parse" | "local_doc_binary_text" | "local_html_text" | "local_xlsx_parse";
 };
 
 type SourceRecoveryScrape = {
@@ -1854,6 +1855,17 @@ async function extractDocumentTextLocally(
       return { text, extractor: "local_docx_parse" };
     }
 
+    if (extension === ".doc") {
+      const text = cleanExtractedText(
+        extractReadableTextFromBinaryDocument(buffer, {
+          minimumLength: 100,
+          requireProcurementSignal: true,
+        })
+      );
+      if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+      return { text, extractor: "local_doc_binary_text" };
+    }
+
     if (extension === ".html" || extension === ".htm") {
       const text = cleanExtractedText(
         buffer.toString("utf8")
@@ -1883,7 +1895,7 @@ async function extractDocumentTextLocally(
 }
 
 function cleanExtractedText(value: string | undefined | null): string {
-  return value?.replace(/\s+/g, " ").trim() ?? "";
+  return cleanTextForUtf8Storage(value);
 }
 
 async function storeFetchedRfpDocument(params: {

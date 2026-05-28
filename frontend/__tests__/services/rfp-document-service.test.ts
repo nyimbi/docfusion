@@ -684,6 +684,69 @@ describe("RFP document fetch storage", () => {
 		expect(dbMock.update).toHaveBeenCalled();
 	});
 
+	it("falls back from DocLing to sanitized legacy DOC text without storing binary control bytes", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const readableText = [
+			"Request for Proposal for procurement of data loggers.",
+			"Tender submission must include delivery schedule, warranty, bidder qualifications, and pricing.",
+			"Expression of Interest responses are due before the submission deadline.",
+		].join(" ");
+		const legacyDocBuffer = Buffer.concat([
+			Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0x00, 0x00, 0x00, 0x00]),
+			Buffer.from(readableText, "utf16le"),
+		]);
+
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Supplier-EOI.doc",
+			sourceUrl: "https://buyer.example/rfp/Supplier-EOI.doc",
+			mimeType: "application/msword",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		doclingMock.processRfpDocument.mockRejectedValueOnce(new Error("DocLing unavailable"));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(new Blob([legacyDocBuffer as unknown as BlobPart]), {
+			status: 200,
+			headers: {
+				"content-length": String(legacyDocBuffer.length),
+				"content-type": "application/msword",
+			},
+		}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "application/msword",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+		});
+		expect(doclingMock.processRfpDocument).toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("Request for Proposal"),
+			extractedAt: expect.any(Date),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "Supplier-EOI.doc",
+			fileType: "doc",
+			extractedText: expect.stringContaining("Tender submission"),
+		});
+		expect(String(insertedValues[0].extractedText)).not.toContain("\u0000");
+	});
+
 	it("extracts and queues procurement-plan text from downloaded XLSX source documents", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];
