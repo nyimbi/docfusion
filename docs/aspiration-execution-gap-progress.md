@@ -18,7 +18,7 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ### 2026-05-28 - Source Intake Selector Fills Underused Batches
 
-Status: implemented and dry-run verified.
+Status: implemented, live-run, parsed, and verified.
 
 Purpose: keep routine source-document intake broad while preventing host diversity limits from underfilling the batch when only one or two high-yield hosts remain.
 
@@ -31,10 +31,13 @@ Verification:
 - `npx tsc --noEmit --pretty false` passed.
 - Before this change, a default dry-run source intake selected only 4 rows after the high-yield binary drain.
 - After this change, default dry-run source intake `source_document_intake_20260528T211522Z` selected 22 eligible rows with the same `SOURCE_DOCUMENT_INTAKE_LIMIT=25` and `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=2` configuration.
+- Live source-document intake run `source_intake_filled_selector_20260528T2118` selected 22 rows under the default host cap, downloaded 13 recovered World Bank HTML pages, failed 9 DGMarket 403 rows, and queued 13 parse jobs.
+- Live queued-parse drain `queued_parse_after_filled_selector_20260528T2121` processed 13 parse jobs, completed 13, failed 0, and extracted 73 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 137 RFP documents, 135 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 818 requirements, 110 RFP documents with requirements, 125 selected discovered source documents, 175 downloaded source documents, and 74 failed source documents.
 
 Remaining after this slice:
-- Run the newly filled default intake batch after commit and parse queued documents.
 - DGMarket remains protected and likely needs a different recovery path than public SearXNG fallback.
+- Continue selector analysis on the remaining 125 selected discovered rows; easy World Bank shell recovery is now working, while protected DGMarket rows dominate failures.
 
 ### 2026-05-28 - Direct HTML Shells Recover Through Scraping Before Storage
 
