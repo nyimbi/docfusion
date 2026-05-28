@@ -97,6 +97,7 @@ function buildSteps(): CycleStep[] {
 		{
 			name: "source-document-intake",
 			script: "scripts/run-source-document-intake.ts",
+			required: false,
 			env: {
 				SOURCE_DOCUMENT_INTAKE_RUN_ID: `${RUN_ID}_source_intake`,
 				SOURCE_DOCUMENT_INTAKE_LIMIT: envNumber("RFP_CYCLE_SOURCE_LIMIT", "10"),
