@@ -19,7 +19,7 @@ const RUN_ID = process.env.SOURCE_DOCUMENT_INTAKE_RUN_ID ?? createProofRunId("so
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "source-document-intake" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
-const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b)/i;
+const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|\bprocurement[-_\s]?report\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b)/i;
 
 type IntakeDisposition = "downloaded" | "failed" | "skipped";
 
@@ -185,6 +185,14 @@ async function selectDiscoveredDocuments(
 		eq(opportunityDocuments.isSelected, true),
 		lt(opportunityDocuments.downloadAttempts, config.maxAttempts),
 		sql`${opportunityDocuments.sourceUrl} is not null`,
+		sql`NOT EXISTS (
+			SELECT 1
+			FROM opportunity_documents prior
+			WHERE prior.id <> ${opportunityDocuments.id}
+			  AND prior.organization_id IS NOT DISTINCT FROM ${opportunityDocuments.organizationId}
+			  AND lower(prior.source_url) = lower(${opportunityDocuments.sourceUrl})
+			  AND (prior.status = 'downloaded' OR prior.download_attempts > 0)
+		)`,
 		extensionCondition,
 	];
 	if (config.organizationId) {
