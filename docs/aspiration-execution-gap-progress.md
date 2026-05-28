@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Second Source Backlog Drain Adds Requirement-Bearing RFPs
+
+Status: live-run and parsed.
+
+Purpose: keep converting selected discovered source documents into downloaded RFP documents and extracted requirements after the HTML quality gate proved safe.
+
+Changes in this slice:
+- Ran another bounded source-document intake drain against the remaining selected discovered backlog.
+- Processed all parse jobs queued by that drain.
+- Confirmed the HTML gate is suppressing non-RFP expert/consultancy notice pages from parser queueing while still allowing an EBRD HTML procurement notice with requirement-bearing content through.
+
+Verification:
+- Live source-document intake run `source_intake_backlog_drain_20260528T2051` selected 8 source documents, downloaded 7, failed 1 DGMarket 403, and queued 4 parse jobs.
+- Live queued-parse drain `queued_parse_after_backlog_drain_20260528T2052` processed 4 parse jobs, completed 4, failed 0, and extracted 28 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 111 RFP documents, 109 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 678 requirements, 87 RFP documents with requirements, 178 selected discovered source documents, 145 downloaded source documents, and 51 failed source documents.
+
+Remaining after this slice:
+- DGMarket remains the most visible protected-source failure mode: some pages recover through public search/cache paths, while others return hard 403 after fallback attempts.
+- Continue draining selected discovered source documents and prioritize direct binary/high-yield source rows before weaker HTML notice pages.
+
 ### 2026-05-28 - Sparse HTML RFP Shells No Longer Enter The Parser Queue
 
 Status: implemented and verified.
