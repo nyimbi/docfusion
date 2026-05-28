@@ -309,6 +309,51 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://slow-healthy.example");
 	});
 
+	it("temporarily suppresses public fallback instances after throttle failures", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		const degradedPrimary = {
+			query: "rfp",
+			number_of_results: 1,
+			results: [{
+				title: "Primary RFP",
+				url: "https://buyer.example/primary",
+				content: "Request for proposals",
+				engine: "duckduckgo",
+				score: 1,
+			}],
+			unresponsive_engines: [{ engine: "google", error: "access denied" }],
+		};
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://throttled.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.1 } } },
+						engines: { google: { error_rate: 0 } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response("too many requests", { status: 429 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const first = await searchSearxng("rfp", { engines: ["google"] });
+		const second = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(first.sourceInstance).toBe("https://primary.example");
+		expect(second.sourceInstance).toBe("https://primary.example");
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://throttled.example");
+		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://primary.example");
+	});
+
 	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";

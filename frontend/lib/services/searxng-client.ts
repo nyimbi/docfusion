@@ -11,6 +11,7 @@ const SEARXNG_URL = process.env.SEARXNG_URL || "https://search.lindela.io";
 const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 const SEARXNG_SPACE_INSTANCES_URL = process.env.SEARXNG_SPACE_INSTANCES_URL || "https://searx.space/data/instances.json";
 const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
+const SEARXNG_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
 const DEFAULT_SEARXNG_FALLBACK_LIMIT = 8;
 
 export function getSearxngBaseUrl(): string {
@@ -88,6 +89,7 @@ type SearxngInstancesPayload = {
 let publicFallbackCache:
   | { expiresAt: number; key: string; urls: string[] }
   | undefined;
+const suppressedFallbacks = new Map<string, { expiresAt: number; reason: string }>();
 
 /**
  * Search using SearXNG
@@ -115,6 +117,7 @@ export async function searchSearxng(
 
   for (const { fallbackBaseUrl, result: fallback } of fallbackResponses) {
     if (!fallback.ok) {
+      suppressSearxngFallback(fallbackBaseUrl, fallback.error);
       logger.warn("[SearXNG] Fallback instance search failed", {
         query,
         fallbackBaseUrl,
@@ -123,6 +126,7 @@ export async function searchSearxng(
       continue;
     }
     if (fallback.response.results.length === 0 && fallback.response.unresponsive_engines?.length) {
+      suppressSearxngFallback(fallbackBaseUrl, describeDegradedSearch(fallback.response, options));
       logger.warn("[SearXNG] Fallback instance returned no results with degraded engines", {
         query,
         fallbackBaseUrl,
@@ -405,6 +409,7 @@ async function getSearxngFallbackUrls(primaryBaseUrl: string, requestedEngines: 
   for (const url of [...configured, ...publicUrls]) {
     const normalized = normalizeBaseUrl(url);
     if (!normalized || normalized === primaryBaseUrl || seen.has(normalized)) continue;
+    if (isSearxngFallbackSuppressed(normalized)) continue;
     seen.add(normalized);
     urls.push(normalized);
   }
@@ -511,6 +516,29 @@ function instanceEngineErrorRate(instance: SearxngInstanceRecord, normalizedEngi
 
 function normalizeEngineName(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function suppressSearxngFallback(baseUrl: string, reason: string): void {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized || !isSuppressibleFallbackFailure(reason)) return;
+  suppressedFallbacks.set(normalized, {
+    expiresAt: Date.now() + SEARXNG_FALLBACK_SUPPRESSION_MS,
+    reason,
+  });
+}
+
+function isSearxngFallbackSuppressed(baseUrl: string): boolean {
+  const entry = suppressedFallbacks.get(baseUrl);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    suppressedFallbacks.delete(baseUrl);
+    return false;
+  }
+  return true;
+}
+
+function isSuppressibleFallbackFailure(reason: string): boolean {
+  return /\b(403|418|429|500)\b|forbidden|too many requests|fetch failed|timed out|timeout/i.test(reason);
 }
 
 function instanceSearchMedian(instance: SearxngInstanceRecord): number {

@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Suppress Failing Public SearXNG Fallbacks Per Run
+
+Status: implemented, unit-verified, typechecked, and live-run observed.
+
+Purpose: reduce wasted broad-search time when public `searx.space` instances repeatedly reject server-side fallback traffic.
+
+Changes in this slice:
+- Added per-process suppression for fallback instances after access/throttle/transient failure patterns such as 403, 418, 429, 500, fetch failures, and timeouts.
+- Kept primary `search.lindela.io` behavior unchanged and preserved fallback fan-out to any remaining non-suppressed configured or public instances.
+- Recorded the next broad reseed after protected-source suppression.
+
+Verification:
+- Added regression coverage proving a fallback that returns 429 is not retried on the next degraded query in the same process.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Broad reseed `live_broad_reseed_after_protected_skip_20260529` returned 151 candidate records, imported 0, updated 151, failed 0, created 0 source-document rows, and attempted 0 downloads by design.
+- Follow-up source-intake dry-run `source_intake_after_protected_skip_reseed_dryrun_20260529` selected 0 rows with protected-host recovery off.
+- Post-run live database snapshot: 3,134 opportunities, 182 RFP documents, 180 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,213 requirements, 154 RFP documents with requirements, 452 selected source-document rows, 221 downloaded source-document rows, and 80 failed source-document rows.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Public `searx.space` remains best-effort only; a trusted `SEARXNG_FALLBACK_URLS` pool is still required for reliable search breadth when `search.lindela.io` engine fan-out degrades.
+- The latest broad reseed produced only updates, so further RFP growth likely needs new source/query expansion, scheduled recurring discovery, or targeted source-specific connectors rather than repeating the same batch immediately.
+
 ### 2026-05-29 - Routine Intake Skips Protected Portal Rows
 
 Status: implemented, unit-verified, typechecked, and live dry-run verified.
