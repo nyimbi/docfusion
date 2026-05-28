@@ -728,9 +728,21 @@ export async function downloadDocument(
       })
       .where(eq(opportunityDocuments.id, documentId));
 
-    const fetched = await prepareFetchedDocumentForIntake(
+    let fetched = await prepareFetchedDocumentForIntake(
       await fetchSourceDocument(safeSourceUrl, doc.documentName)
     );
+
+    // Extract text before queueing so the parser does not have to re-fetch
+    // stored bytes. Cheap local extractors run before DocLing where available.
+    let processedText = await extractFetchedDocumentText(fetched);
+    if (!processedText && isFetchedHtmlDocument(fetched)) {
+      const recoveredHtml = await recoverUnusableFetchedHtmlDocument(fetched, doc.documentName);
+      if (recoveredHtml) {
+        fetched = await prepareFetchedDocumentForIntake(recoveredHtml);
+        processedText = await extractFetchedDocumentText(fetched);
+      }
+    }
+
     const { buffer, mimeType } = fetched;
 
     // Calculate hash
@@ -749,18 +761,8 @@ export async function downloadDocument(
     });
     const localPath = stored.storagePath;
 
-    // Extract text before queueing so the parser does not have to re-fetch
-    // stored bytes. Cheap local extractors run before DocLing where available.
-    let extractedText: string | undefined;
-    let pageCount: number | undefined;
-    
-    if (isSupportedFileType(fetched.extractionFilename)) {
-      const processed = await extractSupportedDocumentText(buffer, fetched.extractionFilename);
-      if (processed) {
-        extractedText = processed.text;
-        pageCount = processed.pageCount;
-      }
-    }
+    const extractedText = processedText?.text;
+    const pageCount = processedText?.pageCount;
 
     // Update database
     await db.update(opportunityDocuments)
@@ -1676,6 +1678,40 @@ async function prepareFetchedDocumentForIntake(
 
   const extracted = await extractBestSupportedDocumentFromZip(fetched);
   return extracted ?? fetched;
+}
+
+async function extractFetchedDocumentText(
+  fetched: FetchedSourceDocument
+): Promise<ExtractedDocumentText | undefined> {
+  if (!isSupportedFileType(fetched.extractionFilename)) return undefined;
+  return extractSupportedDocumentText(fetched.buffer, fetched.extractionFilename);
+}
+
+function isFetchedHtmlDocument(fetched: FetchedSourceDocument): boolean {
+  const extension = extname(fetched.extractionFilename).toLowerCase();
+  return extension === ".html" || extension === ".htm" || isHtmlMimeType(fetched.mimeType);
+}
+
+async function recoverUnusableFetchedHtmlDocument(
+  fetched: FetchedSourceDocument,
+  documentName: string
+): Promise<FetchedSourceDocument | undefined> {
+  let pageUrl: URL;
+  try {
+    pageUrl = new URL(fetched.effectiveUrl);
+  } catch {
+    return undefined;
+  }
+
+  logger.warn("[RFP Document Service] Direct HTML source had no usable RFP text; trying scrape recovery", {
+    sourceUrl: pageUrl.toString(),
+    documentName,
+    downloadMethod: fetched.method,
+  });
+
+  const scraped = await scrapeRecoveryCandidate(pageUrl);
+  if (!scraped) return undefined;
+  return buildScrapedSourceDocument(pageUrl, documentName, scraped);
 }
 
 function isZipArchive(filename: string, mimeType: string, url: string): boolean {

@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Direct HTML Shells Recover Through Scraping Before Storage
+
+Status: implemented, live-run, parsed, and verified.
+
+Purpose: recover RFP/RFQ detail from client-rendered source pages, especially World Bank procurement detail pages that direct server fetches return as 84-character HTML shells.
+
+Changes in this slice:
+- Moved source-document text extraction before storage so unusable direct HTML can be detected before the stored artifact and parse queue decision are finalized.
+- Added scrape recovery for direct HTML pages whose fetched content fails the HTML RFP quality gate.
+- Reused the existing Firecrawl -> browser service -> CloakBrowser recovery ladder and stored the recovered markdown-as-HTML page only when it produced usable RFP text.
+- Added regression coverage proving a direct HTML shell is scraped, extracted, stored, and queued, while sparse HTML still avoids parser queueing.
+
+Verification:
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 31 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source-document intake run `source_intake_direct_html_recovery_20260528T2105` selected 20 HTML source rows with `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=10`, downloaded 10 World Bank pages after direct-HTML scrape recovery, failed 10 DGMarket 403 rows, and queued 10 parse jobs. The recovered World Bank pages extracted between 4,086 and 88,268 characters instead of the 84-character direct-fetch shell.
+- Live queued-parse drain `queued_parse_after_direct_html_recovery_20260528T2109` processed 10 parse jobs, completed 10, failed 0, and extracted 40 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 124 RFP documents, 122 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 745 requirements, 99 RFP documents with requirements, 147 selected discovered source documents, 162 downloaded source documents, and 65 failed source documents.
+
+Remaining after this slice:
+- DGMarket remains a hard protected-source failure path; current fallback searches against public SearXNG instances often return 403/429.
+- Add a selector/retry mode that can safely raise `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST` for high-yield hosts like World Bank without over-focusing routine runs on one domain.
+
 ### 2026-05-28 - Eligible Binary Source Drain Reaches Diminishing Returns
 
 Status: live-run, parsed, and selector rechecked.

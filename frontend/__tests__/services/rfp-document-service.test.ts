@@ -761,6 +761,85 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("scrapes direct HTML source pages when the fetched HTML is only a shell", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const sourceUrl = "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00442058";
+		const shellHtml = "<!doctype html><html><body><div id=\"__next\"></div></body></html>";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Procurement of 80 Ultra portable X-ray System machines.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000451", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000551" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(shellHtml, {
+			status: 200,
+			headers: {
+				"content-length": String(Buffer.byteLength(shellHtml)),
+				"content-type": "text/html",
+			},
+		}));
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Procurement of 80 Ultra portable X-ray System machines",
+					"The borrower invites bids from eligible suppliers for procurement of ultra portable X-ray system machines for public health facilities.",
+					"The bidding document includes technical specifications, delivery requirements, warranty obligations, installation services, training, and after-sales support.",
+					"Bid submission must include signed forms, manufacturer authorization, documentary evidence of bidder qualifications, delivery schedule, and priced bill of quantities.",
+					"Evaluation criteria include substantial responsiveness, compliance with technical requirements, delivery timeline, service support, and total evaluated price.",
+					"Clarifications and amendments will be issued through the procurement portal before the submission deadline.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("Ultra portable X-ray"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("bidder qualifications"),
+			metadata: expect.objectContaining({
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
 	it("queues substantive HTML procurement pages after local extraction", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];
