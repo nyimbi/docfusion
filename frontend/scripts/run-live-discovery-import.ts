@@ -82,7 +82,7 @@ function liveDiscoveryImportInput(): DiscoveryImportInput {
 		sourceScrapeLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT, 15, 0, 50),
 		scrapeLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT, 5, 0, 20),
 		browserFallbackLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT, 5, 0, 20),
-		downloadLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT, 5, 0, 10),
+		downloadLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT, 20, 0, 25),
 		downloadDiscoveredDocuments: process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS === "0"
 			? false
 			: undefined,

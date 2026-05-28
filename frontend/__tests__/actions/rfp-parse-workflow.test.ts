@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 
 vi.mock("next/cache", () => ({
 	revalidatePath: vi.fn(),
@@ -35,6 +36,13 @@ vi.mock("@/lib/ai/rfp-parser", () => ({
 	parseRFPWithAI: vi.fn(),
 	batchExtractRequirements: vi.fn(),
 }));
+
+const pdfTextMock = vi.hoisted(() => ({
+	extractPdfTextWithPdftotext: vi.fn(),
+	extractPdfTextWithPdfParse: vi.fn(),
+}));
+
+vi.mock("@/lib/documents/pdf-text", () => pdfTextMock);
 
 vi.mock("@/lib/utils/logger", () => ({
 	logger: {
@@ -184,6 +192,8 @@ beforeEach(() => {
 		contentLength: 16,
 		etag: "\"etag\"",
 	});
+	pdfTextMock.extractPdfTextWithPdftotext.mockResolvedValue(undefined);
+	pdfTextMock.extractPdfTextWithPdfParse.mockResolvedValue(undefined);
 });
 
 describe("RFP parse workflow", () => {
@@ -758,6 +768,76 @@ describe("RFP parse workflow", () => {
 				parsingError: expect.stringContaining("RFP text extraction produced no readable text for rfp.pdf"),
 			}),
 		]));
+	});
+
+	it("uses pdftotext before pdf-parse when a stored PDF lacks pre-extracted text", async () => {
+		const insertedRequirements: Record<string, unknown>[][] = [];
+		const pdfBuffer = Buffer.from("stored-rfp-bytes");
+		const fileHash = createHash("sha256").update(pdfBuffer).digest("hex");
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "",
+			storagePath: "s3://mansa/rfp/opportunity/document/rfp.pdf",
+			fileHash,
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.insert.mockReturnValue(createChain({
+			onValues: (value) => {
+				if (Array.isArray(value)) insertedRequirements.push(value);
+			},
+		}));
+		pdfTextMock.extractPdfTextWithPdftotext.mockResolvedValue({
+			text: "RFP submission instructions and technical requirements from pdftotext.",
+			extractor: "local_pdftotext",
+		});
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: "AIIB",
+			solicitationNumber: "AIIB-2026",
+			sections: [{
+				sectionId: "s1",
+				title: "Submission Requirements",
+				pageStart: 1,
+				pageEnd: 1,
+				content: "Submit a technical proposal.",
+			}],
+			confidence: 0.91,
+		});
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"s1",
+			{
+				source: "ai",
+				requirements: [{
+					requirementNumber: "REQ-001",
+					sectionReference: "s1",
+					title: "Technical Proposal",
+					fullText: "Submit a technical proposal.",
+					category: "technical",
+					requirementType: "shall",
+					priority: "mandatory",
+					confidenceScore: 0.88,
+					pageNumber: 1,
+				}],
+			},
+		]]));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(pdfTextMock.extractPdfTextWithPdftotext).toHaveBeenCalledWith(
+			pdfBuffer,
+			"rfp.pdf",
+			expect.objectContaining({ timeoutMs: 30_000 })
+		);
+		expect(pdfTextMock.extractPdfTextWithPdfParse).not.toHaveBeenCalled();
+		expect(parseRFPWithAI).toHaveBeenCalledWith("RFP submission instructions and technical requirements from pdftotext.");
+		expect(insertedRequirements[0]?.[0]).toMatchObject({
+			requirementNumber: "REQ-001",
+			requirementText: "Submit a technical proposal.",
+		});
 	});
 
 	it("fails parsing jobs before AI extraction when stored RFP bytes do not match the recorded hash", async () => {

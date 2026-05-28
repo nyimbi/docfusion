@@ -693,7 +693,7 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
-	it("falls back to local DOCX extraction when later text extraction cannot reach DocLing", async () => {
+	it("uses local DOCX extraction before DocLing when extracting stored documents", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
 			...baseDocument,
 			documentName: "Main RFP.docx",
@@ -701,12 +701,12 @@ describe("RFP document fetch storage", () => {
 			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			extractedText: null,
 		});
-		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
 
 		const text = await extractDocumentText(baseDocument.id);
 
 		expect(text).toBe("Locally extracted DOCX RFP text with enough content.");
 		expect(mammothExtractRawTextMock).toHaveBeenCalledWith({ buffer: Buffer.from("downloaded-pdf") });
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
 		expect(dbMock.update).toHaveBeenCalled();
 	});
 
@@ -800,7 +800,6 @@ describe("RFP document fetch storage", () => {
 				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
 				onValues: (value) => insertedValues.push(value),
 			}));
-		doclingMock.processRfpDocument.mockRejectedValueOnce(new Error("DocLing unavailable"));
 		fetchPublicHttpUrlMock.mockResolvedValue(new Response(new Blob([xlsxBuffer as unknown as BlobPart]), {
 			status: 200,
 			headers: {
@@ -818,6 +817,7 @@ describe("RFP document fetch storage", () => {
 			mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 			fileSize: xlsxBuffer.length,
 		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
 		expect(updates).toContainEqual(expect.objectContaining({
 			status: "downloaded",
 			mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

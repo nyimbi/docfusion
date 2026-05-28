@@ -49,6 +49,10 @@ import {
 	getLinodeE3ConfigFromEnv,
 } from "@/lib/storage/linode-e3";
 import { cleanTextForUtf8Storage, extractReadableTextFromBinaryDocument } from "@/lib/documents/binary-text";
+import {
+	extractPdfTextWithPdftotext,
+	extractPdfTextWithPdfParse,
+} from "@/lib/documents/pdf-text";
 import { extractXlsxText } from "@/lib/documents/spreadsheet-text";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
@@ -2395,17 +2399,24 @@ async function extractTextFromDocument(
 		// Parse based on file type
 		switch (fileType.toLowerCase()) {
 			case "pdf": {
-				// Use pdf-parse for PDF extraction
 				try {
-					// Dynamic import with type assertion for optional dependency
-					const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string }>;
-					const data = await pdfParse(fileBuffer);
-					return data.text;
-				} catch (pdfError) {
-					logger.error("[RFP Parser] PDF parsing failed, trying fallback:", pdfError);
-					// Fallback: return buffer as string (may contain some readable text)
-					return fileBuffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ");
+					const pdftotext = await extractPdfTextWithPdftotext(fileBuffer, path.basename(storagePath), {
+						minLength: 10,
+						timeoutMs: 30_000,
+					});
+					if (pdftotext?.text) return pdftotext.text;
+				} catch (pdftotextError) {
+					logger.warn("[RFP Parser] pdftotext extraction failed, trying pdf-parse fallback:", pdftotextError);
 				}
+
+				try {
+					const parsed = await extractPdfTextWithPdfParse(fileBuffer, { minLength: 10 });
+					if (parsed?.text) return parsed.text;
+				} catch (pdfError) {
+					logger.error("[RFP Parser] PDF parsing failed, trying sanitized binary fallback:", pdfError);
+				}
+
+				return cleanTextForUtf8Storage(fileBuffer.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " "));
 			}
 
 			case "docx": {

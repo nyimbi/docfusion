@@ -164,6 +164,23 @@ interface ConfiguredSourceParseResult {
 	lastEmptyMessage?: string;
 }
 
+type DiscoverySearchRequest = {
+	query: string;
+	engines?: string[];
+	label: string;
+	failedAsImportError: boolean;
+};
+
+type DiscoverySearchTask = {
+	query: string;
+	request: DiscoverySearchRequest;
+};
+
+type DiscoverySearchOutcome = DiscoverySearchTask & (
+	| { response: Awaited<ReturnType<typeof searchSearxng>>; error?: undefined }
+	| { response?: undefined; error: unknown }
+);
+
 const DEFAULT_DISCOVERY_QUERIES = [
 	"software development RFP Africa",
 	"ICT tender East Africa",
@@ -380,7 +397,7 @@ function searchEngineLabel(engines: string[] | undefined): string {
 function searchRequestsForInput(
 	query: string,
 	input: DiscoveryImportInput
-): Array<{ query: string; engines?: string[]; label: string; failedAsImportError: boolean }> {
+): DiscoverySearchRequest[] {
 	const engines = input.engines?.filter((engine) => engine.trim()) ?? [];
 	const shouldFanOut = input.searchEngineFanout !== false && engines.length > 1;
 	if (!shouldFanOut) {
@@ -398,6 +415,57 @@ function searchRequestsForInput(
 		label: engine,
 		failedAsImportError: false,
 	}));
+}
+
+function discoverySearchConcurrency(): number {
+	const parsed = Number(process.env.DISCOVERY_SEARCH_CONCURRENCY ?? 8);
+	if (!Number.isFinite(parsed)) return 8;
+	return Math.min(16, Math.max(1, Math.trunc(parsed)));
+}
+
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	limit: number,
+	worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+	const results = new Array<R>(items.length);
+	let nextIndex = 0;
+
+	async function runWorker(): Promise<void> {
+		while (nextIndex < items.length) {
+			const index = nextIndex++;
+			results[index] = await worker(items[index]!, index);
+		}
+	}
+
+	await Promise.all(
+		Array.from({ length: Math.min(limit, items.length) }, () => runWorker())
+	);
+	return results;
+}
+
+async function runDiscoverySearches(
+	queries: string[],
+	input: DiscoveryImportInput
+): Promise<DiscoverySearchOutcome[]> {
+	const tasks = queries.flatMap((query) =>
+		searchRequestsForInput(query, input).map((request) => ({ query, request }))
+	);
+
+	return mapWithConcurrency(tasks, discoverySearchConcurrency(), async (task) => {
+		try {
+			const response = await searchSearxng(task.request.query, {
+				categories: input.categories ?? ["general", "news", "files"],
+				engines: task.request.engines,
+				language: input.language,
+				time_range: input.timeRange,
+				safesearch: 1,
+			});
+			return { ...task, response };
+		} catch (error) {
+			return { ...task, error };
+		}
+	});
 }
 
 function inferOpportunityType(candidate: DiscoveryCandidate): OpportunityInput["opportunityType"] {
@@ -2040,7 +2108,7 @@ export async function executeOpportunityDiscoveryImport(
 	const updateExisting = input.updateExisting ?? true;
 	const downloadParseMode = input.downloadParseMode;
 	const downloadLimit = input.downloadDiscoveredDocuments
-		? Math.min(Math.max(input.downloadLimit ?? 3, 0), 10)
+		? Math.min(Math.max(input.downloadLimit ?? 3, 0), 25)
 		: 0;
 	const candidates: DiscoveryCandidate[] = [];
 	const seenUrls = new Set<string>();
@@ -2048,52 +2116,54 @@ export async function executeOpportunityDiscoveryImport(
 	const searchWarnings: DiscoveryRunWarning[] = [];
 	const actionOverride = await actionOverrideForDiscoveryActor(userId, organizationId);
 
-	for (const query of queries) {
-		const candidateCountBeforeQuery = candidates.length;
-		const requests = searchRequestsForInput(query, input);
-		let failedRequestCount = 0;
-		for (const request of requests) {
-			try {
-				const response = await searchSearxng(request.query, {
-					categories: input.categories ?? ["general", "news", "files"],
-					engines: request.engines,
-					language: input.language,
-					time_range: input.timeRange,
-					safesearch: 1,
+	const searchStats = new Map(queries.map((query) => [
+		query,
+		{
+			accepted: 0,
+			failed: 0,
+			total: searchRequestsForInput(query, input).length,
+		},
+	]));
+	for (const outcome of await runDiscoverySearches(queries, input)) {
+		const stats = searchStats.get(outcome.query);
+		if (outcome.response === undefined) {
+			if (stats) stats.failed++;
+			if (outcome.request.failedAsImportError) {
+				searchFailures.push({
+					rowIndex: searchFailures.length + 1,
+					status: "failed",
+					error: `Search failed for "${outcome.query}": ${String(outcome.error)}`,
+					data: { title: outcome.query },
 				});
-				searchWarnings.push(...collectSearxngEngineWarnings(query, response.unresponsive_engines));
-
-				for (const result of response.results.slice(0, limitPerQuery)) {
-					if (!result.url || !result.title) continue;
-					if (isLowValueDiscoveryUrl(result.url)) continue;
-					if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
-
-					const normalizedUrl = normalizeUrlForIdentity(result.url);
-					if (seenUrls.has(normalizedUrl)) continue;
-					seenUrls.add(normalizedUrl);
-					candidates.push({ query, result });
-				}
-			} catch (err) {
-				failedRequestCount++;
-				if (request.failedAsImportError) {
-					searchFailures.push({
-						rowIndex: searchFailures.length + 1,
-						status: "failed",
-						error: `Search failed for "${query}": ${String(err)}`,
-						data: { title: query },
-					});
-				} else {
-					searchWarnings.push({
-						type: "searxng_engine_degraded",
-						query,
-						title: `SearXNG ${request.label} search failed`,
-						url: `${getSearxngBaseUrl()}/search`,
-						message: `${request.label}: ${err instanceof Error ? err.message : String(err)}`,
-					});
-				}
+			} else {
+				searchWarnings.push({
+					type: "searxng_engine_degraded",
+					query: outcome.query,
+					title: `SearXNG ${outcome.request.label} search failed`,
+					url: `${getSearxngBaseUrl()}/search`,
+					message: `${outcome.request.label}: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`,
+				});
 			}
+			continue;
 		}
-		if (candidates.length === candidateCountBeforeQuery && failedRequestCount < requests.length) {
+
+		searchWarnings.push(...collectSearxngEngineWarnings(outcome.query, outcome.response.unresponsive_engines));
+
+		for (const result of outcome.response.results.slice(0, limitPerQuery)) {
+			if (!result.url || !result.title) continue;
+			if (isLowValueDiscoveryUrl(result.url)) continue;
+			if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
+
+			const normalizedUrl = normalizeUrlForIdentity(result.url);
+			if (seenUrls.has(normalizedUrl)) continue;
+			seenUrls.add(normalizedUrl);
+			candidates.push({ query: outcome.query, result });
+			if (stats) stats.accepted++;
+		}
+	}
+
+	for (const [query, stats] of searchStats) {
+		if (stats.accepted === 0 && stats.failed < stats.total) {
 			searchWarnings.push(collectSearchNoCandidateWarning(query));
 		}
 	}

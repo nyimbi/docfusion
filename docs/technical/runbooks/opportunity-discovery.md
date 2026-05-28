@@ -28,7 +28,7 @@ STEALTH_SCRAPER_URL="http://84.247.181.100:3003"
 
 Operators can run live discovery from the Opportunities page with the `Discover` control. Use one query per line, save frequently used query sets as presets, and keep enrichment limits low unless inspecting high-value sources.
 
-If the request body omits both `query`/`queries` and `sourceUrls`, the API runs the broad default collection profile. That profile combines curated procurement portals with procurement-intent SearXNG RFP queries, including submission-deadline RFPs, consultancy RFPs, ICT tender notices, software development tenders, grant-management systems, health information systems, and regional consulting EOIs. Default search is limited to `duckduckgo,bing` because live checks showed those engines are reachable while other engines may deny or rate-limit. To run source scraping only, pass an explicit `sourceUrls` array with no query fields.
+If the request body omits both `query`/`queries` and `sourceUrls`, the API runs the broad default collection profile. That profile combines curated procurement portals with procurement-intent SearXNG RFP queries, including submission-deadline RFPs, consultancy RFPs, ICT tender notices, software development tenders, grant-management systems, health information systems, monitoring and evaluation work, data platforms, ERP, cybersecurity, digital health, and regional consulting EOIs. Default search fans out through SearXNG across `google`, `duckduckgo`, `bing`, and `brave`; engine-specific denial or throttling is recorded as a warning while reachable engines continue importing candidates. To run source scraping only, pass an explicit `sourceUrls` array with no query fields.
 
 For API-key manual execution:
 
@@ -45,7 +45,7 @@ curl -s -X POST "$APP_URL/api/opportunities/discovery/run" \
     "scrapeLimit": 5,
     "browserFallback": true,
     "downloadDiscoveredDocuments": true,
-    "downloadLimit": 5
+    "downloadLimit": 20
   }'
 ```
 
@@ -90,7 +90,7 @@ Example cron entry:
 - Use empty-body scheduled runs only when you want the broad default collection profile. For narrower monitoring, save presets with explicit queries and source lists.
 - Start with `limitPerQuery` between 5 and 10 and `scrapeLimit` between 0 and 5.
 - Enable `browserFallback` only for presets that target sources with frequent Firecrawl failures.
-- Enable `downloadDiscoveredDocuments` only for high-confidence presets; keep `downloadLimit` between 1 and 5 so discovery can seed parser intake without turning broad search into an unbounded file-download run.
+- Enable `downloadDiscoveredDocuments` for high-confidence presets; keep `downloadLimit` bounded so discovery can seed parser intake without turning broad search into an unbounded file-download run. The broad default profile currently uses 20, and the service hard-caps a single discovery run at 25 downloads.
 - Use `dryRun` after changing `DISCOVERY_IMPORT_USER_ID` to confirm the scheduler can see the expected presets.
 - Treat a response with `success: false` and `failedPresets > 0` as a partial failure; later presets may still have run and imported opportunities.
 - Review returned preset `warnings` after every scheduled run. SearXNG engine degradation, source scrape empties, Firecrawl failures, browser fallback use, and source document download failures are surfaced per preset so source coverage gaps are visible before they become missed RFPs.

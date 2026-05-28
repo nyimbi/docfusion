@@ -335,6 +335,50 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("runs SearXNG engine fanout concurrently for broad RFP collection throughput", async () => {
+		const startedEngines: string[] = [];
+		let resolveGoogle: ((value: unknown) => void) | undefined;
+		searchSearxngMock.mockImplementation((_query: string, options: { engines?: string[] }) => {
+			const engine = options.engines?.[0] ?? "searxng";
+			startedEngines.push(engine);
+			const response = {
+				results: [
+					{
+						title: `${engine} Request for Proposals: Data exchange`,
+						url: `https://${engine}.example.org/tenders/data-exchange`,
+						content: "RFP for data exchange implementation with a submission deadline.",
+						engine,
+						score: 10,
+						category: "general",
+					},
+				],
+			};
+			if (engine === "google") {
+				return new Promise((resolve) => {
+					resolveGoogle = () => resolve(response);
+				});
+			}
+			return Promise.resolve(response);
+		});
+		selectResultsQueue.push([], []);
+
+		const discovery = discoverAndImportOpportunities({
+			query: "data exchange RFP",
+			engines: ["google", "duckduckgo"],
+			limitPerQuery: 5,
+		});
+		await new Promise((resolve) => setImmediate(resolve));
+
+		expect(startedEngines).toEqual(["google", "duckduckgo"]);
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+
+		resolveGoogle?.(undefined);
+		const result = await discovery;
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("extracts likely RFP document links from scraped portal pages", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

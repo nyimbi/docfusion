@@ -412,7 +412,7 @@ describe("platform proof scenarios", () => {
 					env: expect.objectContaining({
 						LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY: "10",
 						LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT: "15",
-						LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT: "5",
+						LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT: "20",
 					}),
 				}),
 				expectedArtifacts: expect.arrayContaining([
@@ -547,6 +547,7 @@ describe("platform proof scenarios", () => {
 
 		const [broadDiscoveryImportScenario] = listProofScenarios({ ids: ["live-broad-discovery-import"], includeLiveSafe: true });
 		expect(formatProofCommand(broadDiscoveryImportScenario)).toContain("LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY=10");
+		expect(formatProofCommand(broadDiscoveryImportScenario)).toContain("LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT=20");
 		expect(formatProofCommand(broadDiscoveryImportScenario)).toContain("npx tsx scripts/run-live-discovery-import.ts");
 	});
 

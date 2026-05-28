@@ -745,8 +745,8 @@ export async function downloadDocument(
     });
     const localPath = stored.storagePath;
 
-    // Process document with DocLing for text extraction, falling back locally
-    // for common office formats when the service is unavailable.
+    // Extract text before queueing so the parser does not have to re-fetch
+    // stored bytes. Cheap local extractors run before DocLing where available.
     let extractedText: string | undefined;
     let pageCount: number | undefined;
     
@@ -1772,6 +1772,18 @@ async function extractSupportedDocumentText(
       return localHtml;
     }
     logger.warn(`[RFP Document Service] Local HTML extraction could not extract usable text from ${filename}; trying DocLing`);
+  }
+
+  if (extension === ".docx" || extension === ".xlsx") {
+    const localOfficeText = await extractDocumentTextLocally(buffer, filename);
+    if (localOfficeText) {
+      logger.debug(`[RFP Document Service] Used ${localOfficeText.extractor} for ${filename}`, {
+        extractedTextLength: localOfficeText.text.length,
+        pageCount: localOfficeText.pageCount,
+      });
+      return localOfficeText;
+    }
+    logger.warn(`[RFP Document Service] Local Office extraction could not extract usable text from ${filename}; trying DocLing`);
   }
 
   try {

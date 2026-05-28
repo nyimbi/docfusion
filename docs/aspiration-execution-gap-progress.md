@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Broad RFP Search Runs Wider And In Parallel
+
+Status: implemented, live-run, parsed, and verified.
+
+Purpose: increase the number of RFPs the platform can source by widening default search coverage, using SearXNG fanout across Google, DuckDuckGo, Bing, and Brave without serial engine blocking, and converting the resulting source-document backlog into parsed RFP requirement data.
+
+Changes in this slice:
+- Expanded the broad default discovery profile from 24 to 37 RFP-intent queries, adding monitoring and evaluation, data platforms, ERP, cybersecurity, ICT equipment, consulting EOIs, digital health, UN Development Business, USAID, Kenya PPIP, South Africa eTenders, Tanzania PPRA, and Uganda eGP search coverage.
+- Expanded configured source coverage from 20 to 25 sources with UN Development Business, USAID business forecast, South Africa eTenders, Tanzania PPRA, and Uganda eGP.
+- Kept default SearXNG engine coverage on `google`, `duckduckgo`, `bing`, and `brave`, and changed the importer search phase to bounded parallel fanout so denied or slow engines do not serialize broad collection.
+- Increased default broad discovery document seeding to 20 downloads, with a hard per-run cap of 25.
+- Kept lightweight extraction ahead of expensive fallbacks for RFP intake: PDFs use `pdftotext`, XLSX/DOCX use local extractors, and queued parser PDF recovery now reuses `pdftotext` before `pdf-parse`.
+- Updated the opportunity-discovery runbook to match the wider engine/source/query behavior.
+
+Verification:
+- `npx vitest run __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts __tests__/services/rfp-document-service.test.ts __tests__/actions/rfp-parse-workflow.test.ts __tests__/actions/platform-proof-scenarios.test.ts` passed with 90 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live broad discovery run `live_broad_search_sweep_expanded_parallel_20260528T1932` searched 37 default queries across Google, DuckDuckGo, Bing, and Brave through SearXNG, scraped 25 configured sources, produced 187 records, imported 29 new opportunities, updated 158 existing opportunities, and failed 0 imports.
+- Live source-document intake `source_intake_after_expanded_parallel_sweep_20260528T1938` selected 21 discovered artifacts, downloaded 17, failed 4 protected/problem portal rows, and confirmed local extraction in live logs for PDFs and XLSX.
+- Queued parse processing `queued_parse_after_expanded_source_intake_20260528T1940` selected 15 queued parse jobs, completed 15, failed 0, and extracted 110 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 100 RFP documents, 98 completed RFP parses, 2 failed RFP parses, 0 queued parse jobs, 615 requirements, 78 RFP documents with requirements, 208 discovered source documents, 129 downloaded source documents, and 49 failed source documents.
+
+Remaining after this slice:
+- Fix the browser fallback service contract or configure CloakBrowser; protected/problem sources still include DGMarket 403s, Tanzania PPRA timeout/fallback failure, Uganda eGP fetch/fallback failure, and some EBRD pages that require stronger recovery.
+- Raise the quality gate for very short HTML extraction; several low-content HTML pages completed parsing but produced 0 requirements.
+- Continue bounded source-document intake against the remaining 208 discovered source documents, then feed high-fit completed parses into response-package backfill.
+
 ### 2026-05-28 - Three Parsed RFPs Advanced To Final Stored Response Packages
 
 Status: live response-package generation, requirement acceptance, readiness, final artifact publishing, and submission-record dry-run completed.
