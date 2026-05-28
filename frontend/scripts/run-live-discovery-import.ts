@@ -93,8 +93,8 @@ function liveDiscoveryImportInput(): DiscoveryImportInput {
 
 function discoveryImportParseMode(): DiscoveryImportInput["downloadParseMode"] {
 	const raw = process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_PARSE_MODE?.trim().toLowerCase();
-	if (raw === "background" || raw === "inline") return raw;
-	return process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS === "0" ? undefined : "inline";
+	if (raw === "background" || raw === "inline" || raw === "queued") return raw;
+	return process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS === "0" ? undefined : "queued";
 }
 
 function sourceUrlsFromEnv(): string[] | undefined {

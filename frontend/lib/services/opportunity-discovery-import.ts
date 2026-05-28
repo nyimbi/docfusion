@@ -45,6 +45,7 @@ export interface DiscoveryImportInput {
 	timeRange?: SearchOptions["time_range"];
 	categories?: SearchOptions["categories"];
 	engines?: SearchOptions["engines"];
+	searchEngineFanout?: boolean;
 	countryRegion?: string;
 	category?: string;
 	updateExisting?: boolean;
@@ -353,6 +354,33 @@ function collectSearchNoCandidateWarning(query: string): DiscoveryRunWarning {
 		url: `${getSearxngBaseUrl()}/search`,
 		message: `No opportunity-like search results were accepted for "${query}"; configured source scraping or query refinement is required to produce candidates.`,
 	};
+}
+
+function searchEngineLabel(engines: string[] | undefined): string {
+	return engines?.length === 1 ? engines[0] : "searxng";
+}
+
+function searchRequestsForInput(
+	query: string,
+	input: DiscoveryImportInput
+): Array<{ query: string; engines?: string[]; label: string; failedAsImportError: boolean }> {
+	const engines = input.engines?.filter((engine) => engine.trim()) ?? [];
+	const shouldFanOut = input.searchEngineFanout !== false && engines.length > 1;
+	if (!shouldFanOut) {
+		return [{
+			query,
+			engines: engines.length > 0 ? engines : undefined,
+			label: searchEngineLabel(engines.length > 0 ? engines : undefined),
+			failedAsImportError: true,
+		}];
+	}
+
+	return engines.map((engine) => ({
+		query,
+		engines: [engine],
+		label: engine,
+		failedAsImportError: false,
+	}));
 }
 
 function inferOpportunityType(candidate: DiscoveryCandidate): OpportunityInput["opportunityType"] {
@@ -2003,36 +2031,51 @@ export async function executeOpportunityDiscoveryImport(
 	const actionOverride = await actionOverrideForDiscoveryActor(userId, organizationId);
 
 	for (const query of queries) {
-		try {
-			const candidateCountBeforeQuery = candidates.length;
-			const response = await searchSearxng(query, {
-				categories: input.categories ?? ["general", "news", "files"],
-				engines: input.engines,
-				language: input.language,
-				time_range: input.timeRange,
-				safesearch: 1,
-			});
-			searchWarnings.push(...collectSearxngEngineWarnings(query, response.unresponsive_engines));
+		const candidateCountBeforeQuery = candidates.length;
+		const requests = searchRequestsForInput(query, input);
+		let failedRequestCount = 0;
+		for (const request of requests) {
+			try {
+				const response = await searchSearxng(request.query, {
+					categories: input.categories ?? ["general", "news", "files"],
+					engines: request.engines,
+					language: input.language,
+					time_range: input.timeRange,
+					safesearch: 1,
+				});
+				searchWarnings.push(...collectSearxngEngineWarnings(query, response.unresponsive_engines));
 
-			for (const result of response.results.slice(0, limitPerQuery)) {
-				if (!result.url || !result.title) continue;
-				if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
+				for (const result of response.results.slice(0, limitPerQuery)) {
+					if (!result.url || !result.title) continue;
+					if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
 
-				const normalizedUrl = normalizeUrlForIdentity(result.url);
-				if (seenUrls.has(normalizedUrl)) continue;
-				seenUrls.add(normalizedUrl);
-				candidates.push({ query, result });
+					const normalizedUrl = normalizeUrlForIdentity(result.url);
+					if (seenUrls.has(normalizedUrl)) continue;
+					seenUrls.add(normalizedUrl);
+					candidates.push({ query, result });
+				}
+			} catch (err) {
+				failedRequestCount++;
+				if (request.failedAsImportError) {
+					searchFailures.push({
+						rowIndex: searchFailures.length + 1,
+						status: "failed",
+						error: `Search failed for "${query}": ${String(err)}`,
+						data: { title: query },
+					});
+				} else {
+					searchWarnings.push({
+						type: "searxng_engine_degraded",
+						query,
+						title: `SearXNG ${request.label} search failed`,
+						url: `${getSearxngBaseUrl()}/search`,
+						message: `${request.label}: ${err instanceof Error ? err.message : String(err)}`,
+					});
+				}
 			}
-			if (candidates.length === candidateCountBeforeQuery) {
-				searchWarnings.push(collectSearchNoCandidateWarning(query));
-			}
-		} catch (err) {
-			searchFailures.push({
-				rowIndex: searchFailures.length + 1,
-				status: "failed",
-				error: `Search failed for "${query}": ${String(err)}`,
-				data: { title: query },
-			});
+		}
+		if (candidates.length === candidateCountBeforeQuery && failedRequestCount < requests.length) {
+			searchWarnings.push(collectSearchNoCandidateWarning(query));
 		}
 	}
 

@@ -1,6 +1,13 @@
 import type { DiscoveryImportInput } from "@/lib/services/opportunity-discovery-import";
 
 export const DEFAULT_DISCOVERY_QUERIES = [
+	"\"request for proposals\" submission deadline",
+	"\"request for proposal\" procurement deadline",
+	"\"tender notice\" procurement deadline",
+	"\"invitation to bid\" procurement deadline",
+	"\"expression of interest\" consultancy deadline",
+	"\"terms of reference\" consultancy procurement",
+	"\"request for quotations\" procurement deadline",
 	"\"request for proposals\" Africa submission deadline",
 	"\"request for proposal\" consultancy Africa procurement",
 	"\"tender notice\" Africa ICT procurement",
@@ -9,11 +16,22 @@ export const DEFAULT_DISCOVERY_QUERIES = [
 	"\"grant management system\" tender Africa",
 	"\"health information system\" \"request for proposals\" Africa",
 	"\"expression of interest\" consultancy services Africa deadline",
+	"site:ungm.org \"Request for Proposal\"",
+	"site:procurement-notices.undp.org \"RFP\"",
+	"site:worldbank.org procurement \"Request for Bids\"",
+	"site:afdb.org procurement \"request for proposals\"",
+	"site:adb.org \"Request for Proposal\" procurement",
+	"site:sam.gov \"request for proposal\" \"response date\"",
+	"filetype:pdf \"request for proposals\" \"submission deadline\"",
+	"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
+	"filetype:docx \"request for proposals\" procurement",
 ] as const;
 
 export const DEFAULT_DISCOVERY_SEARCH_ENGINES = [
+	"google",
 	"duckduckgo",
 	"bing",
+	"brave",
 ] as const;
 
 export const DEFAULT_DISCOVERY_SOURCE_URLS = [
@@ -39,12 +57,12 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;
 
-export const DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT = 15;
+export const DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT = 25;
 export const DEFAULT_DISCOVERY_SCRAPE_TOP_RESULTS = true;
 export const DEFAULT_DISCOVERY_SCRAPE_LIMIT = 5;
 export const DEFAULT_DISCOVERY_BROWSER_FALLBACK = true;
 export const DEFAULT_DISCOVERY_DOWNLOAD_DISCOVERED_DOCUMENTS = true;
-export const DEFAULT_DISCOVERY_DOWNLOAD_LIMIT = 5;
+export const DEFAULT_DISCOVERY_DOWNLOAD_LIMIT = 10;
 
 function shouldApplyDefaultQueries(input: DiscoveryImportInput): boolean {
 	return !input.query?.trim()

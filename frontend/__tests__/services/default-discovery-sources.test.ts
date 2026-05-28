@@ -10,6 +10,13 @@ import {
 describe("default discovery sources", () => {
 	it("preloads broad RFP queries plus live-proven and browser-fallback-capable procurement sources", () => {
 		expect(DEFAULT_DISCOVERY_QUERIES).toEqual([
+			"\"request for proposals\" submission deadline",
+			"\"request for proposal\" procurement deadline",
+			"\"tender notice\" procurement deadline",
+			"\"invitation to bid\" procurement deadline",
+			"\"expression of interest\" consultancy deadline",
+			"\"terms of reference\" consultancy procurement",
+			"\"request for quotations\" procurement deadline",
 			"\"request for proposals\" Africa submission deadline",
 			"\"request for proposal\" consultancy Africa procurement",
 			"\"tender notice\" Africa ICT procurement",
@@ -18,8 +25,17 @@ describe("default discovery sources", () => {
 			"\"grant management system\" tender Africa",
 			"\"health information system\" \"request for proposals\" Africa",
 			"\"expression of interest\" consultancy services Africa deadline",
+			"site:ungm.org \"Request for Proposal\"",
+			"site:procurement-notices.undp.org \"RFP\"",
+			"site:worldbank.org procurement \"Request for Bids\"",
+			"site:afdb.org procurement \"request for proposals\"",
+			"site:adb.org \"Request for Proposal\" procurement",
+			"site:sam.gov \"request for proposal\" \"response date\"",
+			"filetype:pdf \"request for proposals\" \"submission deadline\"",
+			"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
+			"filetype:docx \"request for proposals\" procurement",
 		]);
-		expect(DEFAULT_DISCOVERY_SEARCH_ENGINES).toEqual(["duckduckgo", "bing"]);
+		expect(DEFAULT_DISCOVERY_SEARCH_ENGINES).toEqual(["google", "duckduckgo", "bing", "brave"]);
 		expect(DEFAULT_DISCOVERY_SOURCE_URLS).toEqual([
 			"https://tenders.go.ke/tenders",
 			"https://www.ungm.org/Public/Notice",
@@ -51,13 +67,13 @@ describe("default discovery sources", () => {
 			queries: [...DEFAULT_DISCOVERY_QUERIES],
 			engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
 			sourceUrls: [...DEFAULT_DISCOVERY_SOURCE_URLS],
-			sourceScrapeLimit: 15,
+			sourceScrapeLimit: 25,
 			scrapeTopResults: true,
 			scrapeLimit: 5,
 			browserFallback: true,
 			browserFallbackLimit: 5,
 			downloadDiscoveredDocuments: true,
-			downloadLimit: 5,
+			downloadLimit: 10,
 		});
 
 		expect(withDefaultDiscoveryRuntimeOptions({
@@ -67,13 +83,13 @@ describe("default discovery sources", () => {
 			queries: undefined,
 			engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
 			sourceUrls: [...DEFAULT_DISCOVERY_SOURCE_URLS],
-			sourceScrapeLimit: 15,
+			sourceScrapeLimit: 25,
 			scrapeTopResults: true,
 			scrapeLimit: 5,
 			browserFallback: true,
 			browserFallbackLimit: 5,
 			downloadDiscoveredDocuments: true,
-			downloadLimit: 5,
+			downloadLimit: 10,
 		});
 
 		expect(withDefaultDiscoveryRuntimeOptions({

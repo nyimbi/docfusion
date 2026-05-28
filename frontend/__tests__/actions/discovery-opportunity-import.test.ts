@@ -282,6 +282,59 @@ describe("discoverAndImportOpportunities", () => {
 		expect(createOpportunityMock).not.toHaveBeenCalled();
 	});
 
+	it("fans out configured SearXNG engines so Google and DuckDuckGo results are both imported", async () => {
+		searchSearxngMock.mockImplementation(async (_query: string, options: { engines?: string[] }) => {
+			const engine = options.engines?.[0] ?? "searxng";
+			return {
+				results: [
+					{
+						title: `${engine} Request for Proposals: Grants platform`,
+						url: `https://${engine}.example.org/tenders/grants-platform`,
+						content: "RFP for a grants platform with a submission deadline.",
+						engine,
+						score: 10,
+						category: "general",
+					},
+				],
+			};
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "grants platform RFP",
+			engines: ["google", "duckduckgo"],
+			limitPerQuery: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(searchSearxngMock).toHaveBeenCalledTimes(2);
+		expect(searchSearxngMock).toHaveBeenNthCalledWith(1, "grants platform RFP", expect.objectContaining({
+			engines: ["google"],
+		}));
+		expect(searchSearxngMock).toHaveBeenNthCalledWith(2, "grants platform RFP", expect.objectContaining({
+			engines: ["duckduckgo"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledTimes(2);
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+			title: "google Request for Proposals: Grants platform",
+			portalUrl: "https://google.example.org/tenders/grants-platform",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					resultEngine: "google",
+				}),
+			}),
+		}));
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+			title: "duckduckgo Request for Proposals: Grants platform",
+			portalUrl: "https://duckduckgo.example.org/tenders/grants-platform",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					resultEngine: "duckduckgo",
+				}),
+			}),
+		}));
+	});
+
 	it("extracts likely RFP document links from scraped portal pages", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

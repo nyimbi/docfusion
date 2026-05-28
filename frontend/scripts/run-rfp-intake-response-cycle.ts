@@ -94,6 +94,22 @@ async function main() {
 
 function buildSteps(): CycleStep[] {
 	return [
+		...(APPLY ? [{
+			name: "live-discovery-import",
+			script: "scripts/run-live-discovery-import.ts",
+			required: false,
+			env: {
+				LIVE_DISCOVERY_IMPORT_RUN_ID: `${RUN_ID}_discovery_import`,
+				LIVE_DISCOVERY_IMPORT_USER_ID: process.env.RFP_CYCLE_USER_ID,
+				LIVE_DISCOVERY_IMPORT_ORGANIZATION_ID: ORGANIZATION_ID,
+				LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY: envNumber("RFP_CYCLE_DISCOVERY_LIMIT_PER_QUERY", "10"),
+				LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT: envNumber("RFP_CYCLE_DISCOVERY_SOURCE_SCRAPE_LIMIT", "25"),
+				LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT: envNumber("RFP_CYCLE_DISCOVERY_SCRAPE_LIMIT", "5"),
+				LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT: envNumber("RFP_CYCLE_DISCOVERY_BROWSER_FALLBACK_LIMIT", "5"),
+				LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT: envNumber("RFP_CYCLE_DISCOVERY_DOWNLOAD_LIMIT", "10"),
+				LIVE_DISCOVERY_IMPORT_DOWNLOAD_PARSE_MODE: "queued",
+			},
+		}] satisfies CycleStep[] : []),
 		{
 			name: "source-document-intake",
 			script: "scripts/run-source-document-intake.ts",
