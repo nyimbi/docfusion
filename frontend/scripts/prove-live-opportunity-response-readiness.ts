@@ -10,6 +10,10 @@ import {
 	writeProofJson,
 	type EvidenceRecord,
 } from "./platform-proof/core";
+import {
+	extractPdfTextWithPdftotext,
+	extractPdfTextWithPdfParse,
+} from "@/lib/documents/pdf-text";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { FirecrawlClient } from "@/lib/scrapers/firecrawl";
 import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parsers/afdb";
@@ -146,7 +150,7 @@ interface LiveOpportunityResponseReadinessProof {
 		byteLength: number;
 		extractedTextLength: number;
 		doclingStatus?: string;
-		extractionMethod?: "docling-document" | "world-bank-notice-api";
+		extractionMethod?: "docling-document" | "local-pdftotext" | "local-pdf-parse" | "world-bank-notice-api";
 		procurementIndicators: string[];
 		extractedPreview: string;
 	};
@@ -896,11 +900,6 @@ function dateLikeToIso(value: Date | string | null | undefined): string | undefi
 }
 
 async function fetchAndExtractSourceDocument(documentUrl: string): Promise<ExtractedSourceDocument> {
-	const doclingHealthy = await checkDoclingHealth();
-	if (!doclingHealthy) {
-		throw new Error("Docling health check failed before live response source extraction");
-	}
-
 	const response = await fetchPublicHttpUrl(documentUrl, {
 		headers: {
 			"User-Agent": "DocFusion/1.0 live-response-readiness-proof",
@@ -920,6 +919,11 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 
 	const filename = filenameFromUrl(documentUrl);
 	const { converted, extractedText, procurementIndicators } = await convertSourceDocumentWithRetries(documentBytes, filename);
+	const extractor = converted.status === "local_pdftotext"
+		? "local-pdftotext"
+		: converted.status === "local_pdf_parse"
+			? "local-pdf-parse"
+			: "docling-document";
 
 	return {
 		document: {
@@ -929,7 +933,7 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 			byteLength: documentBytes.length,
 			extractedTextLength: extractedText.length,
 			doclingStatus: converted.status,
-			extractionMethod: "docling-document",
+			extractionMethod: extractor,
 			procurementIndicators,
 			extractedPreview: compactText(extractedText.replace(/\s+/g, " "), 500),
 		},
@@ -941,6 +945,16 @@ async function convertSourceDocumentWithRetries(
 	documentBytes: Buffer,
 	filename: string
 ): Promise<SourceDocumentConversion> {
+	if (/\.pdf$/i.test(filename)) {
+		const local = await convertSourceDocumentWithPdftotext(documentBytes, filename);
+		if (local) return local;
+	}
+
+	const doclingHealthy = await checkDoclingHealth();
+	if (!doclingHealthy) {
+		return convertSourceDocumentWithPdfParse(documentBytes, filename, "Docling health check failed before live response source extraction");
+	}
+
 	let lastError: Error | undefined;
 	for (let attempt = 1; attempt <= DOCLING_CONVERSION_ATTEMPTS; attempt += 1) {
 		try {
@@ -956,13 +970,7 @@ async function convertSourceDocumentWithRetries(
 			if (converted.status && converted.status !== "success" && converted.status !== "partial_success") {
 				throw new Error(`Docling conversion did not succeed: ${converted.status}`);
 			}
-			if (extractedText.length < 1000) {
-				throw new Error(`Docling extracted too little source text: ${extractedText.length} characters`);
-			}
-			const procurementIndicators = PROCUREMENT_INDICATORS.filter((indicator) => extractedText.toLowerCase().includes(indicator));
-			if (procurementIndicators.length === 0) {
-				throw new Error("Docling source text did not contain procurement response language");
-			}
+			const procurementIndicators = validateExtractedSourceText(extractedText, "Docling");
 			return { converted, extractedText, procurementIndicators };
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error));
@@ -972,7 +980,71 @@ async function convertSourceDocumentWithRetries(
 		}
 	}
 
+	if (/\.pdf$/i.test(filename)) {
+		return convertSourceDocumentWithPdfParse(documentBytes, filename, lastError?.message ?? "Docling conversion failed without an error detail");
+	}
+
 	throw lastError ?? new Error("Docling conversion failed without an error detail");
+}
+
+async function convertSourceDocumentWithPdftotext(
+	documentBytes: Buffer,
+	filename: string
+): Promise<SourceDocumentConversion | undefined> {
+	try {
+		const extracted = await extractPdfTextWithPdftotext(documentBytes, filename, {
+			pageLimit: SOURCE_PAGE_LIMIT,
+			minLength: 1000,
+		});
+		if (!extracted) return undefined;
+		const procurementIndicators = validateExtractedSourceText(extracted.text, "pdftotext");
+		return {
+			converted: { status: extracted.extractor },
+			extractedText: extracted.text,
+			procurementIndicators,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+async function convertSourceDocumentWithPdfParse(
+	documentBytes: Buffer,
+	filename: string,
+	reason: string
+): Promise<SourceDocumentConversion> {
+	if (!/\.pdf$/i.test(filename)) {
+		throw new Error(reason);
+	}
+	try {
+		const extracted = await extractPdfTextWithPdfParse(documentBytes, {
+			pageLimit: SOURCE_PAGE_LIMIT,
+			minLength: 1000,
+		});
+		if (!extracted) {
+			throw new Error("local PDF extraction produced too little text");
+		}
+		const procurementIndicators = validateExtractedSourceText(extracted.text, "local PDF parse");
+		return {
+			converted: { status: extracted.extractor },
+			extractedText: extracted.text,
+			procurementIndicators,
+		};
+	} catch (error) {
+		const fallbackError = error instanceof Error ? error.message : String(error);
+		throw new Error(`${reason}; local PDF extraction failed: ${fallbackError}`);
+	}
+}
+
+function validateExtractedSourceText(sourceText: string, sourceLabel: string): string[] {
+	if (sourceText.length < 1000) {
+		throw new Error(`${sourceLabel} extracted too little source text: ${sourceText.length} characters`);
+	}
+	const procurementIndicators = PROCUREMENT_INDICATORS.filter((indicator) => sourceText.toLowerCase().includes(indicator));
+	if (procurementIndicators.length === 0) {
+		throw new Error(`${sourceLabel} source text did not contain procurement response language`);
+	}
+	return procurementIndicators;
 }
 
 function proveResponseSeedReadiness(

@@ -3,7 +3,6 @@ import "./load-env";
 import crypto from "node:crypto";
 import path from "node:path";
 import { Pool } from "pg";
-import { PDFParse } from "pdf-parse";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -24,6 +23,10 @@ import {
 	rfpRequirements,
 	winThemes,
 } from "@/lib/db/schema";
+import {
+	extractPdfTextWithPdftotext,
+	extractPdfTextWithPdfParse,
+} from "@/lib/documents/pdf-text";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
@@ -483,9 +486,14 @@ async function convertSourceDocumentWithRetries(
 	bytes: Buffer,
 	filename: string
 ): Promise<SourceDocumentConversion> {
+	if (/\.pdf$/i.test(filename)) {
+		const local = await convertSourceDocumentWithPdftotext(bytes, filename);
+		if (local) return local;
+	}
+
 	const doclingHealthy = await checkDoclingHealth();
 	if (!doclingHealthy) {
-		return convertSourceDocumentLocally(bytes, filename, "Docling health check failed before live persisted source extraction");
+		return convertSourceDocumentWithPdfParse(bytes, filename, "Docling health check failed before live persisted source extraction");
 	}
 
 	let lastError: Error | undefined;
@@ -515,13 +523,33 @@ async function convertSourceDocumentWithRetries(
 	}
 
 	if (/\.pdf$/i.test(filename)) {
-		return convertSourceDocumentLocally(bytes, filename, lastError?.message ?? "Docling conversion failed without an error detail");
+		return convertSourceDocumentWithPdfParse(bytes, filename, lastError?.message ?? "Docling conversion failed without an error detail");
 	}
 
 	throw lastError ?? new Error("Docling conversion failed without an error detail");
 }
 
-async function convertSourceDocumentLocally(
+async function convertSourceDocumentWithPdftotext(
+	bytes: Buffer,
+	filename: string
+): Promise<SourceDocumentConversion | undefined> {
+	try {
+		const extracted = await extractPdfTextWithPdftotext(bytes, filename, {
+			pageLimit: SOURCE_PAGE_LIMIT,
+			minLength: 1000,
+		});
+		if (!extracted) return undefined;
+		validateExtractedSourceText(extracted.text, { status: extracted.extractor });
+		return {
+			converted: { status: extracted.extractor },
+			sourceText: extracted.text,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+async function convertSourceDocumentWithPdfParse(
 	bytes: Buffer,
 	filename: string,
 	reason: string
@@ -530,23 +558,22 @@ async function convertSourceDocumentLocally(
 		throw new Error(reason);
 	}
 
-	const parser = new PDFParse({ data: bytes });
 	try {
-		const result = await parser.getText({
-			first: SOURCE_PAGE_LIMIT,
-			pageJoiner: "\n\n",
+		const extracted = await extractPdfTextWithPdfParse(bytes, {
+			pageLimit: SOURCE_PAGE_LIMIT,
+			minLength: 1000,
 		});
-		const sourceText = cleanExtractedText(result.text ?? "");
-		validateExtractedSourceText(sourceText, { status: "local_pdf_parse" });
+		if (!extracted) {
+			throw new Error("local PDF extraction produced too little text");
+		}
+		validateExtractedSourceText(extracted.text, { status: extracted.extractor });
 		return {
-			converted: { status: "local_pdf_parse" },
-			sourceText,
+			converted: { status: extracted.extractor },
+			sourceText: extracted.text,
 		};
 	} catch (error) {
 		const fallbackError = error instanceof Error ? error.message : String(error);
 		throw new Error(`${reason}; local PDF extraction failed: ${fallbackError}`);
-	} finally {
-		await parser.destroy();
 	}
 }
 
@@ -565,16 +592,21 @@ function conversionErrorDetail(converted: DoclingConvertResponse): string | unde
 }
 
 function validateExtractedSourceText(sourceText: string, converted: DoclingConvertResponse): void {
+	const sourceLabel = converted.status === "local_pdftotext"
+		? "pdftotext"
+		: converted.status === "local_pdf_parse"
+			? "local PDF parse"
+			: "Docling";
 	if (sourceText.length < 1000) {
 		const detail = conversionErrorDetail(converted);
 		throw new Error([
-			`Docling extracted too little source text: ${sourceText.length} characters`,
-			detail ? `Docling errors: ${detail}` : undefined,
+			`${sourceLabel} extracted too little source text: ${sourceText.length} characters`,
+			detail ? `${sourceLabel} errors: ${detail}` : undefined,
 		].filter(Boolean).join("; "));
 	}
 	const lower = sourceText.toLowerCase();
 	if (!PROCUREMENT_INDICATORS.some((indicator) => lower.includes(indicator))) {
-		throw new Error("Docling source text did not contain procurement response language");
+		throw new Error(`${sourceLabel} source text did not contain procurement response language`);
 	}
 }
 
