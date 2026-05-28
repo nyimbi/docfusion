@@ -2,13 +2,16 @@ import "./load-env";
 import fs from "node:fs";
 import path from "node:path";
 import { Pool } from "pg";
+import { forceLocalEnv } from "./env-utils";
 
 const MIGRATIONS = [
 	"0016_workflow_runtime.sql",
 	"0017_workflow_template_governance.sql",
+	"0025_workflow_instances_tenant.sql",
 ];
 
 async function main() {
+	forceLocalEnv(["DATABASE_URL"]);
 	const databaseUrl = process.env.DATABASE_URL;
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is required to apply workflow runtime migrations");

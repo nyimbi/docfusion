@@ -1,5 +1,6 @@
 import "./load-env";
 import { Pool } from "pg";
+import { forceLocalEnv } from "./env-utils";
 
 const REQUIRED_TABLES = [
 	"workflow_instances",
@@ -19,6 +20,7 @@ const REQUIRED_TABLES = [
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
 	workflow_instances: [
+		"organization_id",
 		"workflow_key",
 		"subject_type",
 		"subject_id",
@@ -135,6 +137,7 @@ const REQUIRED_FUNCTIONS = [
 ];
 
 async function main() {
+	forceLocalEnv(["DATABASE_URL"]);
 	const databaseUrl = process.env.DATABASE_URL;
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is required to validate workflow runtime migrations");

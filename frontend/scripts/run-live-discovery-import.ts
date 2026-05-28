@@ -1,6 +1,5 @@
 import "./load-env";
 
-import fs from "node:fs";
 import path from "node:path";
 import {
 	appendEvidenceRecords,
@@ -9,6 +8,7 @@ import {
 	writeProofJson,
 	type EvidenceRecord,
 } from "./platform-proof/core";
+import { forceLocalEnv } from "./env-utils";
 import { DEFAULT_DISCOVERY_SOURCE_URLS, withDefaultDiscoveryRuntimeOptions } from "@/lib/services/default-discovery-sources";
 import type { DiscoveryImportInput, DiscoveryImportResult } from "@/lib/services/opportunity-discovery-import";
 
@@ -59,28 +59,6 @@ async function main() {
 	} finally {
 		await closeDatabaseConnection().catch(() => undefined);
 	}
-}
-
-function forceLocalEnv(keys: string[]): void {
-	const filePath = path.resolve(process.cwd(), ".env.local");
-	if (!fs.existsSync(filePath)) return;
-	const wanted = new Set(keys);
-	for (const line of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed.startsWith("#")) continue;
-		const equalsAt = trimmed.indexOf("=");
-		if (equalsAt <= 0) continue;
-		const key = trimmed.slice(0, equalsAt).trim();
-		if (!wanted.has(key)) continue;
-		process.env[key] = unquoteEnvValue(trimmed.slice(equalsAt + 1).trim());
-	}
-}
-
-function unquoteEnvValue(value: string): string {
-	if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
-		return value.slice(1, -1);
-	}
-	return value;
 }
 
 function discoveryImportUserId(): string {

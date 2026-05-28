@@ -8683,6 +8683,28 @@ Remaining after this slice:
 - Apply or repair the deployed workflow runtime migration for `workflow_instances.organization_id`; document downloads succeeded, but parse-queue workflow recording warned that the live table is missing that column.
 - Improve parsers or source-specific clients for the sources now marked empty: `tenders.worldbank.org`, ADB, EBRD, DGMarket, USAID, SAM.gov, EU Funding & Tenders, and GIZ.
 
+### 2026-05-28 - Live Workflow Tenant Migration Repair
+
+Status: implemented and verified.
+
+Purpose: remove the live parse-queue workflow warning surfaced by broad RFP collection after source documents downloaded successfully but workflow recording failed because `workflow_instances.organization_id` was missing on `db.lindela.io`.
+
+Changes in this slice:
+- Applied `frontend/drizzle/0025_workflow_instances_tenant.sql` to `db.lindela.io:5432/docfusion`; it added `workflow_instances.organization_id`, backfilled the existing workflow row, and created `workflow_instances_organization_idx`.
+- Added `0025_workflow_instances_tenant.sql` to `scripts/apply-workflow-runtime-migrations.ts`, so future workflow migration runs include the tenant repair instead of stopping at `0017`.
+- Added `workflow_instances.organization_id` to `scripts/validate-workflow-runtime-migration.ts` required columns.
+- Added a shared `scripts/env-utils.ts` helper and used it from workflow migration/validation plus the live discovery import runner so `.env.local` overrides stale ambient `DATABASE_URL` for live operational scripts.
+
+Verification:
+- `psql` against `frontend/.env.local` confirmed `workflow_instances.organization_id` exists, the existing workflow row is backfilled (`1/1` non-null), and `workflow_instances_organization_idx` exists.
+- `npm run workflow:validate-db` passed against `db.lindela.io` and now requires `workflow_instances.organization_id`.
+- `npm run workflow:migrate-db` passed idempotently and applied `0016_workflow_runtime.sql`, `0017_workflow_template_governance.sql`, and `0025_workflow_instances_tenant.sql`.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Restore Docling on `84.247.181.100:3600` or promote local PDF parsing into user-facing source-document parse intake so downloaded RFP documents continue into structured response generation during Docling outages.
+- Run another bounded live discovery download after Docling/workspace defaults are repaired to prove downloaded source documents enqueue and parse without warnings.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: superseded by later `db.lindela.io` verification and Kenya PPIP extraction fallback.
