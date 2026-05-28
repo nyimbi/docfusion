@@ -11,6 +11,7 @@ const latestHandoffMock = vi.hoisted(() => ({
 const actionStateMock = vi.hoisted(() => ({
 	readLatestLivePursuitHandoffActionAuditEvents: vi.fn(),
 	readLatestLivePursuitHandoffActionStates: vi.fn(),
+	summarizeLatestLivePursuitHandoffActionReadiness: vi.fn(),
 	updateLatestLivePursuitHandoffTaskActionState: vi.fn(),
 }));
 
@@ -81,6 +82,17 @@ beforeEach(() => {
 		updatedByUserId: "user-1",
 		auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
 	}]);
+	actionStateMock.summarizeLatestLivePursuitHandoffActionReadiness.mockReturnValue({
+		status: "blocked",
+		taskCount: 1,
+		completedTaskCount: 0,
+		blockedTaskIds: [],
+		pendingTaskIds: ["LPH-001"],
+		criticalIncompleteTaskIds: ["LPH-001"],
+		missingEvidenceTaskIds: [],
+		reasons: ["1 critical task incomplete"],
+		updatedAt: "2026-05-28T01:30:00.000Z",
+	});
 	actionStateMock.updateLatestLivePursuitHandoffTaskActionState.mockResolvedValue({
 		taskState: {
 			taskId: "LPH-001",
@@ -103,6 +115,17 @@ beforeEach(() => {
 			updatedAt: "2026-05-28T01:35:00.000Z",
 			updatedByUserId: "user-1",
 			auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+		},
+		actionReadiness: {
+			status: "ready_for_submission",
+			taskCount: 1,
+			completedTaskCount: 1,
+			blockedTaskIds: [],
+			pendingTaskIds: [],
+			criticalIncompleteTaskIds: [],
+			missingEvidenceTaskIds: [],
+			reasons: ["All handoff tasks are complete with evidence"],
+			updatedAt: "2026-05-28T01:35:00.000Z",
 		},
 	});
 });
@@ -149,6 +172,17 @@ describe("latest live pursuit handoff route", () => {
 					updatedByUserId: "user-1",
 					auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
 				}],
+				actionReadiness: {
+					status: "blocked",
+					taskCount: 1,
+					completedTaskCount: 0,
+					blockedTaskIds: [],
+					pendingTaskIds: ["LPH-001"],
+					criticalIncompleteTaskIds: ["LPH-001"],
+					missingEvidenceTaskIds: [],
+					reasons: ["1 critical task incomplete"],
+					updatedAt: "2026-05-28T01:30:00.000Z",
+				},
 			},
 		});
 		expect(latestHandoffMock.readLatestLivePursuitHandoff).toHaveBeenCalledOnce();
@@ -158,6 +192,18 @@ describe("latest live pursuit handoff route", () => {
 		expect(actionStateMock.readLatestLivePursuitHandoffActionAuditEvents).toHaveBeenCalledWith({
 			runId: "live_pursuit_handoff_20260528T012604Z",
 			limit: 25,
+		});
+		expect(actionStateMock.summarizeLatestLivePursuitHandoffActionReadiness).toHaveBeenCalledWith({
+			tasks: [],
+			actionStates: {
+				"LPH-001": {
+					taskId: "LPH-001",
+					status: "in_progress",
+					assigneeName: "Amina",
+					updatedAt: "2026-05-28T01:30:00.000Z",
+					updatedByUserId: "user-1",
+				},
+			},
 		});
 	});
 
@@ -219,6 +265,17 @@ describe("latest live pursuit handoff route", () => {
 				updatedAt: "2026-05-28T01:35:00.000Z",
 				updatedByUserId: "user-1",
 				auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+			},
+			actionReadiness: {
+				status: "ready_for_submission",
+				taskCount: 1,
+				completedTaskCount: 1,
+				blockedTaskIds: [],
+				pendingTaskIds: [],
+				criticalIncompleteTaskIds: [],
+				missingEvidenceTaskIds: [],
+				reasons: ["All handoff tasks are complete with evidence"],
+				updatedAt: "2026-05-28T01:35:00.000Z",
 			},
 		});
 	});

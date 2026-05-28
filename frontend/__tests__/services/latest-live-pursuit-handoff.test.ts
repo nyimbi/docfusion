@@ -62,6 +62,13 @@ describe("latest live pursuit handoff reader", () => {
 		expect(handoff.index.primaryPursuit.title).toBe("UNGM goAML security consultancy");
 		expect(handoff.index.executionPlan.criticalTaskCount).toBe(1);
 		expect(handoff.operatorBriefMarkdown).toContain("## Execution Checklist");
+		expect(handoff.actionReadiness).toMatchObject({
+			status: "blocked",
+			taskCount: 1,
+			completedTaskCount: 0,
+			pendingTaskIds: ["LPH-001"],
+			criticalIncompleteTaskIds: ["LPH-001"],
+		});
 		expect(handoff.paths).toEqual({
 			indexPath: ".omx/state/latest-live-pursuit-handoff.json",
 			briefPath: ".omx/state/latest-live-pursuit-handoff.md",

@@ -6,6 +6,7 @@ import {
 	AlertTriangle,
 	ArrowLeft,
 	CalendarClock,
+	CheckCircle2,
 	CheckSquare,
 	ClipboardCheck,
 	ExternalLink,
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { LatestLivePursuitHandoffPayload, LatestLivePursuitHandoffTask } from "@/lib/types/latest-live-pursuit-handoff";
 import type {
+	LatestLivePursuitHandoffActionReadiness,
 	LatestLivePursuitHandoffTaskActionAuditEvent,
 	LatestLivePursuitHandoffTaskActionState,
 	LatestLivePursuitHandoffTaskActionStatus,
@@ -87,6 +89,7 @@ export default function LatestLiveHandoffPage() {
 				success: true;
 				taskState: LatestLivePursuitHandoffTaskActionState;
 				auditEvent: LatestLivePursuitHandoffTaskActionAuditEvent;
+				actionReadiness: LatestLivePursuitHandoffActionReadiness;
 			} | { success: false; error: string };
 			if (!response.ok || !body.success) {
 				setError(body.success ? "Task update failed" : body.error);
@@ -103,6 +106,7 @@ export default function LatestLiveHandoffPage() {
 						body.auditEvent,
 						...current.actionEvents.filter((event) => event.eventId !== body.auditEvent.eventId),
 					],
+					actionReadiness: body.actionReadiness,
 				}
 				: current);
 			setDrafts((current) => ({
@@ -171,6 +175,7 @@ export default function LatestLiveHandoffPage() {
 			{!isLoading && handoff && (
 				<div className="space-y-6">
 					<Summary handoff={handoff} />
+					<SubmissionGate readiness={handoff.actionReadiness} />
 					<ExecutionTasks
 						tasks={handoff.index.executionPlan.tasks}
 						actionStates={handoff.actionStates}
@@ -442,6 +447,44 @@ function RecentActivity({ events }: { events: LatestLivePursuitHandoffTaskAction
 	);
 }
 
+function SubmissionGate({ readiness }: { readiness: LatestLivePursuitHandoffActionReadiness }) {
+	const isReady = readiness.status === "ready_for_submission";
+	const isBlocked = readiness.status === "blocked";
+	return (
+		<section className={cn(
+			"rounded-lg border p-5",
+			isReady && "border-emerald-500/40 bg-emerald-500/10",
+			isBlocked && "border-amber-500/40 bg-amber-500/10",
+			!isReady && !isBlocked && "bg-card",
+		)}>
+			<div className="flex flex-wrap items-start justify-between gap-4">
+				<div className="min-w-0">
+					<div className="mb-2 flex items-center gap-2">
+						{isReady ? (
+							<CheckCircle2 className="h-5 w-5 text-emerald-500" />
+						) : (
+							<AlertTriangle className="h-5 w-5 text-amber-500" />
+						)}
+						<h2 className="text-lg font-semibold text-foreground">Submission Gate</h2>
+					</div>
+					<p className="text-sm text-muted-foreground">
+						{readiness.reasons.join("; ")}
+					</p>
+				</div>
+				<div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:grid-cols-4">
+					<Metric label="Status" value={readiness.status} />
+					<Metric label="Complete" value={`${readiness.completedTaskCount}/${readiness.taskCount}`} />
+					<Metric label="Blocked" value={String(readiness.blockedTaskIds.length)} />
+					<Metric label="Critical open" value={String(readiness.criticalIncompleteTaskIds.length)} />
+				</div>
+			</div>
+			{readiness.updatedAt && (
+				<p className="mt-3 text-xs text-muted-foreground">Last task update {formatDateTime(readiness.updatedAt)}</p>
+			)}
+		</section>
+	);
+}
+
 function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }) {
 	return (
 		<section className="rounded-lg border bg-card p-5">
@@ -455,6 +498,15 @@ function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }
 				))}
 			</div>
 		</section>
+	);
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="min-w-0 border-l pl-3">
+			<div className="text-muted-foreground">{label}</div>
+			<div className="mt-1 break-words font-medium text-foreground">{value}</div>
+		</div>
 	);
 }
 

@@ -52,6 +52,7 @@ export interface LatestLivePursuitHandoffPayload {
 	operatorBriefMarkdown: string;
 	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
 	actionEvents: LatestLivePursuitHandoffTaskActionAuditEvent[];
+	actionReadiness: LatestLivePursuitHandoffActionReadiness;
 	paths: {
 		indexPath: string;
 		briefPath: string;
@@ -88,7 +89,25 @@ export interface LatestLivePursuitHandoffTaskActionAuditEvent {
 	auditPath: string;
 }
 
+export type LatestLivePursuitHandoffActionReadinessStatus =
+	| "blocked"
+	| "in_progress"
+	| "ready_for_submission";
+
+export interface LatestLivePursuitHandoffActionReadiness {
+	status: LatestLivePursuitHandoffActionReadinessStatus;
+	taskCount: number;
+	completedTaskCount: number;
+	blockedTaskIds: string[];
+	pendingTaskIds: string[];
+	criticalIncompleteTaskIds: string[];
+	missingEvidenceTaskIds: string[];
+	reasons: string[];
+	updatedAt?: string;
+}
+
 export interface LatestLivePursuitHandoffTaskActionUpdate {
 	taskState: LatestLivePursuitHandoffTaskActionState;
 	auditEvent: LatestLivePursuitHandoffTaskActionAuditEvent;
+	actionReadiness: LatestLivePursuitHandoffActionReadiness;
 }

@@ -34,6 +34,21 @@ export async function readLatestLivePursuitHandoff(options: {
 			operatorBriefMarkdown,
 			actionStates: {},
 			actionEvents: [],
+			actionReadiness: {
+				status: "blocked",
+				taskCount: index.executionPlan.taskCount,
+				completedTaskCount: 0,
+				blockedTaskIds: [],
+				pendingTaskIds: index.executionPlan.tasks.map((task) => task.id),
+				criticalIncompleteTaskIds: index.executionPlan.tasks
+					.filter((task) => task.priority === "critical")
+					.map((task) => task.id),
+				missingEvidenceTaskIds: [],
+				reasons: [
+					`${index.executionPlan.taskCount} handoff tasks still require operator action`,
+					`${index.executionPlan.criticalTaskCount} critical tasks must be completed before submission`,
+				],
+			},
 			paths: {
 				indexPath: path.relative(workspaceRoot, indexPath),
 				briefPath: path.relative(workspaceRoot, briefPath),

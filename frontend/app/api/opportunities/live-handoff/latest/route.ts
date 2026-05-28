@@ -10,6 +10,7 @@ import {
 import {
 	readLatestLivePursuitHandoffActionAuditEvents,
 	readLatestLivePursuitHandoffActionStates,
+	summarizeLatestLivePursuitHandoffActionReadiness,
 } from "@/lib/services/live-pursuit-handoff-action-state";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,10 @@ export async function GET() {
 				...handoff,
 				actionStates,
 				actionEvents,
+				actionReadiness: summarizeLatestLivePursuitHandoffActionReadiness({
+					tasks: handoff.index.executionPlan.tasks,
+					actionStates,
+				}),
 			},
 		});
 	} catch (error) {

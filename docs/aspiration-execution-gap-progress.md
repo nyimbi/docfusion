@@ -8510,6 +8510,29 @@ Remaining after this slice:
 - Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Handoff Submission Gate
+
+Status: implemented and verified.
+
+Purpose: give operators and automation a single machine-readable verdict for whether the current live response handoff is ready to submit, blocked, or still in progress.
+
+Changes in this slice:
+- Added a submission-readiness summary derived from latest handoff tasks and task action states.
+- The readiness summary tracks status, completed task count, blocked task IDs, pending task IDs, incomplete critical task IDs, completed tasks missing evidence, reasons, and latest task update timestamp.
+- `GET /api/opportunities/live-handoff/latest` now returns the readiness summary alongside action states and action events.
+- Task update responses now return the refreshed readiness summary after each status/evidence change.
+- `/opportunities/live-handoff` now renders a Submission Gate panel with status, completion ratio, blocker count, critical-open count, reasons, and last update time.
+
+Verification:
+- `npm test -- latest-live-pursuit-handoff.test.ts live-pursuit-handoff-action-state.test.ts live-handoff-latest-route.test.ts --run` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 41 tests across response package, qualification workflow, pursuit handoff, latest-handoff reader, action-state store, readiness summary, audit event projection, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Move the action-state, audit-event ledger, and submission-readiness verdict into DB-backed runtime tables once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

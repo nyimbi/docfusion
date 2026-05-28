@@ -5,6 +5,8 @@ import {
 	resolveLatestHandoffWorkspaceRoot,
 } from "@/lib/services/latest-live-pursuit-handoff";
 import type {
+	LatestLivePursuitHandoffActionReadiness,
+	LatestLivePursuitHandoffTask,
 	LatestLivePursuitHandoffTaskActionAuditEvent,
 	LatestLivePursuitHandoffTaskActionState,
 	LatestLivePursuitHandoffTaskActionStatus,
@@ -64,6 +66,66 @@ export async function readLatestLivePursuitHandoffActionAuditEvents(options: {
 	}
 }
 
+export function summarizeLatestLivePursuitHandoffActionReadiness(input: {
+	tasks: LatestLivePursuitHandoffTask[];
+	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
+}): LatestLivePursuitHandoffActionReadiness {
+	const blockedTaskIds: string[] = [];
+	const pendingTaskIds: string[] = [];
+	const criticalIncompleteTaskIds: string[] = [];
+	const missingEvidenceTaskIds: string[] = [];
+	let completedTaskCount = 0;
+	let updatedAt: string | undefined;
+
+	for (const task of input.tasks) {
+		const state = input.actionStates[task.id];
+		const status = state?.status ?? task.status;
+		if (state?.updatedAt && (!updatedAt || state.updatedAt > updatedAt)) {
+			updatedAt = state.updatedAt;
+		}
+
+		if (status === "completed") {
+			completedTaskCount += 1;
+			if (!hasCompletionEvidence(state)) {
+				missingEvidenceTaskIds.push(task.id);
+			}
+			continue;
+		}
+
+		if (status === "blocked") {
+			blockedTaskIds.push(task.id);
+		} else {
+			pendingTaskIds.push(task.id);
+		}
+		if (task.priority === "critical") {
+			criticalIncompleteTaskIds.push(task.id);
+		}
+	}
+
+	const reasons = readinessReasons({
+		taskCount: input.tasks.length,
+		completedTaskCount,
+		blockedTaskIds,
+		pendingTaskIds,
+		criticalIncompleteTaskIds,
+		missingEvidenceTaskIds,
+	});
+	const status = blockedTaskIds.length > 0 || criticalIncompleteTaskIds.length > 0 || missingEvidenceTaskIds.length > 0
+		? "blocked"
+		: completedTaskCount === input.tasks.length ? "ready_for_submission" : "in_progress";
+	return {
+		status,
+		taskCount: input.tasks.length,
+		completedTaskCount,
+		blockedTaskIds,
+		pendingTaskIds,
+		criticalIncompleteTaskIds,
+		missingEvidenceTaskIds,
+		reasons,
+		updatedAt,
+	};
+}
+
 export async function updateLatestLivePursuitHandoffTaskActionState(input: {
 	taskId: string;
 	status: LatestLivePursuitHandoffTaskActionStatus;
@@ -117,6 +179,10 @@ export async function updateLatestLivePursuitHandoffTaskActionState(input: {
 	return {
 		taskState: nextTaskState,
 		auditEvent,
+		actionReadiness: summarizeLatestLivePursuitHandoffActionReadiness({
+			tasks: latest.index.executionPlan.tasks,
+			actionStates: nextState.tasks,
+		}),
 	};
 }
 
@@ -274,6 +340,37 @@ function unescapeMarkdownCell(value: string): string {
 
 function unwrapCodeCell(value: string): string {
 	return value.replace(/^`/, "").replace(/`$/, "");
+}
+
+function hasCompletionEvidence(state: LatestLivePursuitHandoffTaskActionState | undefined): boolean {
+	return Boolean(optionalTrimmed(state?.evidenceNote) || optionalTrimmed(state?.receiptUrl));
+}
+
+function readinessReasons(input: {
+	taskCount: number;
+	completedTaskCount: number;
+	blockedTaskIds: string[];
+	pendingTaskIds: string[];
+	criticalIncompleteTaskIds: string[];
+	missingEvidenceTaskIds: string[];
+}): string[] {
+	const reasons: string[] = [];
+	if (input.blockedTaskIds.length > 0) {
+		reasons.push(`${input.blockedTaskIds.length} blocked task${input.blockedTaskIds.length === 1 ? "" : "s"}`);
+	}
+	if (input.criticalIncompleteTaskIds.length > 0) {
+		reasons.push(`${input.criticalIncompleteTaskIds.length} critical task${input.criticalIncompleteTaskIds.length === 1 ? "" : "s"} incomplete`);
+	}
+	if (input.missingEvidenceTaskIds.length > 0) {
+		reasons.push(`${input.missingEvidenceTaskIds.length} completed task${input.missingEvidenceTaskIds.length === 1 ? "" : "s"} missing evidence`);
+	}
+	if (reasons.length === 0 && input.completedTaskCount === input.taskCount) {
+		reasons.push("All handoff tasks are complete with evidence");
+	}
+	if (reasons.length === 0) {
+		reasons.push(`${input.pendingTaskIds.length} handoff task${input.pendingTaskIds.length === 1 ? "" : "s"} still in progress`);
+	}
+	return reasons;
 }
 
 function optionalTrimmed(value: string | undefined): string | undefined {

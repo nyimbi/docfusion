@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
 	readLatestLivePursuitHandoffActionAuditEvents,
 	readLatestLivePursuitHandoffActionStates,
+	summarizeLatestLivePursuitHandoffActionReadiness,
 	updateLatestLivePursuitHandoffTaskActionState,
 } from "@/lib/services/live-pursuit-handoff-action-state";
 import type { LatestLivePursuitHandoffIndex } from "@/lib/types/latest-live-pursuit-handoff";
@@ -70,6 +71,16 @@ describe("live pursuit handoff action state", () => {
 			status: "completed",
 			updatedByUserId: "user-1",
 			auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+		});
+		expect(update.actionReadiness).toMatchObject({
+			status: "ready_for_submission",
+			taskCount: 1,
+			completedTaskCount: 1,
+			blockedTaskIds: [],
+			pendingTaskIds: [],
+			criticalIncompleteTaskIds: [],
+			missingEvidenceTaskIds: [],
+			reasons: ["All handoff tasks are complete with evidence"],
 		});
 		const states = await readLatestLivePursuitHandoffActionStates({
 			workspaceRoot,
@@ -152,6 +163,30 @@ describe("live pursuit handoff action state", () => {
 		});
 
 		expect(states).toEqual({});
+	});
+
+	it("summarizes submission readiness from task action state", () => {
+		const [task] = latestIndex.executionPlan.tasks;
+		const readiness = summarizeLatestLivePursuitHandoffActionReadiness({
+			tasks: latestIndex.executionPlan.tasks,
+			actionStates: {
+				[task.id]: {
+					taskId: task.id,
+					status: "completed",
+					updatedAt: "2026-05-28T01:30:00.000Z",
+					updatedByUserId: "user-1",
+				},
+			},
+		});
+
+		expect(readiness).toMatchObject({
+			status: "blocked",
+			taskCount: 1,
+			completedTaskCount: 1,
+			missingEvidenceTaskIds: ["LPH-001"],
+			reasons: ["1 completed task missing evidence"],
+			updatedAt: "2026-05-28T01:30:00.000Z",
+		});
 	});
 });
 
