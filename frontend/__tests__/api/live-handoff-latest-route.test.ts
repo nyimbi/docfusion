@@ -236,6 +236,23 @@ describe("latest live pursuit handoff route", () => {
 		expect(response.status).toBe(401);
 		expect(actionStateMock.updateLatestLivePursuitHandoffTaskActionState).not.toHaveBeenCalled();
 	});
+
+	it("returns validation errors from handoff task completion", async () => {
+		actionStateMock.updateLatestLivePursuitHandoffTaskActionState.mockRejectedValueOnce(
+			new Error("Completed handoff tasks require an evidence note or receipt URL"),
+		);
+
+		const response = await updateTask(
+			jsonRequest({ status: "completed" }),
+			{ params: Promise.resolve({ taskId: "LPH-001" }) },
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			success: false,
+			error: "Completed handoff tasks require an evidence note or receipt URL",
+		});
+	});
 });
 
 function jsonRequest(body: Record<string, unknown>) {

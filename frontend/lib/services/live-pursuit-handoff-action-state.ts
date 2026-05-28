@@ -80,6 +80,9 @@ export async function updateLatestLivePursuitHandoffTaskActionState(input: {
 	const latest = await readLatestLivePursuitHandoff({ workspaceRoot });
 	const task = latest.index.executionPlan.tasks.find((candidate) => candidate.id === input.taskId);
 	if (!task) throw new Error(`Latest live handoff task not found: ${input.taskId}`);
+	if (input.status === "completed" && !optionalTrimmed(input.evidenceNote) && !optionalTrimmed(input.receiptUrl)) {
+		throw new Error("Completed handoff tasks require an evidence note or receipt URL");
+	}
 
 	const existing = await readActionStateFile(workspaceRoot, latest.index.runId);
 	const nextTaskState: LatestLivePursuitHandoffTaskActionState = {

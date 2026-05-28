@@ -55,7 +55,7 @@ export async function POST(
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Failed to update latest handoff task";
-		const status = message.includes("not found") ? 404 : message.includes("Unsupported") || message.includes("required") ? 400 : 500;
+		const status = message.includes("not found") ? 404 : message.includes("Unsupported") || message.includes("required") || message.includes("require") ? 400 : 500;
 		return NextResponse.json(
 			{ success: false, error: message },
 			{ status },

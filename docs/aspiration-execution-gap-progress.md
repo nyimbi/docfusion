@@ -8466,6 +8466,28 @@ Remaining after this slice:
 - Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Evidence-Required Handoff Completion
+
+Status: implemented and verified.
+
+Purpose: prevent live handoff tasks from being marked complete without any proof that the operator captured the required evidence.
+
+Changes in this slice:
+- Added service-level validation so `completed` handoff task updates require either an evidence note or receipt URL.
+- Returned validation failures from `POST /api/opportunities/live-handoff/latest/tasks/[taskId]` as HTTP 400 errors.
+- Disabled the Complete control on `/opportunities/live-handoff` until the operator enters an evidence note or receipt URL.
+- Extended handoff action-state and route tests to cover the completion-evidence guard.
+
+Verification:
+- `npm test -- live-pursuit-handoff-action-state.test.ts live-handoff-latest-route.test.ts --run` passed with 10 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 40 tests across response package, qualification workflow, pursuit handoff, latest-handoff reader, action-state store, audit event projection, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

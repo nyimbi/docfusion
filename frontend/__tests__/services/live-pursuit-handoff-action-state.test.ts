@@ -115,6 +115,17 @@ describe("live pursuit handoff action state", () => {
 		})).rejects.toThrow("Latest live handoff task not found");
 	});
 
+	it("requires completion evidence before marking handoff tasks complete", async () => {
+		const workspaceRoot = await writeWorkspaceState();
+
+		await expect(updateLatestLivePursuitHandoffTaskActionState({
+			workspaceRoot,
+			taskId: "LPH-001",
+			status: "completed",
+			updatedByUserId: "user-1",
+		})).rejects.toThrow("Completed handoff tasks require an evidence note or receipt URL");
+	});
+
 	it("ignores stale action state from a different handoff run", async () => {
 		const workspaceRoot = await writeWorkspaceState();
 		const stateDir = path.resolve(workspaceRoot, ".omx", "state");

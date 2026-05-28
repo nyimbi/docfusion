@@ -308,6 +308,7 @@ function TaskCard({
 	) => void;
 }) {
 	const status = actionState?.status ?? task.status;
+	const canComplete = Boolean(draft.evidenceNote.trim() || draft.receiptUrl.trim());
 	return (
 		<article className="rounded-lg border bg-card p-4">
 						<div className="flex flex-wrap items-start justify-between gap-3">
@@ -384,7 +385,7 @@ function TaskCard({
 				</Button>
 				<Button
 					size="sm"
-					disabled={isUpdating}
+					disabled={isUpdating || !canComplete}
 					onClick={() => onUpdateTask(task, "completed")}
 				>
 					Complete
