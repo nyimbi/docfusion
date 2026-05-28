@@ -509,6 +509,72 @@ describe("discoverAndImportOpportunities", () => {
 		]));
 	});
 
+	it("accepts high-intent known procurement notice pages without snippet keywords", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Notice 265488",
+					url: "https://www.ungm.org/Public/Notice/265488",
+					content: "UNDP-IND/INDIA process details and buyer contact.",
+					engine: "google",
+					score: 10,
+					category: "general",
+				},
+			],
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "site:ungm.org \"Request for Proposal\"",
+			scrapeTopResults: false,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Notice 265488",
+			rfpLink: "https://www.ungm.org/Public/Notice/265488",
+			portalUrl: "https://www.ungm.org/Public/Notice/265488",
+		}));
+		expect(result.warnings).not.toEqual(expect.arrayContaining([
+			expect.objectContaining({ type: "search_no_candidates" }),
+		]));
+	});
+
+	it("accepts RFQ and request-for-bids language as opportunity signals", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "RFQ 2026-18 supplier onboarding",
+					url: "https://buyer.example.org/notices/2026-18",
+					content: "Submission deadline and buyer instructions.",
+					engine: "duckduckgo",
+					score: 9,
+					category: "general",
+				},
+				{
+					title: "Buyer archive",
+					url: "https://buyer.example.org/archive",
+					content: "Historical updates.",
+					engine: "duckduckgo",
+					score: 1,
+					category: "general",
+				},
+			],
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "supplier onboarding",
+			scrapeTopResults: false,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFQ 2026-18 supplier onboarding",
+			opportunityType: "tender",
+		}));
+	});
+
 	it("preserves and seeds multiple high-signal Firecrawl document links", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

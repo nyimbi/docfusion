@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Search Acceptance Keeps More Procurement Notices
+
+Status: implemented, unit-verified, and typechecked.
+
+Purpose: reduce missed RFP intake when SearXNG returns high-intent procurement results whose snippets do not literally contain the old small keyword set.
+
+Changes in this slice:
+- Expanded opportunity search signals to include RFQ, request for quotations, request for bids, invitation to bid, call for proposals, and terms of reference language.
+- Added high-intent query handling for known procurement portal result URLs, including UNGM, UNDP procurement notices, DevBusiness, World Bank procurement, AFDB, ADB, AIIB, IsDB, Kenya PPIP, SAM.gov, USAID forecast, eTenders South Africa, Tanzania PPRA, Uganda eGP, EBRD, COMESA, UN Procurement, UNICEF tender calendars, and GIZ tenders.
+- Kept archive/wiki filtering ahead of acceptance so low-value mirror results are still rejected before scraping.
+- Classified RFQ/ITB/request-for-bids results as `tender` opportunities instead of `other`.
+
+Verification:
+- Added regression coverage proving a high-intent UNGM notice URL with no RFP keyword in the snippet is imported instead of producing `search_no_candidates`.
+- Added regression coverage proving RFQ language is accepted as a tender signal while a generic buyer archive result is ignored.
+- `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts` passed with 39 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Bounded live probe against `site:ungm.org/Public/Notice "Request for Proposal"` did not provide acceptance evidence because the primary SearXNG response produced no accepted results for that exact query, public fallbacks returned 403/429, and the local DB connection for the zero-record audit insert was refused at `88.80.188.224:5432`.
+
+Remaining after this slice:
+- Continue live broad discovery after database connectivity is available and compare `search_no_candidates` frequency against the prior runs.
+- Add trusted `SEARXNG_FALLBACK_URLS` instances; public `searx.space` fallback remained rate-limited during the probe.
+
 ### 2026-05-29 - SearXNG Fallback Covers Partial Engine Degradation
 
 Status: implemented, unit-verified, and typechecked.

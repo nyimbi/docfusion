@@ -191,6 +191,14 @@ const DEFAULT_DISCOVERY_QUERIES = [
 const OPPORTUNITY_KEYWORDS = [
 	"rfp",
 	"request for proposal",
+	"request for proposals",
+	"request for quotation",
+	"request for quotations",
+	"rfq",
+	"request for bid",
+	"request for bids",
+	"invitation to bid",
+	"itb",
 	"tender",
 	"bid",
 	"eoi",
@@ -198,6 +206,39 @@ const OPPORTUNITY_KEYWORDS = [
 	"procurement",
 	"grant",
 	"solicitation",
+	"call for proposals",
+	"terms of reference",
+];
+
+const HIGH_INTENT_QUERY_KEYWORDS = [
+	...OPPORTUNITY_KEYWORDS,
+	"deadline",
+	"submission",
+	"consultancy",
+	"consulting services",
+];
+
+const PROCUREMENT_PORTAL_URL_PATTERNS = [
+	/\/\/(?:www\.)?ungm\.org\/public\/notice/i,
+	/\/\/procurement-notices\.undp\.org\//i,
+	/\/\/devbusiness\.un\.org\//i,
+	/\/\/(?:www\.)?worldbank\.org\/.*procurement/i,
+	/\/\/tenders\.worldbank\.org\//i,
+	/\/\/(?:www\.)?afdb\.org\/.*procurement/i,
+	/\/\/(?:www\.)?adb\.org\/business\/.*procurement/i,
+	/\/\/(?:www\.)?aiib\.org\/.*project-procurement/i,
+	/\/\/(?:www\.)?isdb\.org\/project-procurement/i,
+	/\/\/tenders\.go\.ke\//i,
+	/\/\/sam\.gov\/search/i,
+	/\/\/(?:www\.)?usaid\.gov\/business-forecast/i,
+	/\/\/(?:www\.)?etenders\.gov\.za\//i,
+	/\/\/(?:www\.)?ppra\.go\.tz\/tenders/i,
+	/\/\/egpuganda\.go\.ug\//i,
+	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
+	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
+	/\/\/(?:www\.)?un\.org\/procurement/i,
+	/\/\/(?:www\.)?unicef\.org\/supply\/.*tender/i,
+	/\/\/(?:www\.)?giz\.de\/.*\/tenders/i,
 ];
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
@@ -347,10 +388,21 @@ function isLowValueDiscoveryUrl(url: string | undefined): boolean {
 	}
 }
 
-function isLikelyOpportunity(result: SearxngResult): boolean {
+function isHighIntentDiscoveryQuery(query: string): boolean {
+	const normalized = query.toLowerCase();
+	return HIGH_INTENT_QUERY_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function isKnownProcurementPortalUrl(url: string): boolean {
+	return PROCUREMENT_PORTAL_URL_PATTERNS.some((pattern) => pattern.test(url));
+}
+
+function isLikelyOpportunity(result: SearxngResult, query?: string): boolean {
 	if (isLowValueDiscoveryUrl(result.url)) return false;
 	const haystack = `${result.title} ${result.content} ${result.url}`.toLowerCase();
-	return OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword));
+	if (OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword))) return true;
+	if (!query || !isHighIntentDiscoveryQuery(query)) return false;
+	return isDocumentUrl(result.url) || isKnownProcurementPortalUrl(result.url);
 }
 
 function describeUnresponsiveEngine(engine: SearxngUnresponsiveEngine): string {
@@ -478,6 +530,13 @@ function inferOpportunityType(candidate: DiscoveryCandidate): OpportunityInput["
 
 	if (haystack.includes("expression of interest") || /\beoi\b/.test(haystack)) return "eoi";
 	if (haystack.includes("grant")) return "grant";
+	if (
+		haystack.includes("request for quotation")
+		|| haystack.includes("request for bid")
+		|| haystack.includes("invitation to bid")
+		|| /\brfq\b/.test(haystack)
+		|| /\bitb\b/.test(haystack)
+	) return "tender";
 	if (haystack.includes("tender")) return "tender";
 	if (haystack.includes("request for proposal") || /\brfp\b/.test(haystack)) return "rfp";
 	return "other";
@@ -2152,7 +2211,7 @@ export async function executeOpportunityDiscoveryImport(
 		for (const result of outcome.response.results.slice(0, limitPerQuery)) {
 			if (!result.url || !result.title) continue;
 			if (isLowValueDiscoveryUrl(result.url)) continue;
-			if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
+			if (!input.includeUnmatchedResults && !isLikelyOpportunity(result, outcome.query)) continue;
 
 			const normalizedUrl = normalizeUrlForIdentity(result.url);
 			if (seenUrls.has(normalizedUrl)) continue;
