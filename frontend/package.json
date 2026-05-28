@@ -17,6 +17,7 @@
     "workflow:validate-db": "npx tsx scripts/validate-workflow-runtime-migration.ts",
     "workflow:migrate-db": "npx tsx scripts/apply-workflow-runtime-migrations.ts",
     "workflow:seed-templates": "npx tsx scripts/seed-workflow-templates.ts",
+    "rfp-parse:audit-quality": "npx tsx scripts/audit-rfp-parse-quality.ts",
     "source-docs:intake": "npx tsx scripts/run-source-document-intake.ts",
     "platform:proof": "npx tsx scripts/platform-proof.ts",
     "platform:proof:phase1": "npx tsx scripts/prove-platform-phase1.ts",

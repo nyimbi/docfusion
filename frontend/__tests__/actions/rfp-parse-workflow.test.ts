@@ -502,6 +502,84 @@ describe("RFP parse workflow", () => {
 		expect(completedIndex).toBeGreaterThan(finalizingIndex);
 	});
 
+	it("forces parser review when a completed parse extracts zero requirements", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "Submission instructions and technical requirements.",
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: "COMESA",
+			solicitationNumber: "COMESA-2026",
+			sections: [{
+				sectionId: "s1",
+				title: "Requirements",
+				pageStart: 1,
+				pageEnd: 1,
+				content: "Submission instructions and technical requirements.",
+			}],
+			confidence: 0.95,
+		});
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"s1",
+			{
+				source: "ai",
+				requirements: [],
+			},
+		]]));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "completed",
+				progress: 100,
+				requirementsExtracted: 0,
+			}),
+		]));
+		const finalDocumentUpdate = updates.find((update) =>
+			update.parsingStatus === "completed" &&
+			(update.metadata as any)?.parseReview?.qualitySignals?.includes("zero_requirements_extracted")
+		);
+		expect(finalDocumentUpdate).toMatchObject({
+			parsingStatus: "completed",
+			parsingProgress: 100,
+			metadata: {
+				parseReview: {
+					state: "needs_review",
+					confidence: 95,
+					qualitySignals: ["zero_requirements_extracted"],
+					reason: "Parser completed without extracting any actionable requirements.",
+				},
+				extractionProvenance: {
+					source: "ai",
+					aiSectionCount: 1,
+					heuristicSectionCount: 0,
+				},
+			},
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "needs_confidence_review",
+				reason: expect.stringContaining("without extracting any actionable requirements"),
+				metadata: expect.objectContaining({
+					qualitySignals: ["zero_requirements_extracted"],
+				}),
+			})
+		);
+	});
+
 	it("fails parsing jobs when text extraction returns no readable text", async () => {
 		const updates: Record<string, unknown>[] = [];
 		dbMock.query.rfpDocuments.findFirst

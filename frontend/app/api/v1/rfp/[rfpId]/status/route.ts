@@ -24,6 +24,9 @@ interface ParsingStatusResponse {
 	errorMessage: string | null;
 	documentId: string;
 	filename: string;
+	parseReview?: unknown;
+	extractionProvenance?: unknown;
+	parseQualityAudit?: unknown;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +66,7 @@ export async function GET(
 			orderBy: desc(rfpParsingJobs.createdAt),
 		});
 
+		const metadata = normalizeMetadata(rfpDocument.metadata);
 		const response: ParsingStatusResponse = {
 			status: (parsingJob?.status ?? rfpDocument.parsingStatus) as ParsingStatusResponse["status"],
 			currentStep: parsingJob?.currentStep ?? null,
@@ -73,6 +77,9 @@ export async function GET(
 			errorMessage: parsingJob?.errorMessage ?? rfpDocument.parsingError ?? null,
 			documentId: rfpDocument.id,
 			filename: rfpDocument.filename,
+			parseReview: metadata.parseReview,
+			extractionProvenance: metadata.extractionProvenance,
+			parseQualityAudit: metadata.parseQualityAudit,
 		};
 
 		return NextResponse.json(response);
@@ -83,4 +90,10 @@ export async function GET(
 			{ status: 500 },
 		);
 	}
+}
+
+function normalizeMetadata(value: unknown): Record<string, unknown> {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? value as Record<string, unknown>
+		: {};
 }

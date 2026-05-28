@@ -1477,6 +1477,7 @@ interface ParseConfidenceReviewMetadata {
 	state: "auto_accepted" | "needs_review" | "accepted" | "correction_requested";
 	confidence: number;
 	threshold: number;
+	qualitySignals?: string[];
 	reviewedAt?: string;
 	reviewedBy?: string;
 	reason?: string;
@@ -1516,11 +1517,50 @@ function normalizeParseConfidenceReviewMetadata(
 		state,
 		confidence,
 		threshold,
+		qualitySignals: Array.isArray(record.qualitySignals)
+			? record.qualitySignals.filter((value): value is string => typeof value === "string")
+			: undefined,
 		reviewedAt: record.reviewedAt,
 		reviewedBy: record.reviewedBy,
 		reason: record.reason,
 		corrections: record.corrections,
 	};
+}
+
+function applyParseQualitySignals(
+	parseReview: ParseConfidenceReviewMetadata,
+	signals: { requirementsExtracted: number }
+): ParseConfidenceReviewMetadata {
+	const qualitySignals = new Set(parseReview.qualitySignals ?? []);
+	if (signals.requirementsExtracted === 0) {
+		qualitySignals.add("zero_requirements_extracted");
+	}
+	if (qualitySignals.size === 0) return parseReview;
+	return {
+		...parseReview,
+		state: parseReview.state === "auto_accepted" ? "needs_review" : parseReview.state,
+		qualitySignals: [...qualitySignals],
+		reason: parseReview.reason ?? describeParseQualitySignals([...qualitySignals]),
+	};
+}
+
+function describeParseQualitySignals(signals: string[] | undefined): string | undefined {
+	if (!signals?.length) return undefined;
+	if (signals.includes("zero_requirements_extracted")) {
+		return "Parser completed without extracting any actionable requirements.";
+	}
+	return `Parser quality review required: ${signals.join(", ")}`;
+}
+
+function buildParseReviewWorkflowReason(parseReview: ParseConfidenceReviewMetadata, confidence: number): string {
+	if (parseReview.state === "needs_review") {
+		const qualityReason = describeParseQualitySignals(parseReview.qualitySignals);
+		const confidenceReason = confidence < parseReview.threshold
+			? `Parser confidence ${Math.round(confidence)}% is below the ${parseReview.threshold}% review gate.`
+			: undefined;
+		return [qualityReason, confidenceReason].filter(Boolean).join(" ") || "Parser output requires review.";
+	}
+	return `Parser confidence ${Math.round(confidence)}% met the ${parseReview.threshold}% review gate.`;
 }
 
 async function recordParseConfidenceReviewWorkflow(params: {
@@ -1534,6 +1574,7 @@ async function recordParseConfidenceReviewWorkflow(params: {
 	const dueAt = needsReview ? addHours(new Date(), 12) : null;
 
 	try {
+		const reason = buildParseReviewWorkflowReason(params.parseReview, params.confidence);
 		const instance = await recordWorkflowRuntimeTransition({
 			workflowKey: "rfp_parse_confidence_review",
 			subjectType: "rfp_parse",
@@ -1543,9 +1584,7 @@ async function recordParseConfidenceReviewWorkflow(params: {
 			toState,
 			eventType: `rfp_parse_${toState}`,
 			actorId: "system",
-			reason: needsReview
-				? `Parser confidence ${Math.round(params.confidence)}% is below the ${params.parseReview.threshold}% review gate.`
-				: `Parser confidence ${Math.round(params.confidence)}% met the ${params.parseReview.threshold}% review gate.`,
+			reason,
 			priority: needsReview ? "high" : "low",
 			assignedRole: needsReview ? "proposal_manager" : null,
 			dueAt,
@@ -1560,6 +1599,7 @@ async function recordParseConfidenceReviewWorkflow(params: {
 				confidence: params.confidence,
 				threshold: params.parseReview.threshold,
 				reviewState: params.parseReview.state,
+				qualitySignals: params.parseReview.qualitySignals,
 			},
 			terminal: !needsReview,
 			actionUrl: params.rfpDocument.opportunityId
@@ -1572,7 +1612,7 @@ async function recordParseConfidenceReviewWorkflow(params: {
 				workflowInstanceId: instance.id,
 				taskKey: `rfp-parse-confidence:${params.rfpDocument.id}`,
 				title: `Review parser output for ${params.rfpDocument.filename}`,
-				description: `Parser confidence is ${Math.round(params.confidence)}%, below the ${params.parseReview.threshold}% gate. Review extracted metadata and requirements before acceptance.`,
+				description: `${reason} Review extracted metadata and requirements before acceptance.`,
 				state: "open",
 				priority: "high",
 				assignedRole: "proposal_manager",
@@ -1582,6 +1622,7 @@ async function recordParseConfidenceReviewWorkflow(params: {
 					parseJobId: params.jobId,
 					confidence: params.confidence,
 					threshold: params.parseReview.threshold,
+					qualitySignals: params.parseReview.qualitySignals,
 				},
 			});
 		}
@@ -1940,7 +1981,7 @@ export async function processRfpParsingJob(
 
 		// Update document with parsed metadata
 		const parsingConfidence = parsedRFP.confidence * 100;
-		const parseReview = buildParseConfidenceReviewMetadata(parsingConfidence);
+		let parseReview = buildParseConfidenceReviewMetadata(parsingConfidence);
 		await db.update(rfpDocuments).set({
 			extractedText,
 			extractedTitle: parsedRFP.sections[0]?.title,
@@ -2003,6 +2044,9 @@ export async function processRfpParsingJob(
 			heuristicSectionCount: heuristicSections.length,
 			heuristicSections: heuristicSections.length > 0 ? heuristicSections : undefined,
 		};
+		parseReview = applyParseQualitySignals(parseReview, {
+			requirementsExtracted: allExtractedRequirements.length,
+		});
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 

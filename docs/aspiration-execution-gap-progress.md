@@ -8356,6 +8356,30 @@ Remaining after this slice:
 - Add source-specific recovery for UNICEF tender calendar media URLs if they keep rotating between direct 403, Firecrawl challenge content, and browser-service 403/404.
 - Investigate low-confidence/zero-requirement completed parses such as `fc9deec7-16f7-44c9-a425-a08c93dddc3d`; completion is mechanically successful but not yet a winning-response-quality extraction.
 
+### 2026-05-28 - Zero-Requirement Parse Quality Gate
+
+Status: implemented and verified.
+
+Purpose: prevent mechanically completed parses with no actionable requirements from looking healthy, because winning-response generation depends on trustworthy requirement extraction, not just a terminal parser status.
+
+Changes in this slice:
+- Added parser quality signals to `parseReview`; any completed parse with `0` extracted requirements now gets `qualitySignals: ["zero_requirements_extracted"]`, a review reason, and `state: "needs_review"` even if the structure parse confidence is otherwise high.
+- Updated parse-confidence workflow reason/task metadata so the review queue explains zero-requirement output as an extraction quality problem instead of only a confidence-threshold problem.
+- Added `npm run rfp-parse:audit-quality`, an operational audit/backfill script that forces `.env.local` `DATABASE_URL`, finds completed zero-requirement parses missing the quality signal, and repairs their metadata. `RFP_PARSE_QUALITY_AUDIT_DRY_RUN=1` previews the repair set.
+- Exposed `parseReview`, `extractionProvenance`, and `parseQualityAudit` on the RFP status API so clients can distinguish healthy completion from completed-but-degraded parser output.
+
+Verification:
+- `npm test -- rfp-parse-workflow.test.ts --run` passed with 14 tests, including the new high-confidence/zero-requirements case.
+- `npx tsc --noEmit --pretty false` passed.
+- `RFP_PARSE_QUALITY_AUDIT_DRY_RUN=1 npm run rfp-parse:audit-quality` first found live RFP document `764e7022-ae5d-4eaf-b8fd-696f5357132a` / parse job `fc9deec7-16f7-44c9-a425-a08c93dddc3d` as a completed zero-requirement parse needing repair.
+- `npm run rfp-parse:audit-quality` repaired that live row.
+- A live `psql` check confirmed RFP document `764e7022-ae5d-4eaf-b8fd-696f5357132a` now has `parseReview.state = needs_review`, `parseReview.qualitySignals = ["zero_requirements_extracted"]`, and `parseQualityAudit.source = audit-rfp-parse-quality`.
+- A follow-up `RFP_PARSE_QUALITY_AUDIT_DRY_RUN=1 npm run rfp-parse:audit-quality` scanned 0 unrepaired completed zero-requirement parses.
+
+Remaining after this slice:
+- Add UI treatment for `parseReview.qualitySignals` so operators see completed-but-degraded parses directly in the requirements/review surface.
+- Add a fallback extraction pass for documents that are long and parseable but produce zero requirements, rather than only flagging them for review.
+
 ### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
 
 Status: implemented and verified.
