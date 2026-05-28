@@ -247,6 +247,18 @@ describe("live response portfolio triage", () => {
 			candidate({
 				runId: "supplier-registration",
 				sourceKind: "kenya_ppip",
+				qualificationWorkflow: {
+					status: "ready_for_operator_execution",
+					currentState: "route_review",
+					gateCount: 5,
+					blockedGateCount: 0,
+					taskCount: 5,
+					mandatoryTaskCount: 4,
+					sourceSignalCount: 22,
+					artifactPaths: [
+						".omx/logs/platform-completion/live-qualification-workflow-live_qualification_workflow_20260528T002713Z/live-qualification-workflow.json",
+					],
+				},
 				opportunity: {
 					title: "Registration of suppliers for goods, services and works",
 					sourceId: "registration",
@@ -285,6 +297,9 @@ describe("live response portfolio triage", () => {
 			},
 		});
 		expect(registration?.rankingReasons.join("\n")).toContain("Pursuit route: supplier_registration");
-		expect(formatLiveResponsePortfolioBrief(triage)).toContain("- Pursuit route: supplier_registration");
+		expect(registration?.rankingReasons.join("\n")).toContain("Qualification workflow: ready_for_operator_execution (5 gates, 0 blocked)");
+		const brief = formatLiveResponsePortfolioBrief(triage);
+		expect(brief).toContain("- Pursuit route: supplier_registration");
+		expect(brief).toContain("- Qualification workflow: ready_for_operator_execution, 5 gates, 0 blocked");
 	});
 });

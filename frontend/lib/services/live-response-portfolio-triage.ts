@@ -27,6 +27,16 @@ export interface LiveResponsePortfolioCandidate {
 		readiness: LiveResponseReadinessAssessment;
 		pursuitFit: LiveResponsePursuitFitAssessment;
 	};
+	qualificationWorkflow?: {
+		status: "ready_for_operator_execution" | "blocked";
+		currentState: string;
+		gateCount: number;
+		blockedGateCount: number;
+		taskCount: number;
+		mandatoryTaskCount: number;
+		sourceSignalCount: number;
+		artifactPaths: string[];
+	};
 }
 
 export interface RankedLiveResponseOpportunity extends LiveResponsePortfolioCandidate {
@@ -103,6 +113,9 @@ export function formatLiveResponsePortfolioBrief(triage: LiveResponsePortfolioTr
 			`- Portfolio score: ${opportunity.portfolioScore}/100`,
 			`- Pursuit fit: ${opportunity.response.pursuitFit.status} (${opportunity.response.pursuitFit.score}/100), ${opportunity.response.pursuitFit.recommendation}`,
 			`- Pursuit route: ${opportunity.response.pursuitFit.pursuitRoute}`,
+			...(opportunity.qualificationWorkflow
+				? [`- Qualification workflow: ${opportunity.qualificationWorkflow.status}, ${opportunity.qualificationWorkflow.gateCount} gates, ${opportunity.qualificationWorkflow.blockedGateCount} blocked`]
+				: []),
 			`- Readiness: ${opportunity.response.readiness.status}`,
 			`- Evidence: ${opportunity.response.sourceRequirementCount} source requirements, ${opportunity.response.evaluatorCriteriaCount} evaluator criteria, ${opportunity.response.winThemeSeedCount} win-theme seeds, ${opportunity.response.totalDraftWordCount} draft words, ${opportunity.response.relevantSnippetCount} response snippets`,
 			...(opportunity.opportunity.portalUrl ? [`- Portal: ${opportunity.opportunity.portalUrl}`] : []),
@@ -182,6 +195,9 @@ function rankingReasons(
 		`Portfolio score ${score}/100 with ${candidate.response.pursuitFit.status} pursuit fit`,
 		`Recommendation: ${recommendation}`,
 		`Pursuit route: ${candidate.response.pursuitFit.pursuitRoute}`,
+		...(candidate.qualificationWorkflow
+			? [`Qualification workflow: ${candidate.qualificationWorkflow.status} (${candidate.qualificationWorkflow.gateCount} gates, ${candidate.qualificationWorkflow.blockedGateCount} blocked)`]
+			: []),
 		`${candidate.response.sourceRequirementCount} source requirements, ${candidate.response.evaluatorCriteriaCount} evaluator criteria, ${candidate.response.totalDraftWordCount} draft words`,
 		...(candidate.response.pursuitFit.matchedCapabilities.length > 0
 			? [`Matched Datacraft capabilities: ${candidate.response.pursuitFit.matchedCapabilities.slice(0, 6).join(", ")}`]

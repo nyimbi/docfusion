@@ -32,12 +32,14 @@ const EVIDENCE_PATH = path.resolve(
 	"platform-live-opportunity-portfolio-triage-evidence.md",
 );
 const RESPONSE_PROOF_FILENAME = "live-opportunity-response-readiness.json";
+const QUALIFICATION_WORKFLOW_PROOF_FILENAME = "live-qualification-workflow-proof.json";
 
 interface LiveOpportunityPortfolioTriageProof {
 	runId: string;
 	startedAt: string;
 	completedAt?: string;
 	sourceArtifactCount: number;
+	qualificationWorkflowArtifactCount: number;
 	candidateCount: number;
 	triage?: LiveResponsePortfolioTriage;
 	operatorBriefPath?: string;
@@ -47,6 +49,19 @@ interface LiveOpportunityPortfolioTriageProof {
 		opportunityTitle: string;
 		path: string;
 	}>;
+	error?: string;
+}
+
+interface LiveQualificationWorkflowProofJson {
+	runId?: string;
+	completedAt?: string;
+	sourcePackage?: {
+		sourceRunId?: string;
+		pursuitRoute?: LiveResponsePortfolioCandidate["response"]["pursuitFit"]["pursuitRoute"];
+	};
+	workflow?: LiveResponsePortfolioCandidate["qualificationWorkflow"] & {
+		briefHash?: string;
+	};
 	error?: string;
 }
 
@@ -86,14 +101,22 @@ async function main() {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
 		sourceArtifactCount: 0,
+		qualificationWorkflowArtifactCount: 0,
 		candidateCount: 0,
 		sourceArtifacts: [],
 	};
 
 	try {
 		const responseProofs = await readLiveResponseProofs();
+		const qualificationWorkflowProofs = await readLiveQualificationWorkflowProofs();
+		const qualificationWorkflowBySourceRun = latestQualificationWorkflowBySourceRun(qualificationWorkflowProofs);
 		const candidates = responseProofs
-			.map(({ proof: responseProof }) => responseProofToCandidate(responseProof))
+			.map(({ proof: responseProof }) =>
+				responseProofToCandidate(
+					responseProof,
+					qualificationWorkflowBySourceRun.get(responseProof.runId ?? "")
+				)
+			)
 			.filter((candidate): candidate is LiveResponsePortfolioCandidate => Boolean(candidate));
 		const triage = triageLiveResponsePortfolio(candidates);
 		validateTriage(candidates, triage);
@@ -101,6 +124,7 @@ async function main() {
 		Object.assign(proof, {
 			completedAt: new Date().toISOString(),
 			sourceArtifactCount: responseProofs.length,
+			qualificationWorkflowArtifactCount: qualificationWorkflowProofs.length,
 			candidateCount: candidates.length,
 			triage,
 			sourceArtifacts: candidates.map((candidate) => ({
@@ -140,6 +164,46 @@ async function readLiveResponseProofs(): Promise<Array<{
 	return proofs;
 }
 
+async function readLiveQualificationWorkflowProofs(): Promise<Array<{
+	relativePath: string;
+	proof: LiveQualificationWorkflowProofJson;
+}>> {
+	const logsRoot = path.resolve(WORKSPACE_ROOT, ".omx", "logs", "platform-completion");
+	const files = await findFilesNamed(logsRoot, QUALIFICATION_WORKFLOW_PROOF_FILENAME).catch((error) => {
+		if (isMissingPathError(error)) return [];
+		throw error;
+	});
+	const proofs: Array<{ relativePath: string; proof: LiveQualificationWorkflowProofJson }> = [];
+	for (const filePath of files) {
+		const raw = await fs.readFile(filePath, "utf8");
+		const parsed = JSON.parse(raw) as LiveQualificationWorkflowProofJson;
+		if (!parsed.error && parsed.completedAt && parsed.sourcePackage?.sourceRunId && parsed.workflow) {
+			proofs.push({
+				relativePath: path.relative(WORKSPACE_ROOT, filePath),
+				proof: parsed,
+			});
+		}
+	}
+	return proofs;
+}
+
+function latestQualificationWorkflowBySourceRun(
+	proofs: Array<{ relativePath: string; proof: LiveQualificationWorkflowProofJson }>
+): Map<string, NonNullable<LiveResponsePortfolioCandidate["qualificationWorkflow"]>> {
+	const latest = new Map<string, { completedAt: string; workflow: NonNullable<LiveResponsePortfolioCandidate["qualificationWorkflow"]> }>();
+	for (const { proof } of proofs) {
+		if (!proof.sourcePackage?.sourceRunId || !proof.completedAt || !proof.workflow) continue;
+		const current = latest.get(proof.sourcePackage.sourceRunId);
+		if (!current || compareIso(proof.completedAt, current.completedAt) > 0) {
+			latest.set(proof.sourcePackage.sourceRunId, {
+				completedAt: proof.completedAt,
+				workflow: proof.workflow,
+			});
+		}
+	}
+	return new Map([...latest.entries()].map(([sourceRunId, value]) => [sourceRunId, value.workflow]));
+}
+
 async function findFilesNamed(root: string, filename: string): Promise<string[]> {
 	const entries = await fs.readdir(root, { withFileTypes: true });
 	const matches: string[] = [];
@@ -154,7 +218,10 @@ async function findFilesNamed(root: string, filename: string): Promise<string[]>
 	return matches;
 }
 
-function responseProofToCandidate(proof: LiveResponseReadinessProofJson): LiveResponsePortfolioCandidate | undefined {
+function responseProofToCandidate(
+	proof: LiveResponseReadinessProofJson,
+	qualificationWorkflow: LiveResponsePortfolioCandidate["qualificationWorkflow"] | undefined
+): LiveResponsePortfolioCandidate | undefined {
 	if (proof.error || !proof.completedAt || !proof.responseReadiness?.readiness || !proof.responseReadiness.pursuitFit) {
 		return undefined;
 	}
@@ -189,6 +256,7 @@ function responseProofToCandidate(proof: LiveResponseReadinessProofJson): LiveRe
 			readiness: proof.responseReadiness.readiness,
 			pursuitFit: normalizePursuitFit(proof.responseReadiness.pursuitFit),
 		},
+		qualificationWorkflow,
 	};
 }
 
@@ -244,6 +312,7 @@ async function writeArtifacts(
 			`log:${relativeRawPath}`,
 			`brief:${proof.operatorBriefPath ?? "not-written"}`,
 			`source-artifacts:${proof.sourceArtifactCount}`,
+			`qualification-workflows:${proof.qualificationWorkflowArtifactCount}`,
 			`ranked:${proof.triage?.ranked.length ?? 0}`,
 			`pursue-now:${proof.triage?.pursueNowCount ?? 0}`,
 			`review-before-pursuit:${proof.triage?.reviewBeforePursuitCount ?? 0}`,
@@ -252,6 +321,7 @@ async function writeArtifacts(
 			`top-source:${top?.sourceKind ?? "none"}`,
 			`top-fit:${top?.response.pursuitFit.status ?? "none"}:${top?.response.pursuitFit.score ?? 0}`,
 			`top-route:${top?.response.pursuitFit.pursuitRoute ?? "none"}`,
+			`top-qualification-workflow:${top?.qualificationWorkflow?.status ?? "none"}`,
 			`top-readiness:${top?.response.readiness.status ?? "none"}`,
 			`top-score:${top?.portfolioScore ?? 0}`,
 		],
@@ -271,6 +341,12 @@ async function writeArtifacts(
 
 function isMissingPathError(error: unknown): boolean {
 	return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+function compareIso(left: string | undefined, right: string | undefined): number {
+	const leftTime = left ? Date.parse(left) : 0;
+	const rightTime = right ? Date.parse(right) : 0;
+	return (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime);
 }
 
 main().catch((error) => {

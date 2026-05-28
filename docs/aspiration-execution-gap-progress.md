@@ -8228,3 +8228,24 @@ Verification:
 Remaining after this slice:
 - Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
+### 2026-05-28 - Qualification Workflow Visibility in Portfolio Triage
+
+Status: implemented and verified.
+
+Purpose: make review-before-pursuit registration opportunities show whether an executable qualification workflow already exists in the operator portfolio ranking.
+
+Changes in this slice:
+- Added optional qualification workflow readiness metadata to live response portfolio candidates.
+- Updated portfolio ranking reasons and operator briefs to show qualification workflow status, gate count, and blocked-gate count when available.
+- Extended the live portfolio proof to read completed `live-qualification-workflow-proof.json` artifacts and attach the latest workflow readiness to its source response-readiness run.
+- Added portfolio regression coverage for supplier-registration candidates with ready qualification workflows.
+
+Verification:
+- `npm test -- live-response-portfolio-triage.test.ts platform-proof-scenarios.test.ts --run` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T003203Z`, consuming 1 qualification workflow artifact and surfacing `Qualification workflow: ready_for_operator_execution (5 gates, 0 blocked)` on the Kenya PPIP supplier-registration candidate.
+
+Remaining after this slice:
+- Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
