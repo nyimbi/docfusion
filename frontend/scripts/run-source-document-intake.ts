@@ -19,6 +19,7 @@ const RUN_ID = process.env.SOURCE_DOCUMENT_INTAKE_RUN_ID ?? createProofRunId("so
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "source-document-intake" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
+const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b)/i;
 
 type IntakeDisposition = "downloaded" | "failed" | "skipped";
 
@@ -66,6 +67,7 @@ type SourceDocumentIntakeProof = {
 		parseDrainMs: number;
 		dryRun: boolean;
 		retryFailed: boolean;
+		maxPerHost: number;
 	};
 	selected: Array<{
 		id: string;
@@ -105,6 +107,7 @@ async function main() {
 			parseDrainMs: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_PARSE_DRAIN_MS, 2_000, 0, 30_000),
 			dryRun: process.env.SOURCE_DOCUMENT_INTAKE_DRY_RUN === "1",
 			retryFailed: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_FAILED === "0" ? false : true,
+			maxPerHost: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST, 2, 1, 10),
 		},
 		selected: [],
 		results: [],
@@ -194,7 +197,8 @@ async function selectDiscoveredDocuments(
 		else 2
 	end`;
 
-	return db
+	const candidateLimit = Math.min(Math.max(config.limit * 8, config.limit), 200);
+	const candidates = await db
 		.select({
 			id: opportunityDocuments.id,
 			opportunityId: opportunityDocuments.opportunityId,
@@ -206,7 +210,62 @@ async function selectDiscoveredDocuments(
 		.from(opportunityDocuments)
 		.where(and(...conditions))
 		.orderBy(directDocumentRank, desc(opportunityDocuments.discoveredAt), desc(opportunityDocuments.createdAt))
-		.limit(config.limit);
+		.limit(candidateLimit);
+
+	return diversifyCandidates(
+		candidates.filter(isLikelySolicitationSource),
+		config.limit,
+		config.maxPerHost
+	);
+}
+
+function diversifyCandidates<T extends { sourceUrl: string }>(
+	candidates: T[],
+	limit: number,
+	maxPerHost: number
+): T[] {
+	const selected: T[] = [];
+	const seenUrls = new Set<string>();
+	const hostCounts = new Map<string, number>();
+
+	for (const candidate of candidates) {
+		const normalizedUrl = normalizeSourceUrl(candidate.sourceUrl);
+		if (seenUrls.has(normalizedUrl)) continue;
+
+		const host = sourceHost(candidate.sourceUrl);
+		const hostCount = hostCounts.get(host) ?? 0;
+		if (hostCount >= maxPerHost) continue;
+
+		selected.push(candidate);
+		seenUrls.add(normalizedUrl);
+		hostCounts.set(host, hostCount + 1);
+		if (selected.length >= limit) return selected;
+	}
+
+	return selected;
+}
+
+function normalizeSourceUrl(value: string): string {
+	try {
+		const url = new URL(value);
+		url.hash = "";
+		return url.toString().toLowerCase();
+	} catch {
+		return value.trim().toLowerCase();
+	}
+}
+
+function sourceHost(value: string): string {
+	try {
+		return new URL(value).hostname.toLowerCase();
+	} catch {
+		return "unknown";
+	}
+}
+
+function isLikelySolicitationSource(value: { documentName: string; sourceUrl: string }): boolean {
+	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`;
+	return !NON_SOLICITATION_DOCUMENT_PATTERN.test(haystack);
 }
 
 async function ingestDocument(
