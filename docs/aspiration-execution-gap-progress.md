@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Persisted Response Packages Reach Standard Readiness
+
+Status: implemented and verified.
+
+Purpose: move accepted, backfilled response packages from governed draft state into the platform's standard `ready_for_review` response-readiness workflow without pretending final rendering or approval has already happened.
+
+Changes in this slice:
+- Added `scripts/run-response-readiness-pass.ts`, a bounded live-DB readiness pass for persisted proposal response packages with accepted requirements and drafted documents.
+- The pass verifies accepted requirement linkage, source citation maps, Datacraft evidence citation maps, Datacraft evidence guidance, review gates, draft artifact hash/size integrity, document word floors, and win-theme targeting.
+- It creates or updates compliance matrix coverage for accepted requirements, then records the real `proposal_response_package` workflow receipt and opens the review/final-render runtime tasks when readiness passes.
+- It supports targeted runs by opportunity ID and unattended runs that find blocked response-package workflow receipts still needing assessment.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- Dry run `live_response_readiness_pass_20260528T110904Z` assessed opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb` as `ready_for_review` with 1/1 accepted requirement coverage, 6 drafted documents, 7,155 total draft words, 892 minimum document words, and full source citation, evidence citation, evidence guidance, review gate, and draft artifact integrity coverage.
+- Live apply run `live_response_readiness_pass_20260528T110925Z` created compliance matrix `4cab1fd7-8da0-41c7-94df-927c9cfee53b`, recorded 1 compliance entry, updated the existing `proposal_response_package` workflow receipt to `ready_for_review`, and opened the response-package review and final-package render runtime tasks.
+- Metadata/status refresh run `live_response_readiness_pass_20260528T112225Z` preserved `ready_for_review`, recorded the actual 2 win-theme seeds, moved 6 proposal documents to `in_review`, and kept the existing compliance matrix and workflow instance.
+- Direct database verification showed readiness blockers `[]`, accepted requirement count 1, drafted requirement count 1, requirement coverage 1, source citation coverage 1, evidence citation coverage 1, draft artifact integrity coverage 1, 2 win-theme seeds, run id `live_response_readiness_pass_20260528T112225Z`, and all 6 proposal documents in `in_review`.
+- Direct database verification showed the compliance matrix has 1 total requirement, 1 partial requirement, compliance score 60, and the compliance entry is linked to a response document.
+- Direct database verification showed runtime tasks `response-package-review:aa8f3263-3222-4757-b68d-d4b373eb0adb` and `final-package-render:aa8f3263-3222-4757-b68d-d4b373eb0adb` are open.
+- Follow-up untargeted dry run `live_response_readiness_pass_20260528T111521Z` found 0 remaining blocked eligible packages, proving the selector no longer retries the ready package.
+
+Remaining after this slice:
+- Final rendering still correctly waits for proposal-manager review/approval; implement or run the final artifact render/approval path after response review is satisfied.
+- Broaden readiness-pass execution to future accepted response packages as more high-fit parsed RFPs are drafted.
+
 ### 2026-05-28 - Parse-Reviewed Requirements Advance Into Response Execution
 
 Status: implemented and verified.
