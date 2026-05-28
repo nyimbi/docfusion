@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Final Packages Have a Governed Submission Receipt Path
+
+Status: implemented and verified for dry-run readiness; live submission apply correctly requires a real external receipt reference.
+
+Purpose: close the gap between stored final artifacts and auditable submission history without fabricating portal dispatch evidence.
+
+Changes in this slice:
+- Added `scripts/run-final-submission-record.ts`, a bounded service/operator script for final-package submission receipt recording.
+- The script selects finalized packages that have not already been submitted, verifies required proposal documents, final approvals, current stored final artifacts with readback receipts, final signoff metadata, compliance matrix lock, response-readiness coverage, high-risk claim clearance, DLP clearance, and deadline status.
+- Apply mode inserts a `submissions` row, locks selected attachments to their final artifact storage receipts, marks the opportunity submitted, and records a terminal `production_submission` workflow transition, but only when `LIVE_FINAL_SUBMISSION_RECORD_CONFIRMATION_NUMBER` is supplied.
+- Dry-run mode reports whether a package is ready to record and surfaces blockers/warnings without mutating live rows.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- Dry run `live_final_submission_record_20260528T114541Z` assessed finalized opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb` as `readyToRecord: true` with 0 blockers, 6 final documents, 3 required documents, 6 submission attachments, compliance matrix `4cab1fd7-8da0-41c7-94df-927c9cfee53b`, response-readiness workflow `d6cab4b9-91f5-4ddf-b310-e04955b1fa70`, and 0 DLP findings.
+- The dry run emitted only two warnings: no stored submission method, so service default `other` would be used unless supplied, and no evaluator-criteria win-theme coverage was reported because this RFQ has no persisted evaluator criteria.
+- Direct database verification after dry run showed 0 submission rows for opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb` and opportunity decision status still `drafting`, confirming no fake submission receipt was recorded.
+- `npm test -- submission-workflow.test.ts final-submission-checklist-workflow.test.ts submissions-scope.test.ts --run` passed with 33 tests.
+
+Remaining after this slice:
+- Apply the receipt recorder only after a real portal/email/physical submission confirmation is available.
+- Continue expanding RFP sourcing and intake breadth; this path is now ready when final packages need auditable receipt capture.
+
 ### 2026-05-28 - Ready Response Packages Publish Stored Final Artifacts
 
 Status: implemented and verified.
