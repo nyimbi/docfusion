@@ -43,6 +43,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-qualification-workflow");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-pursuit-handoff");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-response-readiness");
@@ -213,6 +214,7 @@ describe("platform proof scenarios", () => {
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:live-response-package",
 					"vitest:live-qualification-workflow",
+					"vitest:live-pursuit-handoff",
 				]),
 			}),
 		]);
@@ -281,6 +283,19 @@ describe("platform proof scenarios", () => {
 					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow-proof.json",
 					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.json",
 					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-pursuit-handoff"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-pursuit-handoff",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-pursuit-handoff-evidence.md",
+					".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff-proof.json",
+					".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff.json",
+					".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff.md",
 				]),
 			}),
 		]);

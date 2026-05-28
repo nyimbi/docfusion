@@ -326,9 +326,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates deterministic source-driven response package drafting and readiness gates for complete, evidence-backed Datacraft proposal drafts.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "live-response-package.test.ts", "live-qualification-workflow.test.ts"],
+			args: ["test", "--", "live-response-package.test.ts", "live-qualification-workflow.test.ts", "live-pursuit-handoff.test.ts"],
 		},
-		expectedArtifacts: ["vitest:live-response-package", "vitest:live-qualification-workflow"],
+		expectedArtifacts: ["vitest:live-response-package", "vitest:live-qualification-workflow", "vitest:live-pursuit-handoff"],
 	},
 	{
 		id: "wave9-presentation-export-artifacts",
@@ -487,6 +487,25 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow-proof.json",
 			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.json",
 			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.md",
+		],
+	},
+	{
+		id: "live-pursuit-handoff",
+		wave: 9,
+		title: "Live pursuit handoff proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Bundles the latest live portfolio, response drafts, and qualification workflow artifacts into a single operator pursuit handoff.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-pursuit-handoff.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-pursuit-handoff-evidence.md",
+			".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff-proof.json",
+			".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff.json",
+			".omx/logs/platform-completion/live-pursuit-handoff-<run_id>/live-pursuit-handoff.md",
 		],
 	},
 	{

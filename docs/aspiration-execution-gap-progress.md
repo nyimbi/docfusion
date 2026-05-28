@@ -8229,6 +8229,28 @@ Remaining after this slice:
 - Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Live Pursuit Handoff Bundle
+
+Status: implemented and verified.
+
+Purpose: bundle the latest live portfolio ranking, response drafts, and qualification workflow artifacts into a single operator-ready handoff so generated work is actionable without searching proof logs.
+
+Changes in this slice:
+- Added a deterministic live pursuit handoff builder with a primary pursue-now opportunity, review queue, artifact links, next actions, and Markdown operator brief.
+- Added validation so pursue-now handoffs require a full six-document response artifact set and non-proposal routes require a ready qualification workflow.
+- Added `prove-live-pursuit-handoff.ts`, which reads the latest live portfolio proof, joins response-readiness artifact paths, writes handoff JSON/Markdown artifacts, verifies readback integrity, and appends dedicated evidence.
+- Registered `live-pursuit-handoff` as a Wave 9 live-safe proof and expanded the response-readiness package proof to include handoff unit coverage.
+
+Verification:
+- `npm test -- live-pursuit-handoff.test.ts platform-proof-scenarios.test.ts --run` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 25 tests.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T003748Z`, bundling source portfolio run `live_opportunity_portfolio_triage_20260528T003203Z`, primary AFDB pursuit `live_afdb_response_readiness_20260527T182825Z`, 3 review-queue candidates, and 32 linked artifacts.
+
+Remaining after this slice:
+- Persist pursuit handoffs and qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Qualification Workflow Visibility in Portfolio Triage
 
 Status: implemented and verified.
