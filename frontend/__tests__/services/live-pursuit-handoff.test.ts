@@ -78,14 +78,34 @@ describe("live pursuit handoff", () => {
 			generatedAt: "2026-05-28T00:40:00.000Z",
 			portfolioRunId: "live_opportunity_portfolio_triage_20260528T003203Z",
 			artifactCount: 10,
+			executionPlan: {
+				status: "ready_for_operator_execution",
+				taskCount: 5,
+				criticalTaskCount: 0,
+			},
 		});
 		expect(handoff.nextActions).toContain("Execute the ready qualification workflow for Registration of suppliers for goods, services and works.");
 		expect(handoff.nextActions).toContain("Confirm normal source deadline 2026-06-18 and submission instructions from afdb.");
+		expect(handoff.executionPlan.tasks).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				id: "LPH-001",
+				ownerRole: "proposal_manager",
+				evidenceRequired: expect.arrayContaining(["Proposal owner named"]),
+			}),
+			expect.objectContaining({
+				id: "LPH-003",
+				ownerRole: "compliance",
+				dueLabel: "2026-06-18",
+				evidenceRequired: expect.arrayContaining(["1 extracted submission requirement signal reviewed"]),
+			}),
+		]));
 		expect(handoff.operatorBriefMarkdown).toContain("# Live Pursuit Handoff");
 		expect(handoff.operatorBriefMarkdown).toContain("## Primary Pursuit");
 		expect(handoff.operatorBriefMarkdown).toContain("- Deadline: 2026-06-18 (normal, opportunity_metadata)");
 		expect(handoff.operatorBriefMarkdown).toContain("- Submission requirements: 1 extracted signal");
 		expect(handoff.operatorBriefMarkdown).toContain("Qualification workflow: ready_for_operator_execution, 5 gates, 0 blocked");
+		expect(handoff.operatorBriefMarkdown).toContain("## Execution Checklist");
+		expect(handoff.operatorBriefMarkdown).toContain("- Evidence required:");
 	});
 
 	it("rejects pursue-now handoffs that do not include a full response artifact set", () => {
@@ -153,6 +173,33 @@ describe("live pursuit handoff", () => {
 			"Verify 2 extracted submission requirement signals against the source document before final packaging.",
 			"Triage deadline-risk review candidate World Bank energy management systems (urgent deadline 2026-06-03).",
 		]));
+		expect(handoff.executionPlan).toMatchObject({
+			status: "ready_for_operator_execution",
+			criticalTaskCount: 3,
+		});
+		expect(handoff.executionPlan.tasks).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				id: "LPH-002",
+				priority: "critical",
+				ownerRole: "compliance",
+				dueLabel: "2026-05-28",
+				evidenceRequired: expect.arrayContaining(["Submission receipt or acknowledgement capture path named"]),
+			}),
+			expect.objectContaining({
+				id: "LPH-004",
+				priority: "critical",
+				ownerRole: "proposal_manager",
+				title: "Activate same-day submission control for UNGM goAML security consultancy.",
+				evidenceRequired: expect.arrayContaining(["Receipt evidence captured before deadline"]),
+			}),
+			expect.objectContaining({
+				id: "LPH-006",
+				priority: "high",
+				ownerRole: "capture_manager",
+				dueLabel: "2026-06-03",
+			}),
+		]));
 		expect(handoff.operatorBriefMarkdown).toContain("Activate same-day submission control");
+		expect(handoff.operatorBriefMarkdown).toContain("### LPH-004 - Activate same-day submission control");
 	});
 });

@@ -8330,6 +8330,30 @@ Remaining after this slice:
 - Add owner assignment and receipt-capture persistence once the handoff moves from proof artifact to DB-backed runtime.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Structured Execution Checklist in Live Handoff
+
+Status: implemented and verified.
+
+Purpose: make the live pursuit handoff machine-actionable by carrying owner-role hints, priority, due labels, required evidence, and pending status as structured execution tasks instead of relying only on prose next actions.
+
+Changes in this slice:
+- Added a deterministic `executionPlan` to live pursuit handoffs with task IDs, owner roles, priority, source run/source kind, due labels, evidence requirements, and `pending_operator_action` status.
+- Added execution checklist rendering to the Markdown operator brief, including critical deadline controls, source requirement verification, review-queue triage, and ready qualification workflow execution.
+- Added execution task counts and critical task counts to the live pursuit handoff proof and evidence rows.
+- Tightened action title rendering so source titles ending in punctuation do not create awkward operator commands.
+
+Verification:
+- `npm test -- live-pursuit-handoff.test.ts --run` passed with 4 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T012255Z`, bundling source portfolio `live_opportunity_portfolio_triage_20260528T010913Z`, primary UNGM pursuit `live_response_readiness_20260528T010842Z`, deadline `2026-05-28`, 3 review-queue candidates, 32 linked artifacts, 8 execution tasks, and 5 critical execution tasks.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 27 tests across live response package, live qualification workflow, and live pursuit handoff services.
+- The generated handoff brief includes owner-role/evidence tasks for proposal ownership, source deadline confirmation, source requirement verification, same-day submission control, bid/no-bid review, urgent World Bank triage, critical Kenya PPIP triage, and Kenya PPIP qualification workflow execution.
+
+Remaining after this slice:
+- Persist the structured handoff execution plan in the DB-backed runtime once PostgreSQL connectivity is restored.
+- Add real user assignment and receipt-upload/capture state once the handoff moves from proof artifacts to authenticated runtime records.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.

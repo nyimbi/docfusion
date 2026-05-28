@@ -83,6 +83,8 @@ interface LivePursuitHandoffProof {
 		primaryDeadlineUrgency?: string;
 		reviewQueueCount: number;
 		artifactCount: number;
+		executionTaskCount: number;
+		criticalExecutionTaskCount: number;
 		briefHash: string;
 		artifactPaths: string[];
 	};
@@ -145,6 +147,8 @@ async function proveLivePursuitHandoff(): Promise<Partial<LivePursuitHandoffProo
 			primaryDeadlineUrgency: handoff.primaryPursuit.submissionSchedule?.urgency,
 			reviewQueueCount: handoff.reviewQueue.length,
 			artifactCount: handoff.artifactCount,
+			executionTaskCount: handoff.executionPlan.taskCount,
+			criticalExecutionTaskCount: handoff.executionPlan.criticalTaskCount,
 			briefHash: crypto.createHash("sha256").update(handoff.operatorBriefMarkdown).digest("hex"),
 			artifactPaths: handoffArtifactPaths,
 		},
@@ -266,6 +270,8 @@ async function writeArtifacts(
 			`primary-deadline-urgency:${proof.handoff?.primaryDeadlineUrgency ?? "unknown"}`,
 			`review-queue:${proof.handoff?.reviewQueueCount ?? 0}`,
 			`handoff-artifacts:${proof.handoff?.artifactCount ?? 0}`,
+			`execution-tasks:${proof.handoff?.executionTaskCount ?? 0}`,
+			`critical-execution-tasks:${proof.handoff?.criticalExecutionTaskCount ?? 0}`,
 			...(proof.handoff?.artifactPaths.map((artifactPath) => `handoff-artifact:${artifactPath}`) ?? []),
 		],
 		topology_tier: "live-connectivity",
@@ -275,7 +281,7 @@ async function writeArtifacts(
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live portfolio and response artifacts were bundled into an operator pursuit handoff."
+			? "Live portfolio and response artifacts were bundled into an operator pursuit handoff with structured execution tasks."
 			: proof.error ?? "Live pursuit handoff proof failed.",
 	}], {
 		title: "Platform Live Pursuit Handoff Evidence",
