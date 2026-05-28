@@ -314,7 +314,24 @@ function isSourceApiParser(parser: TenderParser): boolean {
 	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib" || parser.sourceId === "world_bank";
 }
 
+function isLowValueDiscoveryUrl(url: string | undefined): boolean {
+	if (!url) return false;
+	try {
+		const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+		return host === "archive.org"
+			|| host.endsWith(".archive.org")
+			|| host === "commons.wikimedia.org"
+			|| host === "wikimedia.org"
+			|| host.endsWith(".wikimedia.org")
+			|| host === "wikipedia.org"
+			|| host.endsWith(".wikipedia.org");
+	} catch {
+		return false;
+	}
+}
+
 function isLikelyOpportunity(result: SearxngResult): boolean {
+	if (isLowValueDiscoveryUrl(result.url)) return false;
 	const haystack = `${result.title} ${result.content} ${result.url}`.toLowerCase();
 	return OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword));
 }
@@ -444,6 +461,7 @@ function addDocumentLinkCandidate(
 	seenUrls: Map<string, number>,
 	link: DiscoveryDocumentLink
 ): void {
+	if (isLowValueDiscoveryUrl(link.url)) return;
 	const existingIndex = seenUrls.get(link.url);
 	if (existingIndex === undefined) {
 		seenUrls.set(link.url, candidates.length);
@@ -2047,6 +2065,7 @@ export async function executeOpportunityDiscoveryImport(
 
 				for (const result of response.results.slice(0, limitPerQuery)) {
 					if (!result.url || !result.title) continue;
+					if (isLowValueDiscoveryUrl(result.url)) continue;
 					if (!input.includeUnmatchedResults && !isLikelyOpportunity(result)) continue;
 
 					const normalizedUrl = normalizeUrlForIdentity(result.url);

@@ -1032,6 +1032,7 @@ describe("RFP document fetch storage", () => {
 			"https://www.unicef.org/supply/documents/medicines-tender-calendar",
 			expect.objectContaining({ formats: ["markdown", "html", "links"] })
 		);
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
 		expect(storageMock.uploadToLinodeE3).toHaveBeenCalledWith(
 			expect.any(Object),
 			expect.objectContaining({

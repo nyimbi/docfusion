@@ -398,7 +398,47 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
-	it("does not create malformed source document URLs from markdown links whose labels are URLs", async () => {
+	it("skips archive mirror source document links from search result pages", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Water platform request for proposal",
+					url: "https://buyer.example/tenders/water-platform",
+					content: "Request for proposal with submission deadline.",
+					engine: "bing",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Water platform request for proposal",
+					"[https://archive.org/download/RL32229-crs/RL32229.pdf](https://archive.org/download/RL32229-crs/RL32229.pdf)",
+				].join("\n\n"),
+				metadata: {
+					title: "Water platform request for proposal",
+					description: "Current procurement notice.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "archive procurement rfp",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(db.insert).not.toHaveBeenCalledWith(expect.objectContaining({
+			id: "opportunityDocuments.id",
+		}));
+	});
+
+	it("rejects archive and wiki search hits before scraping", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [
 				{
@@ -411,36 +451,18 @@ describe("discoverAndImportOpportunities", () => {
 				},
 			],
 		});
-		firecrawlScrapeMock.mockResolvedValue({
-			success: true,
-			data: {
-				markdown: [
-					"# Archive procurement document",
-					"[https://archive.org/download/RL32229-crs/RL32229.pdf](https://archive.org/download/RL32229-crs/RL32229.pdf)",
-				].join("\n\n"),
-				metadata: {
-					title: "Archive procurement document",
-					description: "Mirrored procurement PDF.",
-				},
-			},
-		});
-		selectResultsQueue.push([], [], []);
 
 		const result = await discoverAndImportOpportunities({
 			query: "archive procurement rfp",
 			scrapeTopResults: true,
 		});
 
-		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
-		expect(result.sourceDocumentsCreated).toBe(1);
-		const insertedSourceUrls = vi.mocked(db.insert).mock.results.map((result) => {
-			const insertBuilder = result.value as { values: ReturnType<typeof vi.fn> };
-			return insertBuilder.values.mock.calls[0][0].sourceUrl;
-		});
-		expect(insertedSourceUrls).toEqual([
-			"https://archive.org/download/RL32229-crs/RL32229.pdf",
-		]);
-		expect(insertedSourceUrls.join("\n")).not.toContain("](");
+		expect(result.results).toMatchObject({ total: 0, imported: 0, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(result.warnings).toEqual(expect.arrayContaining([
+			expect.objectContaining({ type: "search_no_candidates" }),
+		]));
 	});
 
 	it("preserves and seeds multiple high-signal Firecrawl document links", async () => {

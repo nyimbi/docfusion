@@ -1763,6 +1763,17 @@ async function extractSupportedDocumentText(
     logger.warn(`[RFP Document Service] pdftotext could not extract usable text from ${filename}; trying DocLing`);
   }
 
+  if (extension === ".html" || extension === ".htm") {
+    const localHtml = await extractDocumentTextLocally(buffer, filename);
+    if (localHtml) {
+      logger.debug(`[RFP Document Service] Used ${localHtml.extractor} for ${filename}`, {
+        extractedTextLength: localHtml.text.length,
+      });
+      return localHtml;
+    }
+    logger.warn(`[RFP Document Service] Local HTML extraction could not extract usable text from ${filename}; trying DocLing`);
+  }
+
   try {
     logger.debug(`[DocLing] Processing document: ${filename}`);
     const processed = await processRfpDocument(buffer, filename);
