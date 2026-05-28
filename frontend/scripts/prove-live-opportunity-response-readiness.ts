@@ -26,7 +26,7 @@ import {
 import { scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
 import { searchSearxng, type SearxngResult } from "@/lib/services/searxng-client";
-import { fetchUngmOpportunities } from "@/lib/services/ungm-client";
+import { UngmNoticeSearchError, fetchUngmOpportunities } from "@/lib/services/ungm-client";
 import {
 	fetchWorldBankNoticeDetail,
 	fetchWorldBankNoticeList,
@@ -300,18 +300,149 @@ async function fetchSourceOpportunities(): Promise<LiveResponseReadinessSourceRe
 		return fetchComesaResponseReadyOpportunities();
 	}
 
-	const source = await fetchUngmOpportunities(SOURCE_URL, {
-		limit: SOURCE_LIMIT,
-		timeoutMs: 20000,
-		detailLimit: SOURCE_DETAIL_LIMIT,
-	});
+	return fetchUngmResponseReadyOpportunities();
+}
+
+async function fetchUngmResponseReadyOpportunities(): Promise<LiveResponseReadinessSourceResult> {
+	try {
+		const source = await fetchUngmOpportunities(SOURCE_URL, {
+			limit: SOURCE_LIMIT,
+			timeoutMs: 20000,
+			detailLimit: SOURCE_DETAIL_LIMIT,
+		});
+		return {
+			kind: "ungm",
+			url: SOURCE_URL,
+			searchUrl: source.searchUrl,
+			total: source.total,
+			opportunities: source.opportunities,
+		};
+	} catch (error) {
+		if (!isUngmSearchUnavailable(error)) throw error;
+		return readLatestUngmResponseReadinessFallback(error);
+	}
+}
+
+function isUngmSearchUnavailable(error: unknown): boolean {
+	return error instanceof UngmNoticeSearchError && error.status >= 500 && error.status < 600;
+}
+
+async function readLatestUngmResponseReadinessFallback(
+	sourceError: unknown
+): Promise<LiveResponseReadinessSourceResult> {
+	const latest = await readLatestCompletedUngmProof();
+	if (!latest) {
+		throw new Error(`UNGM notice search is unavailable and no completed UNGM response-readiness fallback proof exists: ${sourceError instanceof Error ? sourceError.message : String(sourceError)}`);
+	}
+
+	const documentUrl = latest.proof.document?.url ?? latest.proof.opportunity?.documentUrl;
+	if (!latest.proof.opportunity?.title || !documentUrl) {
+		throw new Error(`UNGM fallback proof is missing opportunity title or source document URL: ${latest.relativePath}`);
+	}
+	const fallbackDeadline = await fallbackDeadlineFromResponseSummary(latest.proof);
+	const sourceId = latest.proof.opportunity.sourceId ?? latest.proof.runId ?? "ungm-fallback";
+	const fallbackReason = sourceError instanceof Error ? sourceError.message : String(sourceError);
+
 	return {
 		kind: "ungm",
 		url: SOURCE_URL,
-		searchUrl: source.searchUrl,
-		total: source.total,
-		opportunities: source.opportunities,
+		searchUrl: `fallback:${latest.relativePath}`,
+		total: 1,
+		opportunities: [{
+			title: latest.proof.opportunity.title,
+			source: "ungm",
+			sourceId,
+			noticeId: sourceId,
+			organization: latest.proof.opportunity.organization,
+			deadline: latest.proof.opportunity.deadline ?? fallbackDeadline,
+			category: "Request for Expression of Interest",
+			opportunityType: "eoi",
+			portalUrl: latest.proof.opportunity.portalUrl,
+			documentUrl,
+			rfpLink: documentUrl,
+			projectSummary: latest.proof.document?.extractedPreview ?? latest.proof.opportunity.title,
+			tags: ["ungm", "un-procurement", "response-readiness-fallback"],
+			metadata: {
+				ungm: {
+					fallbackFromRunId: latest.proof.runId,
+					fallbackProofPath: latest.relativePath,
+					fallbackReason,
+					retryAfter: sourceError instanceof UngmNoticeSearchError ? sourceError.retryAfter : undefined,
+				},
+			},
+		}],
 	};
+}
+
+interface PriorUngmResponseReadinessProof {
+	runId?: string;
+	completedAt?: string;
+	source?: {
+		kind?: string;
+		url?: string;
+		searchUrl?: string;
+	};
+	opportunity?: {
+		title?: string;
+		organization?: string;
+		sourceId?: string;
+		portalUrl?: string;
+		documentUrl?: string;
+		deadline?: string;
+	};
+	document?: {
+		url?: string;
+		extractedPreview?: string;
+	};
+	responseReadiness?: {
+		draftArtifactPaths?: string[];
+	};
+	error?: string;
+}
+
+async function readLatestCompletedUngmProof(): Promise<{
+	relativePath: string;
+	proof: PriorUngmResponseReadinessProof;
+} | undefined> {
+	const logsRoot = path.resolve(WORKSPACE_ROOT, ".omx", "logs", "platform-completion");
+	const files = await findFilesNamed(logsRoot, "live-opportunity-response-readiness.json").catch((error) => {
+		if (isMissingPathError(error)) return [];
+		throw error;
+	});
+	const proofs: Array<{ relativePath: string; proof: PriorUngmResponseReadinessProof; completedAt: string }> = [];
+	for (const filePath of files) {
+		const raw = await fs.readFile(filePath, "utf8");
+		const proof = JSON.parse(raw) as PriorUngmResponseReadinessProof;
+		if (
+			!proof.error
+			&& proof.completedAt
+			&& proof.source?.kind === "ungm"
+			&& proof.opportunity?.title
+			&& (proof.document?.url || proof.opportunity.documentUrl)
+		) {
+			proofs.push({
+				relativePath: path.relative(WORKSPACE_ROOT, filePath),
+				proof,
+				completedAt: proof.completedAt,
+			});
+		}
+	}
+	proofs.sort((left, right) => compareIso(right.completedAt, left.completedAt));
+	return proofs[0];
+}
+
+async function fallbackDeadlineFromResponseSummary(
+	proof: PriorUngmResponseReadinessProof
+): Promise<string | undefined> {
+	if (proof.opportunity?.deadline) return proof.opportunity.deadline;
+	const summaryPath = proof.responseReadiness?.draftArtifactPaths?.find((artifactPath) =>
+		artifactPath.endsWith("/response-package-summary.json")
+	);
+	if (!summaryPath) return undefined;
+	const absolutePath = path.resolve(WORKSPACE_ROOT, summaryPath);
+	const raw = await fs.readFile(absolutePath, "utf8").catch(() => undefined);
+	if (!raw) return undefined;
+	return raw.match(/\bDeadline:\s*(\d{4}-\d{2}-\d{2})\b/u)?.[1];
 }
 
 async function fetchAfdbResponseReadyOpportunities(): Promise<LiveResponseReadinessSourceResult> {
@@ -958,6 +1089,30 @@ function compactText(text: string, maxLength: number): string {
 
 function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findFilesNamed(root: string, filename: string): Promise<string[]> {
+	const entries = await fs.readdir(root, { withFileTypes: true });
+	const matches: string[] = [];
+	for (const entry of entries) {
+		const entryPath = path.join(root, entry.name);
+		if (entry.isDirectory()) {
+			matches.push(...await findFilesNamed(entryPath, filename));
+		} else if (entry.isFile() && entry.name === filename) {
+			matches.push(entryPath);
+		}
+	}
+	return matches;
+}
+
+function compareIso(left: string | undefined, right: string | undefined): number {
+	const leftTime = left ? Date.parse(left) : 0;
+	const rightTime = right ? Date.parse(right) : 0;
+	return (Number.isNaN(leftTime) ? 0 : leftTime) - (Number.isNaN(rightTime) ? 0 : rightTime);
+}
+
+function isMissingPathError(error: unknown): boolean {
+	return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 async function writeResponsePackageArtifacts(responsePackage: LiveResponsePackage): Promise<string[]> {

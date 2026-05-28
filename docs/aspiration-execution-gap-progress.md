@@ -8285,6 +8285,30 @@ Remaining after this slice:
 - Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - UNGM Outage Fallback for Response Readiness
+
+Status: implemented and verified.
+
+Purpose: keep UNGM response readiness operational when the public notice search endpoint is temporarily unavailable, without pretending the search succeeded.
+
+Changes in this slice:
+- Added a typed `UngmNoticeSearchError` carrying HTTP status and `Retry-After` so live proof code can distinguish source outages from parser failures.
+- Added a bounded UNGM response-readiness fallback for 5xx notice-search failures. The fallback reads the latest completed UNGM response-readiness proof, reuses its verified opportunity metadata and source document URL, records a `fallback:` search URL, and still re-downloads/converts the public source PDF before generating fresh response artifacts.
+- Preserved fallback provenance in opportunity metadata so downstream evidence can show which prior proof was used and why.
+- Added regression coverage for typed UNGM search outage errors.
+
+Verification:
+- `npm test -- ungm-client.test.ts --run` passed with 3 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-opportunity-response-readiness --include-live-safe` passed with run `live_response_readiness_20260528T010842Z` while UNGM search was returning HTTP 503. The proof used fallback source `live_response_readiness_20260527T174956Z`, re-fetched `https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/pdf/eoi24414.pdf`, extracted 9,002 characters with Docling, generated 7,973 response-draft words, and produced deadline `2026-05-28` with urgency `critical`.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T010913Z`, ranking the refreshed UNGM proof first with `Deadline urgency: critical for 2026-05-28 (opportunity_metadata)`.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T010935Z`, bundling source portfolio `live_opportunity_portfolio_triage_20260528T010913Z`, primary UNGM pursuit `live_response_readiness_20260528T010842Z`, deadline `2026-05-28`, 3 review-queue candidates, and 32 linked artifacts.
+
+Remaining after this slice:
+- Replace UNGM fallback with fresh search results automatically when `https://www.ungm.org/Public/Notice/Search` recovers.
+- Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.

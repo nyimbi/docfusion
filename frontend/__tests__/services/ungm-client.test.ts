@@ -6,11 +6,11 @@ vi.mock("@/lib/security/public-url", () => ({
 	fetchPublicHttpUrl: fetchPublicHttpUrlMock,
 }));
 
-import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
+import { UngmNoticeSearchError, fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 
 describe("UNGM client", () => {
 	beforeEach(() => {
-		vi.clearAllMocks();
+		fetchPublicHttpUrlMock.mockReset();
 		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(`
 			<div role="row" data-noticeid="300726" class="tableRow dataRow notice-table">
 				<div role="cell"></div>
@@ -94,5 +94,29 @@ describe("UNGM client", () => {
 				}),
 			}),
 		]);
+	});
+
+	it("throws a typed error for unavailable public notice search responses", async () => {
+		fetchPublicHttpUrlMock.mockReset();
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response("temporarily unavailable", {
+			status: 503,
+			headers: { "retry-after": "3600" },
+		}));
+
+		let thrown: unknown;
+		try {
+			await fetchUngmOpportunities("https://www.ungm.org/Public/Notice?title=software", {
+				timeoutMs: 1000,
+			});
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(thrown).toBeInstanceOf(UngmNoticeSearchError);
+		expect(thrown).toMatchObject({
+			name: "UngmNoticeSearchError",
+			status: 503,
+			retryAfter: "3600",
+		});
 	});
 });

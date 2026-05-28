@@ -44,6 +44,18 @@ export interface UngmFetchOptions {
 	detailLimit?: number;
 }
 
+export class UngmNoticeSearchError extends Error {
+	readonly status: number;
+	readonly retryAfter?: string;
+
+	constructor(status: number, retryAfter?: string | null) {
+		super(`UNGM notice search returned HTTP ${status}`);
+		this.name = "UngmNoticeSearchError";
+		this.status = status;
+		this.retryAfter = retryAfter ?? undefined;
+	}
+}
+
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_LIMIT = 25;
 const DEFAULT_DETAIL_LIMIT = 5;
@@ -217,7 +229,7 @@ export async function fetchUngmOpportunities(
 	}, "UNGM notice search URL");
 
 	if (!response.ok) {
-		throw new Error(`UNGM notice search returned HTTP ${response.status}`);
+		throw new UngmNoticeSearchError(response.status, response.headers.get("retry-after"));
 	}
 
 	const html = await response.text();
