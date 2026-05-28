@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Configured Source Discovery Has CloakBrowser Last-Resort Fallback
+
+Status: implemented and verified in focused regression coverage; live AFDB proof still requires a configured CloakBrowser CDP endpoint.
+
+Purpose: keep broad RFP sourcing from stopping at protected configured-source pages when Firecrawl and the standard browser service cannot recover usable tender listings.
+
+Changes in this slice:
+- Added CloakBrowser as a last-resort configured-source scrape path after Firecrawl and the existing browser fallback fail or return content the source parser cannot use.
+- Kept the existing configured-source order intact: source APIs and browser-primary JavaScript sources still use their faster/specific paths first.
+- Added explicit `cloakbrowser_fallback` scrape metadata and audit warning types so source health can distinguish stealth-browser recovery from normal browser fallback.
+- Gated the fallback on `CLOAKBROWSER_CDP_URL`, `CLOAKBROWSER_WS_ENDPOINT`, or `CLOAKBROWSER_REMOTE_DEBUGGING_URL` being configured, avoiding noisy failed attempts where CloakBrowser is not available.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts --run` passed with 34 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check -- frontend/lib/services/opportunity-discovery-import.ts frontend/__tests__/actions/discovery-opportunity-import.test.ts` passed.
+- Local env inspection found no configured CloakBrowser endpoint in the checked frontend env files, so live AFDB remains blocked at infrastructure/configuration rather than importer code.
+
+Remaining after this slice:
+- Configure a real CloakBrowser CDP endpoint, then rerun the AFDB configured-source proof/import.
+- Keep direct document intake draining while protected source pages are handled through this stronger fallback path.
+
 ### 2026-05-28 - PDF RFP Intake Uses Lightweight Extraction Before Docling
 
 Status: implemented and verified.

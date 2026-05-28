@@ -15,6 +15,8 @@ const fetchKenyaPpipOpportunitiesMock = vi.hoisted(() => vi.fn());
 const isKenyaPpipUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("tenders.go.ke")));
 const fetchUngmOpportunitiesMock = vi.hoisted(() => vi.fn());
 const isUngmUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("ungm.org")));
+const getCloakBrowserEndpointMock = vi.hoisted(() => vi.fn());
+const scrapeWithCloakBrowserMock = vi.hoisted(() => vi.fn());
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
@@ -46,6 +48,11 @@ vi.mock("@/lib/services/kenya-ppip-client", () => ({
 vi.mock("@/lib/services/ungm-client", () => ({
 	fetchUngmOpportunities: fetchUngmOpportunitiesMock,
 	isUngmUrl: isUngmUrlMock,
+}));
+
+vi.mock("@/lib/services/cloakbrowser-scraper-client", () => ({
+	getCloakBrowserEndpoint: getCloakBrowserEndpointMock,
+	scrapeWithCloakBrowser: scrapeWithCloakBrowserMock,
 }));
 
 vi.mock("@/lib/actions/opportunities", () => ({
@@ -135,6 +142,11 @@ beforeEach(() => {
 		total: 0,
 	});
 	isUngmUrlMock.mockImplementation((url: string) => url.includes("ungm.org"));
+	getCloakBrowserEndpointMock.mockReturnValue(undefined);
+	scrapeWithCloakBrowserMock.mockResolvedValue({
+		success: false,
+		error: "CloakBrowser endpoint is not configured",
+	});
 	downloadDocumentMock.mockResolvedValue({ success: true, documentId: "source-doc-1" });
 	fetchMock.mockResolvedValue({
 		ok: false,
@@ -1379,6 +1391,99 @@ describe("discoverAndImportOpportunities", () => {
 							warnings: 1,
 							warningTypes: { browser_fallback_used: 1 },
 							message: "DNS lookup failed",
+						}),
+					],
+				}),
+			}),
+		}), "user-1");
+	});
+
+	it("uses CloakBrowser for configured source URLs only after Firecrawl and browser fallback fail", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "Cloudflare challenge",
+		});
+		getCloakBrowserEndpointMock.mockReturnValue("ws://127.0.0.1:9222/devtools/browser/test");
+		scrapeWithCloakBrowserMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Tender recovered through CloakBrowser](https://buyer.example/tenders/cloak-recovery)\n\nDeadline: 31 December 2026",
+				links: ["https://buyer.example/tenders/cloak-recovery"],
+				metadata: {
+					title: "Buyer Tenders CloakBrowser",
+					statusCode: 200,
+				},
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://buyer.example/tenders"],
+			sourceScrapeLimit: 5,
+			browserFallback: true,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3003/v1/scrape",
+			expect.objectContaining({ method: "POST" })
+		);
+		expect(scrapeWithCloakBrowserMock).toHaveBeenCalledWith(
+			"https://buyer.example/tenders",
+			{
+				timeout: 60000,
+				humanScroll: true,
+				blockMedia: true,
+			}
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender recovered through CloakBrowser",
+			rfpLink: "https://buyer.example/tenders/cloak-recovery",
+			portalUrl: "https://buyer.example/tenders/cloak-recovery",
+			source: "source-scrape",
+			sourcePlatform: "Configured Source Scrape",
+			sourceFile: "source:https://buyer.example/tenders",
+			tags: ["external-discovery", "source-scrape"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://buyer.example/tenders",
+					resultEngine: "firecrawl-source",
+					scrapedWithFirecrawl: false,
+					scrapedWithBrowserFallback: false,
+					scrapedWithCloakBrowserFallback: true,
+					scrapeMethod: "cloakbrowser_fallback",
+					browserFallbackReason: "Cloudflare challenge",
+				}),
+			}),
+		}));
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "cloakbrowser_fallback_used",
+				query: "source:https://buyer.example/tenders",
+				title: "Tender recovered through CloakBrowser",
+				url: "https://buyer.example/tenders/cloak-recovery",
+				message: "Cloudflare challenge",
+			}),
+		]);
+		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+			config: expect.objectContaining({
+				audit: expect.objectContaining({
+					sourceHealth: [
+						expect.objectContaining({
+							sourceUrl: "https://buyer.example/tenders",
+							status: "degraded",
+							candidates: 1,
+							imported: 1,
+							warnings: 1,
+							warningTypes: { cloakbrowser_fallback_used: 1 },
+							message: "Cloudflare challenge",
 						}),
 					],
 				}),

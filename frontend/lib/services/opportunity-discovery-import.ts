@@ -14,6 +14,7 @@ import {
 } from "@/lib/scrapers/parsers/world-bank";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
+import { getCloakBrowserEndpoint, scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
 import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 import { downloadDocument, type DownloadParseMode, type DownloadParseStatus } from "@/lib/services/rfp-document-service";
@@ -71,7 +72,7 @@ interface DiscoveryCandidate {
 		links?: string[];
 		success: boolean;
 		error?: string;
-		method: "firecrawl" | "browser_fallback" | "browser_source" | "source_api";
+		method: DiscoveryScrapeMethod;
 		fallbackReason?: string;
 	};
 }
@@ -98,6 +99,8 @@ export interface DiscoveryRunWarning {
 		| "source_scrape_empty"
 		| "browser_fallback_failed"
 		| "browser_fallback_used"
+		| "cloakbrowser_fallback_failed"
+		| "cloakbrowser_fallback_used"
 		| "source_document_seed_failed"
 		| "source_document_download_failed"
 		| "source_document_parse_failed";
@@ -141,6 +144,7 @@ interface SourceCandidateImportOutcome {
 }
 
 type FirecrawlScrapeResult = Awaited<ReturnType<FirecrawlClient["scrape"]>>;
+type DiscoveryScrapeMethod = "firecrawl" | "browser_fallback" | "browser_source" | "cloakbrowser_fallback" | "source_api";
 
 type DiscoveryDocumentLink = {
 	url: string;
@@ -154,7 +158,7 @@ interface ConfiguredSourceParseResult {
 	parseResult: ParseResult;
 	scrapeResult: FirecrawlScrapeResult;
 	attempts: number;
-	method: "firecrawl" | "browser_fallback" | "browser_source" | "source_api";
+	method: DiscoveryScrapeMethod;
 	fallbackReason?: string;
 	lastEmptyMessage?: string;
 }
@@ -832,6 +836,7 @@ function buildSourceHealthRollups(
 		const hasFailedScrape = Boolean(
 			warningTypes.source_scrape_failed
 			|| warningTypes.browser_fallback_failed
+			|| warningTypes.cloakbrowser_fallback_failed
 		);
 		const hasEmptyScrape = Boolean(warningTypes.source_scrape_empty);
 		const hasDegradation = sourceWarnings.length > 0 || failed > 0;
@@ -922,6 +927,7 @@ function buildOpportunityFromDiscovery(
 				scrapedWithFirecrawl: candidate.scrape?.success && candidate.scrape.method === "firecrawl",
 				scrapedWithBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "browser_fallback",
 				scrapedWithBrowserSource: candidate.scrape?.success && candidate.scrape.method === "browser_source",
+				scrapedWithCloakBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "cloakbrowser_fallback",
 				scrapeMethod: candidate.scrape?.method,
 				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
@@ -1073,7 +1079,11 @@ async function discoverConfiguredSourceCandidates(
 		});
 		if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
 			warnings.push({
-				type: sourceResult.method === "browser_fallback" ? "browser_fallback_failed" : "source_scrape_failed",
+				type: sourceResult.method === "browser_fallback"
+					? "browser_fallback_failed"
+					: sourceResult.method === "cloakbrowser_fallback"
+						? "cloakbrowser_fallback_failed"
+						: "source_scrape_failed",
 				query: `source:${sourceUrl}`,
 				title: "Configured source scrape failed",
 				url: sourceUrl,
@@ -1162,6 +1172,8 @@ function configuredSourceMethodLabel(method: ConfiguredSourceParseResult["method
 			return "Browser fallback";
 		case "browser_source":
 			return "Browser source";
+		case "cloakbrowser_fallback":
+			return "CloakBrowser fallback";
 		case "source_api":
 			return "Source API";
 		case "firecrawl":
@@ -1352,6 +1364,21 @@ async function maybeParseConfiguredSourceWithBrowserFallback(
 		?? "Configured source parser found no tender-like records";
 	const browserResult = await scrapeWithBrowserFallback(sourceUrl, fallbackReason);
 	if (!isUsefulBrowserFallback(browserResult)) {
+		const cloakResult = await maybeParseConfiguredSourceWithCloakBrowserFallback(
+			parser,
+			sourceUrl,
+			firecrawlResult,
+			lastParseResult,
+			attempts,
+			fallbackReason,
+			[
+				firecrawlResult.error,
+				lastEmptyMessage,
+				browserResult.error ? `browser fallback: ${browserResult.error}` : undefined,
+			].filter(Boolean).join("; ")
+		);
+		if (cloakResult) return cloakResult;
+
 		return {
 			parseResult: lastParseResult,
 			scrapeResult: {
@@ -1371,8 +1398,24 @@ async function maybeParseConfiguredSourceWithBrowserFallback(
 
 	const parseResult = await parser.parse({
 		markdown: browserResult.markdown ?? "",
+		links: browserResult.links ?? [],
 		url: sourceUrl,
 	});
+	const browserEmptyMessage = parseResult.opportunities.length > 0
+		? undefined
+		: `Browser fallback returned content but ${parser.name} found no tender-like records.`;
+	if (browserEmptyMessage) {
+		const cloakResult = await maybeParseConfiguredSourceWithCloakBrowserFallback(
+			parser,
+			sourceUrl,
+			firecrawlResult,
+			parseResult,
+			attempts,
+			browserEmptyMessage,
+			browserEmptyMessage
+		);
+		if (cloakResult) return cloakResult;
+	}
 	return {
 		parseResult,
 		scrapeResult: {
@@ -1389,9 +1432,80 @@ async function maybeParseConfiguredSourceWithBrowserFallback(
 		attempts,
 		method: "browser_fallback",
 		fallbackReason,
+		lastEmptyMessage: browserEmptyMessage,
+	};
+}
+
+async function maybeParseConfiguredSourceWithCloakBrowserFallback(
+	parser: TenderParser,
+	sourceUrl: string,
+	previousScrapeResult: FirecrawlScrapeResult,
+	previousParseResult: ParseResult,
+	attempts: number,
+	fallbackReason: string,
+	previousFailureMessage?: string
+): Promise<Omit<ConfiguredSourceParseResult, "parser"> | null> {
+	if (!getCloakBrowserEndpoint()) return null;
+
+	const cloakResult = await scrapeWithCloakBrowser(sourceUrl, {
+		timeout: 60000,
+		humanScroll: true,
+		blockMedia: true,
+	});
+	const cloakScrape: NonNullable<DiscoveryCandidate["scrape"]> = {
+		success: cloakResult.success,
+		title: cloakResult.data?.metadata?.title,
+		markdown: cloakResult.data?.markdown,
+		links: cloakResult.data?.links,
+		error: cloakResult.error,
+		method: "cloakbrowser_fallback",
+		fallbackReason,
+	};
+	if (!isUsefulBrowserFallback(cloakScrape)) {
+		return {
+			parseResult: previousParseResult,
+			scrapeResult: {
+				...previousScrapeResult,
+				error: [
+					previousScrapeResult.error,
+					previousFailureMessage,
+					cloakResult.error ? `CloakBrowser fallback: ${cloakResult.error}` : undefined,
+				].filter(Boolean).join("; ") || "Configured source scrape failed",
+			},
+			attempts,
+			method: "cloakbrowser_fallback",
+			fallbackReason,
+			lastEmptyMessage: previousFailureMessage,
+		};
+	}
+
+	const parseResult = await parser.parse({
+		html: cloakResult.data?.html,
+		markdown: cloakResult.data?.markdown ?? "",
+		links: cloakResult.data?.links ?? [],
+		url: sourceUrl,
+	});
+	return {
+		parseResult,
+		scrapeResult: {
+			success: true,
+			data: {
+				html: cloakResult.data?.html,
+				markdown: cloakResult.data?.markdown,
+				links: cloakResult.data?.links,
+				metadata: {
+					title: cloakResult.data?.metadata?.title,
+					description: previousFailureMessage,
+					statusCode: cloakResult.data?.metadata?.statusCode,
+				},
+			},
+		},
+		attempts,
+		method: "cloakbrowser_fallback",
+		fallbackReason,
 		lastEmptyMessage: parseResult.opportunities.length > 0
 			? undefined
-			: `Browser fallback returned content but ${parser.name} found no tender-like records.`,
+			: `CloakBrowser fallback returned content but ${parser.name} found no tender-like records.`,
 	};
 }
 
@@ -1793,6 +1907,22 @@ function collectDiscoveryWarnings(candidates: DiscoveryCandidate[]): DiscoveryRu
 			});
 			continue;
 		}
+		if (candidate.scrape.method === "cloakbrowser_fallback" && candidate.scrape.success) {
+			warnings.push({
+				...base,
+				type: "cloakbrowser_fallback_used",
+				message: candidate.scrape.fallbackReason ?? "Configured source required CloakBrowser fallback",
+			});
+			continue;
+		}
+		if (candidate.scrape.method === "cloakbrowser_fallback" && !candidate.scrape.success) {
+			warnings.push({
+				...base,
+				type: "cloakbrowser_fallback_failed",
+				message: candidate.scrape.error ?? candidate.scrape.fallbackReason ?? "CloakBrowser fallback failed",
+			});
+			continue;
+		}
 		if (candidate.scrape.method === "firecrawl" && !candidate.scrape.success) {
 			warnings.push({
 				...base,
@@ -1819,7 +1949,7 @@ async function scrapeWithBrowserSource(
 
 async function scrapeWithBrowser(
 	url: string,
-	method: "browser_fallback" | "browser_source",
+	method: Extract<DiscoveryScrapeMethod, "browser_fallback" | "browser_source">,
 	fallbackReason?: string
 ): Promise<NonNullable<DiscoveryCandidate["scrape"]>> {
 	const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
