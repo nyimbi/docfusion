@@ -738,11 +738,16 @@ export function assessLiveResponsePursuitFit(input: {
 	const evidenceScore = Math.min(15, Math.max(0, input.relevantSnippetCount ?? 0));
 	const riskPenalty = Math.min(35, matchedRisks.length * 12);
 	const score = clampScore(20 + strategicScore + deliveryScore + contextScore + evidenceScore - riskPenalty);
-	const status = score >= 75 && matchedStrategic.length >= 2
-		? "strong_fit"
-		: score >= 50 || matchedStrategic.length > 0 || matchedDelivery.length >= 3
-			? "review_required"
-			: "weak_fit";
+	let status: LiveResponsePursuitFitAssessment["status"];
+	if (matchedRisks.length >= 2 && score >= 50) {
+		status = "review_required";
+	} else if (score >= 75 && matchedStrategic.length >= 2) {
+		status = "strong_fit";
+	} else if (score >= 50 || matchedStrategic.length > 0 || matchedDelivery.length >= 3) {
+		status = "review_required";
+	} else {
+		status = "weak_fit";
+	}
 	const recommendation = status === "strong_fit"
 		? "pursue"
 		: status === "review_required"

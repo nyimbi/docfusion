@@ -8139,3 +8139,24 @@ Result:
 Remaining after this recheck:
 - Kenya PPIP source access appears live but sensitive to concurrent proof load; keep source proofs sequential when diagnosing that lane.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
+### 2026-05-27 - Risk-Heavy Pursuit Fit Review Gate
+
+Status: implemented and verified.
+
+Purpose: prevent broad supplier-registration or mixed-domain opportunities from being ranked as pursue-now solely because they contain many generic ICT terms.
+
+Changes in this slice:
+- Force live pursuit fit to `review_required` when two or more specialist-domain risk factors are detected, even if the opportunity has a high numeric fit score.
+- Added regression coverage for a Kenya PPIP-style supplier registration containing strong ICT signals plus cleaning, construction, furniture, and vehicle risk factors.
+
+Verification:
+- `npm test -- live-response-package.test.ts live-response-portfolio-triage.test.ts --run` passed with 21 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260527T235350Z`, keeping the package `ready_for_review` but changing pursuit fit to `review_required` and `review_before_pursuit`.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260527T235514Z`, ranking AFDB and UNGM as pursue-now while Kenya PPIP, World Bank, and COMESA require review.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 17 tests.
+
+Remaining after this slice:
+- Consider adding source-type semantics for prequalification/supplier-registration opportunities so they can be routed to a dedicated qualification workflow rather than ordinary response pursuit.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.

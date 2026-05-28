@@ -115,6 +115,36 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		expect(weakFit.riskFactors.join("\n")).toContain("insurance");
 	});
 
+	it("requires bid review for broad supplier registrations with multiple specialist-domain risks", () => {
+		const fit = assessLiveResponsePursuitFit({
+			opportunity: {
+				title: "Registration of suppliers for goods, services and works",
+				organization: "Water Utility",
+				source: "kenya_ppip",
+				sourceId: "supplier-registration",
+				projectSummary: "Registration covers ICT software system, workflow automation, data platforms, cleaning, construction, furniture, and vehicle services.",
+			},
+			sourceText: [
+				"Bidders may register for software, API architecture, data platform, payment, records, security, compliance, integration, monitoring, reporting, and digital workflow categories.",
+				"The registration also covers cleaning, construction, furniture, and vehicle services.",
+				"Applicants shall submit implementation, consultancy, project management, technical assistance, training, and quality assurance experience for government procurement.",
+			].join("\n"),
+			relevantSnippetCount: 20,
+		});
+
+		expect(fit).toMatchObject({
+			status: "review_required",
+			recommendation: "review_before_pursuit",
+		});
+		expect(fit.score).toBeGreaterThanOrEqual(75);
+		expect(fit.riskFactors).toEqual(expect.arrayContaining([
+			"cleaning domain may require specialist partner or no-bid review",
+			"construction domain may require specialist partner or no-bid review",
+			"furniture domain may require specialist partner or no-bid review",
+			"vehicle domain may require specialist partner or no-bid review",
+		]));
+	});
+
 	it("extracts evaluator criteria signals from scoring sections", () => {
 		const criteria = extractLiveResponseEvaluationSignals(sourceText);
 
