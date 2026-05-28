@@ -72,3 +72,17 @@ export interface LatestLivePursuitHandoffTaskActionState {
 	updatedAt: string;
 	updatedByUserId: string;
 }
+
+export interface LatestLivePursuitHandoffTaskActionUpdate {
+	taskState: LatestLivePursuitHandoffTaskActionState;
+	auditEvent: {
+		eventId: string;
+		runId: string;
+		taskId: string;
+		taskTitle: string;
+		status: LatestLivePursuitHandoffTaskActionStatus;
+		updatedAt: string;
+		updatedByUserId: string;
+		auditPath: string;
+	};
+}

@@ -44,7 +44,7 @@ describe("live pursuit handoff action state", () => {
 	it("updates task action state only for tasks in the latest handoff", async () => {
 		const workspaceRoot = await writeWorkspaceState();
 
-		const taskState = await updateLatestLivePursuitHandoffTaskActionState({
+		const update = await updateLatestLivePursuitHandoffTaskActionState({
 			workspaceRoot,
 			taskId: "LPH-001",
 			status: "completed",
@@ -54,13 +54,21 @@ describe("live pursuit handoff action state", () => {
 			updatedByUserId: "user-1",
 		});
 
-		expect(taskState).toMatchObject({
+		expect(update.taskState).toMatchObject({
 			taskId: "LPH-001",
 			status: "completed",
 			assigneeName: "Amina",
 			evidenceNote: "Receipt captured",
 			receiptUrl: "https://example.test/receipt",
 			updatedByUserId: "user-1",
+		});
+		expect(update.auditEvent).toMatchObject({
+			runId: latestIndex.runId,
+			taskId: "LPH-001",
+			taskTitle: "Activate same-day submission control.",
+			status: "completed",
+			updatedByUserId: "user-1",
+			auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
 		});
 		const states = await readLatestLivePursuitHandoffActionStates({
 			workspaceRoot,
@@ -70,6 +78,14 @@ describe("live pursuit handoff action state", () => {
 			status: "completed",
 			assigneeName: "Amina",
 		});
+		const auditLog = await fs.readFile(
+			path.resolve(workspaceRoot, ".omx", "state", "latest-live-pursuit-handoff-action-events.md"),
+			"utf8",
+		);
+		expect(auditLog).toContain("# Latest Live Pursuit Handoff Action Events");
+		expect(auditLog).toContain("`LPH-001`");
+		expect(auditLog).toContain("completed");
+		expect(auditLog).toContain("Receipt captured");
 	});
 
 	it("rejects unknown tasks instead of creating loose action state", async () => {

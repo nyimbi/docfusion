@@ -8421,6 +8421,28 @@ Remaining after this slice:
 - Replace the proof-backed task state file with DB-backed runtime persistence once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Handoff Task Action Audit Events
+
+Status: implemented and verified.
+
+Purpose: make operator task updates auditable, so ownership, evidence-note, status, and receipt changes are not only mutable current state but also append-only evidence.
+
+Changes in this slice:
+- Added `.omx/state/latest-live-pursuit-handoff-action-events.md` as an append-only Markdown audit ledger for latest handoff task updates.
+- Appended an audit event every time a live handoff task action state is updated, including run ID, task ID, task title, status, assignee, evidence note, receipt URL, updating user, timestamp, and generated event ID.
+- Returned audit event metadata from `POST /api/opportunities/live-handoff/latest/tasks/[taskId]` alongside the updated task state.
+- Extended action-state regression coverage to verify ledger creation and event content.
+
+Verification:
+- `npm test -- live-pursuit-handoff-action-state.test.ts live-handoff-latest-route.test.ts --run` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 38 tests across response package, qualification workflow, pursuit handoff, latest-handoff reader, action-state store, audit event behavior, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

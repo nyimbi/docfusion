@@ -41,7 +41,7 @@ export async function POST(
 	}
 
 	try {
-		const taskState = await updateLatestLivePursuitHandoffTaskActionState({
+		const update = await updateLatestLivePursuitHandoffTaskActionState({
 			taskId,
 			status: body.status as LatestLivePursuitHandoffTaskActionStatus,
 			assigneeName: optionalString(body.assigneeName, "assigneeName"),
@@ -51,7 +51,7 @@ export async function POST(
 		});
 		return NextResponse.json({
 			success: true,
-			taskState,
+			...update,
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Failed to update latest handoff task";
