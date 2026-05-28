@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type {
+	LatestLivePursuitHandoffArtifactContent,
 	LatestLivePursuitHandoffArtifactKind,
 	LatestLivePursuitHandoffArtifactLink,
 	LatestLivePursuitHandoffIndex,
@@ -67,6 +68,32 @@ export async function readLatestLivePursuitHandoff(options: {
 		}
 		throw error;
 	}
+}
+
+export async function readLatestLivePursuitHandoffArtifactContent(input: {
+	artifactPath: string;
+	workspaceRoot?: string;
+}): Promise<LatestLivePursuitHandoffArtifactContent> {
+	const requestedPath = input.artifactPath.trim();
+	if (!requestedPath) throw new Error("artifact path is required");
+
+	const workspaceRoot = input.workspaceRoot ?? resolveLatestHandoffWorkspaceRoot();
+	const handoff = await readLatestLivePursuitHandoff({ workspaceRoot });
+	const artifact = handoff.artifactLinks.find((candidate) => candidate.path === requestedPath);
+	if (!artifact) throw new Error("Requested artifact is not part of the latest live handoff");
+
+	const resolvedPath = path.resolve(workspaceRoot, artifact.path);
+	const resolvedRoot = path.resolve(workspaceRoot);
+	if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
+		throw new Error("Requested artifact path escapes the workspace");
+	}
+
+	return {
+		artifact,
+		content: await fs.readFile(resolvedPath, "utf8"),
+		contentType: contentTypeForArtifactPath(artifact.path),
+		filename: path.basename(artifact.path),
+	};
 }
 
 export function resolveLatestHandoffWorkspaceRoot(): string {
@@ -166,6 +193,12 @@ function labelForArtifactPath(artifactPath: string): string {
 		.replace(/\.(json|md)$/u, "")
 		.replace(/[-_]+/gu, " ")
 		.replace(/\b\w/gu, (match) => match.toUpperCase());
+}
+
+function contentTypeForArtifactPath(artifactPath: string): string {
+	if (artifactPath.endsWith(".json")) return "application/json; charset=utf-8";
+	if (artifactPath.endsWith(".md")) return "text/markdown; charset=utf-8";
+	return "text/plain; charset=utf-8";
 }
 
 interface LatestHandoffArtifactSource {

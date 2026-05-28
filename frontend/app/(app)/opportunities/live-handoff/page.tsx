@@ -502,7 +502,15 @@ function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }
 						<div className="mt-2 grid gap-2">
 							{artifacts.map((artifact) => (
 								<div key={`${artifact.kind}:${artifact.path}`} className="grid gap-1 border-l pl-3 text-sm">
-									<div className="font-medium text-foreground">{artifact.label}</div>
+									<a
+										href={artifactUrl(artifact.path)}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex w-fit max-w-full items-center gap-1 font-medium text-primary hover:underline"
+									>
+										<span className="truncate">{artifact.label}</span>
+										<ExternalLink className="h-3.5 w-3.5 shrink-0" />
+									</a>
 									{artifact.title && <div className="truncate text-muted-foreground">{artifact.title}</div>}
 									<code className="break-all text-xs text-muted-foreground">{artifact.path}</code>
 								</div>
@@ -547,6 +555,10 @@ function artifactKindLabel(kind: LatestLivePursuitHandoffPayload["artifactLinks"
 		case "handoff":
 			return "Handoff proof";
 	}
+}
+
+function artifactUrl(pathname: string): string {
+	return `/api/opportunities/live-handoff/latest/artifacts?path=${encodeURIComponent(pathname)}`;
 }
 
 function formatDateTime(value: string): string {

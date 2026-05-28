@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
 	LatestLivePursuitHandoffNotFoundError,
 	readLatestLivePursuitHandoff,
+	readLatestLivePursuitHandoffArtifactContent,
 } from "@/lib/services/latest-live-pursuit-handoff";
 import type { LatestLivePursuitHandoffIndex } from "@/lib/types/latest-live-pursuit-handoff";
 
@@ -93,6 +94,39 @@ describe("latest live pursuit handoff reader", () => {
 
 		await expect(readLatestLivePursuitHandoff({ workspaceRoot }))
 			.rejects.toBeInstanceOf(LatestLivePursuitHandoffNotFoundError);
+	});
+
+	it("reads only artifacts linked by the latest handoff", async () => {
+		const workspaceRoot = await writeWorkspaceState(
+			latestIndex,
+			`# Latest Live Pursuit Handoff\n\nRun: \`${latestIndex.runId}\`\n\n## Execution Checklist\n`,
+		);
+		const artifactPath = ".omx/logs/platform-completion/live-response-readiness/response-package/cover_letter.md";
+		await fs.mkdir(path.resolve(workspaceRoot, ".omx", "logs", "platform-completion", "live-response-readiness", "response-package"), { recursive: true });
+		await fs.writeFile(
+			path.resolve(workspaceRoot, artifactPath),
+			"# Cover Letter\n\nSource-backed response.",
+			"utf8",
+		);
+
+		const artifact = await readLatestLivePursuitHandoffArtifactContent({
+			workspaceRoot,
+			artifactPath,
+		});
+
+		expect(artifact).toMatchObject({
+			content: "# Cover Letter\n\nSource-backed response.",
+			contentType: "text/markdown; charset=utf-8",
+			filename: "cover_letter.md",
+			artifact: {
+				kind: "primary_response",
+				label: "Cover Letter",
+			},
+		});
+		await expect(readLatestLivePursuitHandoffArtifactContent({
+			workspaceRoot,
+			artifactPath: ".env",
+		})).rejects.toThrow("not part of the latest live handoff");
 	});
 
 	it("rejects stale markdown that does not match the indexed run", async () => {

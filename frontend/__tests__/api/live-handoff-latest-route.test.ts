@@ -7,6 +7,7 @@ const tenantMock = vi.hoisted(() => ({
 const latestHandoffMock = vi.hoisted(() => ({
 	LatestLivePursuitHandoffNotFoundError: class LatestLivePursuitHandoffNotFoundError extends Error {},
 	readLatestLivePursuitHandoff: vi.fn(),
+	readLatestLivePursuitHandoffArtifactContent: vi.fn(),
 }));
 const actionStateMock = vi.hoisted(() => ({
 	readLatestLivePursuitHandoffActionAuditEvents: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/services/live-pursuit-handoff-action-state", () => actionStateMoc
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import { GET } from "@/app/api/opportunities/live-handoff/latest/route";
+import { GET as readArtifact } from "@/app/api/opportunities/live-handoff/latest/artifacts/route";
 import { POST as updateTask } from "@/app/api/opportunities/live-handoff/latest/tasks/[taskId]/route";
 
 const handoffPayload = {
@@ -69,6 +71,12 @@ beforeEach(() => {
 		organizationId: "org-1",
 	});
 	latestHandoffMock.readLatestLivePursuitHandoff.mockResolvedValue(handoffPayload);
+	latestHandoffMock.readLatestLivePursuitHandoffArtifactContent.mockResolvedValue({
+		artifact: handoffPayload.artifactLinks[0],
+		content: "# Cover Letter",
+		contentType: "text/markdown; charset=utf-8",
+		filename: "cover_letter.md",
+	});
 	actionStateMock.readLatestLivePursuitHandoffActionStates.mockResolvedValue({
 		"LPH-001": {
 			taskId: "LPH-001",
@@ -228,6 +236,34 @@ describe("latest live pursuit handoff route", () => {
 			error: "Latest live pursuit handoff has not been generated",
 			proofCommand: "npm run platform:proof -- --run live-pursuit-handoff --include-live-safe",
 		});
+	});
+
+	it("serves latest handoff artifacts through an authenticated allowlisted route", async () => {
+		const response = await readArtifact(
+			new NextRequest("https://app.test/api/opportunities/live-handoff/latest/artifacts?path=.omx%2Flogs%2Fplatform-completion%2Flive-response-readiness%2Fresponse-package%2Fcover_letter.md"),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+		expect(response.headers.get("content-disposition")).toContain("cover_letter.md");
+		expect(response.headers.get("x-lindela-artifact-kind")).toBe("primary_response");
+		expect(await response.text()).toBe("# Cover Letter");
+		expect(latestHandoffMock.readLatestLivePursuitHandoffArtifactContent).toHaveBeenCalledWith({
+			artifactPath: ".omx/logs/platform-completion/live-response-readiness/response-package/cover_letter.md",
+		});
+	});
+
+	it("rejects artifact reads without tenant context", async () => {
+		tenantMock.requireRouteTenantContext.mockResolvedValueOnce(
+			NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+		);
+
+		const response = await readArtifact(
+			new NextRequest("https://app.test/api/opportunities/live-handoff/latest/artifacts?path=.env"),
+		);
+
+		expect(response.status).toBe(401);
+		expect(latestHandoffMock.readLatestLivePursuitHandoffArtifactContent).not.toHaveBeenCalled();
 	});
 
 	it("updates task action state with the authenticated user", async () => {

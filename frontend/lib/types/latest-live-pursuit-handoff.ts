@@ -76,6 +76,13 @@ export interface LatestLivePursuitHandoffArtifactLink {
 	sourceKind?: string;
 }
 
+export interface LatestLivePursuitHandoffArtifactContent {
+	artifact: LatestLivePursuitHandoffArtifactLink;
+	content: string;
+	contentType: string;
+	filename: string;
+}
+
 export type LatestLivePursuitHandoffTaskActionStatus =
 	| "pending_operator_action"
 	| "in_progress"
