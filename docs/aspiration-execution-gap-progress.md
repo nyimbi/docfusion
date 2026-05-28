@@ -8397,6 +8397,30 @@ Remaining after this slice:
 - Add real execution state transitions, user assignment, and receipt capture once DB-backed runtime persistence is reachable.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Proof-Backed Handoff Task State
+
+Status: implemented and verified.
+
+Purpose: let operators act on the live handoff checklist by recording task status, assignee names, evidence notes, and receipt URLs while the DB-backed runtime remains unavailable.
+
+Changes in this slice:
+- Added a proof-backed handoff task action-state store at `.omx/state/latest-live-pursuit-handoff-action-state.json`, keyed to the current latest handoff run and ignored when stale.
+- Added validation so task action state can only be written for task IDs present in the latest verified handoff.
+- Added authenticated `POST /api/opportunities/live-handoff/latest/tasks/[taskId]` to update task status, assignee, evidence note, and receipt URL using the session user as updater.
+- Updated `GET /api/opportunities/live-handoff/latest` to merge current task action states into the handoff payload.
+- Updated `/opportunities/live-handoff` with Start, Block, and Complete controls plus assignee, evidence-note, and receipt-URL fields for each execution task.
+- Expanded the Wave 9 response-readiness package proof scenario to cover handoff task action-state tests.
+
+Verification:
+- `npm test -- latest-live-pursuit-handoff.test.ts live-pursuit-handoff-action-state.test.ts live-handoff-latest-route.test.ts --run` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 38 tests across live response package, qualification workflow, pursuit handoff, latest-handoff reader, task action-state store, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Replace the proof-backed task state file with DB-backed runtime persistence once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

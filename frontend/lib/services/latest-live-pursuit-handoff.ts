@@ -15,7 +15,7 @@ const LATEST_HANDOFF_BRIEF_RELATIVE_PATH = path.join(".omx", "state", "latest-li
 export async function readLatestLivePursuitHandoff(options: {
 	workspaceRoot?: string;
 } = {}): Promise<LatestLivePursuitHandoffPayload> {
-	const workspaceRoot = options.workspaceRoot ?? resolveWorkspaceRoot();
+	const workspaceRoot = options.workspaceRoot ?? resolveLatestHandoffWorkspaceRoot();
 	const indexPath = path.resolve(workspaceRoot, LATEST_HANDOFF_JSON_RELATIVE_PATH);
 	const briefPath = path.resolve(workspaceRoot, LATEST_HANDOFF_BRIEF_RELATIVE_PATH);
 
@@ -32,6 +32,7 @@ export async function readLatestLivePursuitHandoff(options: {
 		return {
 			index,
 			operatorBriefMarkdown,
+			actionStates: {},
 			paths: {
 				indexPath: path.relative(workspaceRoot, indexPath),
 				briefPath: path.relative(workspaceRoot, briefPath),
@@ -45,7 +46,7 @@ export async function readLatestLivePursuitHandoff(options: {
 	}
 }
 
-function resolveWorkspaceRoot(): string {
+export function resolveLatestHandoffWorkspaceRoot(): string {
 	return path.basename(process.cwd()) === "frontend"
 		? path.resolve(process.cwd(), "..")
 		: process.cwd();

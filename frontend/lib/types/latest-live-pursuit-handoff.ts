@@ -50,8 +50,25 @@ export interface LatestLivePursuitHandoffIndex {
 export interface LatestLivePursuitHandoffPayload {
 	index: LatestLivePursuitHandoffIndex;
 	operatorBriefMarkdown: string;
+	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
 	paths: {
 		indexPath: string;
 		briefPath: string;
 	};
+}
+
+export type LatestLivePursuitHandoffTaskActionStatus =
+	| "pending_operator_action"
+	| "in_progress"
+	| "completed"
+	| "blocked";
+
+export interface LatestLivePursuitHandoffTaskActionState {
+	taskId: string;
+	status: LatestLivePursuitHandoffTaskActionStatus;
+	assigneeName?: string;
+	evidenceNote?: string;
+	receiptUrl?: string;
+	updatedAt: string;
+	updatedByUserId: string;
 }

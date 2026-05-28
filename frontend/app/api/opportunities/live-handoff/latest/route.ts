@@ -7,6 +7,7 @@ import {
 	LatestLivePursuitHandoffNotFoundError,
 	readLatestLivePursuitHandoff,
 } from "@/lib/services/latest-live-pursuit-handoff";
+import { readLatestLivePursuitHandoffActionStates } from "@/lib/services/live-pursuit-handoff-action-state";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,15 @@ export async function GET() {
 
 	try {
 		const handoff = await readLatestLivePursuitHandoff();
+		const actionStates = await readLatestLivePursuitHandoffActionStates({
+			runId: handoff.index.runId,
+		});
 		return NextResponse.json({
 			success: true,
-			handoff,
+			handoff: {
+				...handoff,
+				actionStates,
+			},
 		});
 	} catch (error) {
 		if (error instanceof LatestLivePursuitHandoffNotFoundError) {

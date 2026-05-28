@@ -8,12 +8,19 @@ const latestHandoffMock = vi.hoisted(() => ({
 	LatestLivePursuitHandoffNotFoundError: class LatestLivePursuitHandoffNotFoundError extends Error {},
 	readLatestLivePursuitHandoff: vi.fn(),
 }));
+const actionStateMock = vi.hoisted(() => ({
+	readLatestLivePursuitHandoffActionStates: vi.fn(),
+	updateLatestLivePursuitHandoffTaskActionState: vi.fn(),
+}));
 
 vi.mock("@/lib/auth/route-tenant", () => tenantMock);
 vi.mock("@/lib/services/latest-live-pursuit-handoff", () => latestHandoffMock);
+vi.mock("@/lib/services/live-pursuit-handoff-action-state", () => actionStateMock);
 
 import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { GET } from "@/app/api/opportunities/live-handoff/latest/route";
+import { POST as updateTask } from "@/app/api/opportunities/live-handoff/latest/tasks/[taskId]/route";
 
 const handoffPayload = {
 	index: {
@@ -52,6 +59,24 @@ beforeEach(() => {
 		organizationId: "org-1",
 	});
 	latestHandoffMock.readLatestLivePursuitHandoff.mockResolvedValue(handoffPayload);
+	actionStateMock.readLatestLivePursuitHandoffActionStates.mockResolvedValue({
+		"LPH-001": {
+			taskId: "LPH-001",
+			status: "in_progress",
+			assigneeName: "Amina",
+			updatedAt: "2026-05-28T01:30:00.000Z",
+			updatedByUserId: "user-1",
+		},
+	});
+	actionStateMock.updateLatestLivePursuitHandoffTaskActionState.mockResolvedValue({
+		taskId: "LPH-001",
+		status: "completed",
+		assigneeName: "Amina",
+		evidenceNote: "Receipt captured",
+		receiptUrl: "https://example.test/receipt",
+		updatedAt: "2026-05-28T01:35:00.000Z",
+		updatedByUserId: "user-1",
+	});
 });
 
 describe("latest live pursuit handoff route", () => {
@@ -73,9 +98,23 @@ describe("latest live pursuit handoff route", () => {
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
 			success: true,
-			handoff: handoffPayload,
+			handoff: {
+				...handoffPayload,
+				actionStates: {
+					"LPH-001": {
+						taskId: "LPH-001",
+						status: "in_progress",
+						assigneeName: "Amina",
+						updatedAt: "2026-05-28T01:30:00.000Z",
+						updatedByUserId: "user-1",
+					},
+				},
+			},
 		});
 		expect(latestHandoffMock.readLatestLivePursuitHandoff).toHaveBeenCalledOnce();
+		expect(actionStateMock.readLatestLivePursuitHandoffActionStates).toHaveBeenCalledWith({
+			runId: "live_pursuit_handoff_20260528T012604Z",
+		});
 	});
 
 	it("returns proof guidance when no latest handoff has been generated", async () => {
@@ -92,4 +131,60 @@ describe("latest live pursuit handoff route", () => {
 			proofCommand: "npm run platform:proof -- --run live-pursuit-handoff --include-live-safe",
 		});
 	});
+
+	it("updates task action state with the authenticated user", async () => {
+		const response = await updateTask(
+			jsonRequest({
+				status: "completed",
+				assigneeName: " Amina ",
+				evidenceNote: " Receipt captured ",
+				receiptUrl: " https://example.test/receipt ",
+			}),
+			{ params: Promise.resolve({ taskId: "LPH-001" }) },
+		);
+
+		expect(response.status).toBe(200);
+		expect(actionStateMock.updateLatestLivePursuitHandoffTaskActionState).toHaveBeenCalledWith({
+			taskId: "LPH-001",
+			status: "completed",
+			assigneeName: " Amina ",
+			evidenceNote: " Receipt captured ",
+			receiptUrl: " https://example.test/receipt ",
+			updatedByUserId: "user-1",
+		});
+		expect(await response.json()).toEqual({
+			success: true,
+			taskState: {
+				taskId: "LPH-001",
+				status: "completed",
+				assigneeName: "Amina",
+				evidenceNote: "Receipt captured",
+				receiptUrl: "https://example.test/receipt",
+				updatedAt: "2026-05-28T01:35:00.000Z",
+				updatedByUserId: "user-1",
+			},
+		});
+	});
+
+	it("rejects task updates without tenant context", async () => {
+		tenantMock.requireRouteTenantContext.mockResolvedValueOnce(
+			NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+		);
+
+		const response = await updateTask(
+			jsonRequest({ status: "completed" }),
+			{ params: Promise.resolve({ taskId: "LPH-001" }) },
+		);
+
+		expect(response.status).toBe(401);
+		expect(actionStateMock.updateLatestLivePursuitHandoffTaskActionState).not.toHaveBeenCalled();
+	});
 });
+
+function jsonRequest(body: Record<string, unknown>) {
+	return new NextRequest("https://app.test/api/opportunities/live-handoff/latest/tasks/LPH-001", {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(body),
+	});
+}

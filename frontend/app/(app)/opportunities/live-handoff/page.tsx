@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { LatestLivePursuitHandoffPayload, LatestLivePursuitHandoffTask } from "@/lib/types/latest-live-pursuit-handoff";
+import type { LatestLivePursuitHandoffTaskActionState, LatestLivePursuitHandoffTaskActionStatus } from "@/lib/types/latest-live-pursuit-handoff";
 
 type LatestHandoffResponse =
 	| { success: true; handoff: LatestLivePursuitHandoffPayload }
@@ -32,6 +33,12 @@ export default function LatestLiveHandoffPage() {
 	const [error, setError] = React.useState<string | null>(null);
 	const [proofCommand, setProofCommand] = React.useState<string | null>(null);
 	const [isLoading, setIsLoading] = React.useState(true);
+	const [updatingTaskId, setUpdatingTaskId] = React.useState<string | null>(null);
+	const [drafts, setDrafts] = React.useState<Record<string, {
+		assigneeName: string;
+		evidenceNote: string;
+		receiptUrl: string;
+	}>>({});
 
 	const loadHandoff = React.useCallback(async () => {
 		setIsLoading(true);
@@ -49,6 +56,7 @@ export default function LatestLiveHandoffPage() {
 				return;
 			}
 			setHandoff(body.handoff);
+			setDrafts(draftsFromActionStates(body.handoff.actionStates));
 		} catch (loadError) {
 			setHandoff(null);
 			setError(loadError instanceof Error ? loadError.message : "Failed to load latest live handoff");
@@ -56,6 +64,48 @@ export default function LatestLiveHandoffPage() {
 			setIsLoading(false);
 		}
 	}, []);
+
+	const updateTask = React.useCallback(async (
+		task: LatestLivePursuitHandoffTask,
+		status: LatestLivePursuitHandoffTaskActionStatus,
+	) => {
+		const draft = drafts[task.id] ?? { assigneeName: "", evidenceNote: "", receiptUrl: "" };
+		setUpdatingTaskId(task.id);
+		setError(null);
+		try {
+			const response = await fetch(`/api/opportunities/live-handoff/latest/tasks/${encodeURIComponent(task.id)}`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ status, ...draft }),
+			});
+			const body = await response.json() as { success: true; taskState: LatestLivePursuitHandoffTaskActionState } | { success: false; error: string };
+			if (!response.ok || !body.success) {
+				setError(body.success ? "Task update failed" : body.error);
+				return;
+			}
+			setHandoff((current) => current
+				? {
+					...current,
+					actionStates: {
+						...current.actionStates,
+						[task.id]: body.taskState,
+					},
+				}
+				: current);
+			setDrafts((current) => ({
+				...current,
+				[task.id]: {
+					assigneeName: body.taskState.assigneeName ?? "",
+					evidenceNote: body.taskState.evidenceNote ?? "",
+					receiptUrl: body.taskState.receiptUrl ?? "",
+				},
+			}));
+		} catch (updateError) {
+			setError(updateError instanceof Error ? updateError.message : "Task update failed");
+		} finally {
+			setUpdatingTaskId(null);
+		}
+	}, [drafts]);
 
 	React.useEffect(() => {
 		void loadHandoff();
@@ -108,7 +158,24 @@ export default function LatestLiveHandoffPage() {
 			{!isLoading && handoff && (
 				<div className="space-y-6">
 					<Summary handoff={handoff} />
-					<ExecutionTasks tasks={handoff.index.executionPlan.tasks} />
+					<ExecutionTasks
+						tasks={handoff.index.executionPlan.tasks}
+						actionStates={handoff.actionStates}
+						drafts={drafts}
+						updatingTaskId={updatingTaskId}
+						onDraftChange={(taskId, field, value) => {
+							setDrafts((current) => ({
+								...current,
+								[taskId]: {
+									assigneeName: current[taskId]?.assigneeName ?? "",
+									evidenceNote: current[taskId]?.evidenceNote ?? "",
+									receiptUrl: current[taskId]?.receiptUrl ?? "",
+									[field]: value,
+								},
+							}));
+						}}
+						onUpdateTask={updateTask}
+					/>
 					<ArtifactPaths handoff={handoff} />
 				</div>
 			)}
@@ -159,7 +226,28 @@ function Summary({ handoff }: { handoff: LatestLivePursuitHandoffPayload }) {
 	);
 }
 
-function ExecutionTasks({ tasks }: { tasks: LatestLivePursuitHandoffTask[] }) {
+function ExecutionTasks({
+	tasks,
+	actionStates,
+	drafts,
+	updatingTaskId,
+	onDraftChange,
+	onUpdateTask,
+}: {
+	tasks: LatestLivePursuitHandoffTask[];
+	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
+	drafts: Record<string, { assigneeName: string; evidenceNote: string; receiptUrl: string }>;
+	updatingTaskId: string | null;
+	onDraftChange: (
+		taskId: string,
+		field: "assigneeName" | "evidenceNote" | "receiptUrl",
+		value: string,
+	) => void;
+	onUpdateTask: (
+		task: LatestLivePursuitHandoffTask,
+		status: LatestLivePursuitHandoffTaskActionStatus,
+	) => void;
+}) {
 	return (
 		<section>
 			<div className="mb-3 flex items-center gap-2">
@@ -168,7 +256,46 @@ function ExecutionTasks({ tasks }: { tasks: LatestLivePursuitHandoffTask[] }) {
 			</div>
 			<div className="grid gap-3">
 				{tasks.map((task) => (
-					<article key={task.id} className="rounded-lg border bg-card p-4">
+					<TaskCard
+						key={task.id}
+						task={task}
+						actionState={actionStates[task.id]}
+						draft={drafts[task.id] ?? { assigneeName: "", evidenceNote: "", receiptUrl: "" }}
+						isUpdating={updatingTaskId === task.id}
+						onDraftChange={onDraftChange}
+						onUpdateTask={onUpdateTask}
+					/>
+				))}
+			</div>
+		</section>
+	);
+}
+
+function TaskCard({
+	task,
+	actionState,
+	draft,
+	isUpdating,
+	onDraftChange,
+	onUpdateTask,
+}: {
+	task: LatestLivePursuitHandoffTask;
+	actionState: LatestLivePursuitHandoffTaskActionState | undefined;
+	draft: { assigneeName: string; evidenceNote: string; receiptUrl: string };
+	isUpdating: boolean;
+	onDraftChange: (
+		taskId: string,
+		field: "assigneeName" | "evidenceNote" | "receiptUrl",
+		value: string,
+	) => void;
+	onUpdateTask: (
+		task: LatestLivePursuitHandoffTask,
+		status: LatestLivePursuitHandoffTaskActionStatus,
+	) => void;
+}) {
+	const status = actionState?.status ?? task.status;
+	return (
+		<article className="rounded-lg border bg-card p-4">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<div className="min-w-0 flex-1">
 								<div className="mb-2 flex flex-wrap items-center gap-2">
@@ -178,11 +305,14 @@ function ExecutionTasks({ tasks }: { tasks: LatestLivePursuitHandoffTask[] }) {
 									<span className="text-xs text-muted-foreground">{task.id}</span>
 									<span className="text-xs text-muted-foreground">{task.sourceKind}</span>
 									{task.dueLabel && <span className="text-xs text-muted-foreground">due {task.dueLabel}</span>}
+									<span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+										{status}
+									</span>
 								</div>
 								<h3 className="text-sm font-medium leading-6 text-foreground">{task.title}</h3>
 								<div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
 									<UserCheck className="h-4 w-4" />
-									{task.ownerRole}
+									{actionState?.assigneeName || task.ownerRole}
 								</div>
 							</div>
 						</div>
@@ -194,10 +324,59 @@ function ExecutionTasks({ tasks }: { tasks: LatestLivePursuitHandoffTask[] }) {
 								</li>
 							))}
 						</ul>
-					</article>
-				))}
+			<div className="mt-4 grid gap-3 md:grid-cols-3">
+				<label className="grid gap-1 text-xs text-muted-foreground">
+					<span>Assignee</span>
+					<input
+						value={draft.assigneeName}
+						onChange={(event) => onDraftChange(task.id, "assigneeName", event.target.value)}
+						className="h-9 rounded-md border bg-background px-3 text-sm text-foreground outline-none focus:border-ring"
+					/>
+				</label>
+				<label className="grid gap-1 text-xs text-muted-foreground md:col-span-2">
+					<span>Receipt URL</span>
+					<input
+						value={draft.receiptUrl}
+						onChange={(event) => onDraftChange(task.id, "receiptUrl", event.target.value)}
+						className="h-9 rounded-md border bg-background px-3 text-sm text-foreground outline-none focus:border-ring"
+					/>
+				</label>
+				<label className="grid gap-1 text-xs text-muted-foreground md:col-span-3">
+					<span>Evidence note</span>
+					<textarea
+						value={draft.evidenceNote}
+						onChange={(event) => onDraftChange(task.id, "evidenceNote", event.target.value)}
+						rows={2}
+						className="rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-ring"
+					/>
+				</label>
 			</div>
-		</section>
+			<div className="mt-3 flex flex-wrap gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={isUpdating}
+					onClick={() => onUpdateTask(task, "in_progress")}
+				>
+					Start
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={isUpdating}
+					onClick={() => onUpdateTask(task, "blocked")}
+				>
+					Block
+				</Button>
+				<Button
+					size="sm"
+					disabled={isUpdating}
+					onClick={() => onUpdateTask(task, "completed")}
+				>
+					Complete
+				</Button>
+			</div>
+		</article>
 	);
 }
 
@@ -215,6 +394,19 @@ function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }
 			</div>
 		</section>
 	);
+}
+
+function draftsFromActionStates(
+	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>,
+): Record<string, { assigneeName: string; evidenceNote: string; receiptUrl: string }> {
+	return Object.fromEntries(Object.entries(actionStates).map(([taskId, state]) => [
+		taskId,
+		{
+			assigneeName: state.assigneeName ?? "",
+			evidenceNote: state.evidenceNote ?? "",
+			receiptUrl: state.receiptUrl ?? "",
+		},
+	]));
 }
 
 function Pill({ icon: Icon, children }: {
