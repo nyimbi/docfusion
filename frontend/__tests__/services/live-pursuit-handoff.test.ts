@@ -110,4 +110,49 @@ describe("live pursuit handoff", () => {
 			],
 		})).toThrow("requires a ready qualification workflow");
 	});
+
+	it("adds deadline-control actions for critical primary and urgent review candidates", () => {
+		const handoff = buildLivePursuitHandoff({
+			generatedAt: new Date("2026-05-28T01:10:00.000Z"),
+			portfolioRunId: "portfolio",
+			primaryPursuit: pursuit({
+				title: "UNGM goAML security consultancy",
+				sourceKind: "ungm",
+				submissionSchedule: {
+					deadlineIso: "2026-05-28T23:59:00.000Z",
+					deadlineLabel: "2026-05-28",
+					deadlineSource: "opportunity_metadata",
+					daysUntilDeadline: 1,
+					urgency: "critical",
+					submissionRequirements: [
+						"Submit through UNGM only.",
+						"Capture the electronic submission receipt.",
+					],
+					evidenceSnippets: ["Opportunity metadata deadline: 2026-05-28"],
+				},
+			}),
+			reviewQueue: [
+				pursuit({
+					title: "World Bank energy management systems",
+					portfolioRecommendation: "review_before_pursuit",
+					submissionSchedule: {
+						deadlineIso: "2026-06-03T13:00:00.000Z",
+						deadlineLabel: "2026-06-03",
+						deadlineSource: "source_text",
+						daysUntilDeadline: 7,
+						urgency: "urgent",
+						submissionRequirements: ["Submit EOI by email."],
+						evidenceSnippets: ["Submission Deadline: 2026-06-03T13:00:00.000Z"],
+					},
+				}),
+			],
+		});
+
+		expect(handoff.nextActions).toEqual(expect.arrayContaining([
+			"Activate same-day submission control for UNGM goAML security consultancy: name an owner, confirm the submission channel, and capture receipt evidence before the deadline.",
+			"Verify 2 extracted submission requirement signals against the source document before final packaging.",
+			"Triage deadline-risk review candidate World Bank energy management systems (urgent deadline 2026-06-03).",
+		]));
+		expect(handoff.operatorBriefMarkdown).toContain("Activate same-day submission control");
+	});
 });

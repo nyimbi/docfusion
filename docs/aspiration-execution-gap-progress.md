@@ -8309,6 +8309,27 @@ Remaining after this slice:
 - Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Deadline-Control Actions in Live Handoff
+
+Status: implemented and verified.
+
+Purpose: turn deadline visibility into operator action so critical and urgent pursuits are not merely labeled, but trigger explicit submission-control work.
+
+Changes in this slice:
+- Added deadline-control next actions to live pursuit handoffs for critical primary pursuits, urgent primary pursuits, extracted submission requirements, and deadline-risk review-queue candidates.
+- Trimmed terminal punctuation in action titles so generated command text stays readable when opportunity titles end with punctuation.
+- Added regression coverage for critical primary pursuits and urgent review candidates.
+
+Verification:
+- `npm test -- live-pursuit-handoff.test.ts --run` passed with 4 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T011410Z`, bundling source portfolio `live_opportunity_portfolio_triage_20260528T010913Z`, primary UNGM pursuit `live_response_readiness_20260528T010842Z`, deadline `2026-05-28`, 3 review-queue candidates, 32 linked artifacts, and next actions for same-day submission control plus deadline-risk review candidates.
+
+Remaining after this slice:
+- Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
+- Add owner assignment and receipt-capture persistence once the handoff moves from proof artifact to DB-backed runtime.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.

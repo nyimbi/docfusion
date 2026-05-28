@@ -86,6 +86,7 @@ function buildNextActions(
 ): string[] {
 	return [
 		`Open the response package for ${primaryPursuit.title} and assign proposal ownership.`,
+		...deadlineControlActions(primaryPursuit, reviewQueue),
 		primaryPursuit.submissionSchedule?.deadlineLabel
 			? `Confirm ${primaryPursuit.submissionSchedule.urgency} source deadline ${primaryPursuit.submissionSchedule.deadlineLabel} and submission instructions from ${primaryPursuit.sourceKind}.`
 			: `Confirm source deadline and submission instructions from ${primaryPursuit.sourceKind}.`,
@@ -95,6 +96,37 @@ function buildNextActions(
 			.slice(0, 2)
 			.map((opportunity) => `Execute the ready qualification workflow for ${opportunity.title}.`),
 	];
+}
+
+function deadlineControlActions(
+	primaryPursuit: LivePursuitHandoffOpportunity,
+	reviewQueue: LivePursuitHandoffOpportunity[]
+): string[] {
+	const actions: string[] = [];
+	const primarySchedule = primaryPursuit.submissionSchedule;
+	const primaryTitle = actionTitle(primaryPursuit.title);
+	if (primarySchedule?.urgency === "critical") {
+		actions.push(`Activate same-day submission control for ${primaryTitle}: name an owner, confirm the submission channel, and capture receipt evidence before the deadline.`);
+	} else if (primarySchedule?.urgency === "urgent") {
+		actions.push(`Reserve a submission review window for ${primaryTitle} before ${primarySchedule.deadlineLabel}.`);
+	}
+	if (primarySchedule?.submissionRequirements.length) {
+		actions.push(`Verify ${primarySchedule.submissionRequirements.length} extracted submission requirement signal${primarySchedule.submissionRequirements.length === 1 ? "" : "s"} against the source document before final packaging.`);
+	}
+
+	for (const opportunity of reviewQueue.filter(isDeadlineRisk).slice(0, 2)) {
+		actions.push(`Triage deadline-risk review candidate ${actionTitle(opportunity.title)} (${opportunity.submissionSchedule?.urgency} deadline ${opportunity.submissionSchedule?.deadlineLabel}).`);
+	}
+
+	return actions;
+}
+
+function actionTitle(title: string): string {
+	return title.trim().replace(/[.!?]+$/u, "");
+}
+
+function isDeadlineRisk(opportunity: LivePursuitHandoffOpportunity): boolean {
+	return opportunity.submissionSchedule?.urgency === "critical" || opportunity.submissionSchedule?.urgency === "urgent";
 }
 
 function formatLivePursuitHandoffBrief(handoff: Omit<LivePursuitHandoff, "operatorBriefMarkdown">): string {
