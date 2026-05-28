@@ -69,6 +69,23 @@ import type {
 import { logger } from "@/lib/utils/logger";
 
 const RFP_DOCUMENT_HASH_MISMATCH_ERROR = "RFP document hash mismatch";
+const RFP_DOCUMENT_VARCHAR_LIMITS = {
+	extractedTitle: 1000,
+	issuingOrganization: 500,
+	solicitationNumber: 200,
+	contractType: 100,
+	setAsideType: 100,
+} as const;
+const RFP_REQUIREMENT_VARCHAR_LIMITS = {
+	requirementNumber: 50,
+	sourceSection: 100,
+	title: 500,
+	category: 50,
+	subcategory: 100,
+	requirementType: 20,
+	priority: 20,
+	riskLevel: 20,
+} as const;
 
 type RfpParseWorkflowAction = "retry" | "reject" | "manual_extraction" | "cancel";
 type RfpParseWorkflowState =
@@ -122,6 +139,16 @@ function hasAnyRfpAuthorityRole(
 	requiredRoles: string[]
 ): boolean {
 	return requiredRoles.some((role) => userHasAuthorityRole(context, role));
+}
+
+function compactStorageText(value: string | null | undefined, maxLength: number): string | undefined {
+	const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+	if (!text) return undefined;
+	return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function compactStorageTextOrNull(value: string | null | undefined, maxLength: number): string | null {
+	return compactStorageText(value, maxLength) ?? null;
 }
 
 function requireRfpParseRejectAuthority(context: Pick<UserContext, "role" | "roles">): void {
@@ -2023,14 +2050,14 @@ export async function processRfpParsingJob(
 		let parseReview = buildParseConfidenceReviewMetadata(parsingConfidence);
 		await db.update(rfpDocuments).set({
 			extractedText,
-			extractedTitle: parsedRFP.sections[0]?.title,
-			issuingOrganization: parsedRFP.issuingAgency,
-			solicitationNumber: parsedRFP.solicitationNumber,
+			extractedTitle: compactStorageText(parsedRFP.sections[0]?.title, RFP_DOCUMENT_VARCHAR_LIMITS.extractedTitle),
+			issuingOrganization: compactStorageText(parsedRFP.issuingAgency, RFP_DOCUMENT_VARCHAR_LIMITS.issuingOrganization),
+			solicitationNumber: compactStorageText(parsedRFP.solicitationNumber, RFP_DOCUMENT_VARCHAR_LIMITS.solicitationNumber),
 			responseDeadline: parsedRFP.responseDeadline ? new Date(parsedRFP.responseDeadline) : undefined,
 			questionsDeadline: parsedRFP.questionDeadline ? new Date(parsedRFP.questionDeadline) : undefined,
-			contractType: parsedRFP.contractType,
+			contractType: compactStorageText(parsedRFP.contractType, RFP_DOCUMENT_VARCHAR_LIMITS.contractType),
 			naicsCodes: parsedRFP.naicsCode ? [parsedRFP.naicsCode] : [],
-			setAsideType: parsedRFP.setAside,
+			setAsideType: compactStorageText(parsedRFP.setAside, RFP_DOCUMENT_VARCHAR_LIMITS.setAsideType),
 			estimatedValue: parsedRFP.estimatedValue,
 			detectedSections: parsedRFP.sections.map((s) => s.title),
 			parsingConfidence,
@@ -2120,14 +2147,18 @@ export async function processRfpParsingJob(
 					rfpDocumentId,
 					organizationId,
 					opportunityId: rfpDoc.opportunityId,
-					requirementNumber: req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
-					sourceSection: req.sectionReference || null,
-					title: req.title || req.fullText.slice(0, 100),
+					requirementNumber: compactStorageText(
+						req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
+						RFP_REQUIREMENT_VARCHAR_LIMITS.requirementNumber,
+					),
+					sourceSection: compactStorageTextOrNull(req.sectionReference, RFP_REQUIREMENT_VARCHAR_LIMITS.sourceSection),
+					title: compactStorageText(req.title, RFP_REQUIREMENT_VARCHAR_LIMITS.title)
+						?? compactStorageText(req.fullText, RFP_REQUIREMENT_VARCHAR_LIMITS.title),
 					requirementText: req.fullText,
-					category: req.category,
-					subcategory: req.subcategory || null,
-					requirementType: req.requirementType,
-					priority: req.priority,
+					category: compactStorageTextOrNull(req.category, RFP_REQUIREMENT_VARCHAR_LIMITS.category),
+					subcategory: compactStorageTextOrNull(req.subcategory, RFP_REQUIREMENT_VARCHAR_LIMITS.subcategory),
+					requirementType: compactStorageText(req.requirementType, RFP_REQUIREMENT_VARCHAR_LIMITS.requirementType) ?? "shall",
+					priority: compactStorageText(req.priority, RFP_REQUIREMENT_VARCHAR_LIMITS.priority) ?? "mandatory",
 					evaluationWeight: req.evaluationWeight || null,
 					extractionConfidence: req.confidenceScore * 100,
 					relatedRequirements: req.relatedRequirements || [],
@@ -2138,7 +2169,7 @@ export async function processRfpParsingJob(
 						source: "rfp_parser",
 					},
 					complianceStatus: "not_addressed" as const,
-					riskLevel: "medium" as const,
+					riskLevel: compactStorageText("medium", RFP_REQUIREMENT_VARCHAR_LIMITS.riskLevel),
 					metadata: {
 						workflow: {
 							state: "review",

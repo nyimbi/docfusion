@@ -502,6 +502,84 @@ describe("RFP parse workflow", () => {
 		expect(completedIndex).toBeGreaterThan(finalizingIndex);
 	});
 
+	it("stores AI parsed metadata within database varchar limits", async () => {
+		const updates: Record<string, unknown>[] = [];
+		let insertedRequirements: Record<string, unknown>[] | undefined;
+		const repeated = (value: string, length: number) => value.repeat(length);
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "Submission instructions and technical requirements.",
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert.mockReturnValue(createChain({
+			onValues: (value) => {
+				if (Array.isArray(value)) insertedRequirements = value;
+			},
+		}));
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: repeated("Agency ", 100),
+			solicitationNumber: repeated("SOL-", 80),
+			contractType: repeated("Cost reimbursement and fixed price ", 10),
+			setAside: repeated("Set aside ", 20),
+			sections: [{
+				sectionId: "s1",
+				title: repeated("Submission requirements ", 60),
+				pageStart: 1,
+				pageEnd: 1,
+				content: "Submit a technical proposal.",
+			}],
+			confidence: 0.91,
+		});
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"s1",
+			{
+				source: "ai",
+				requirements: [{
+					requirementNumber: repeated("REQ-", 20),
+					sectionReference: repeated("Section L.4 ", 20),
+					title: repeated("Technical proposal ", 40),
+					fullText: "Submit a technical proposal.",
+					category: repeated("technical ", 10),
+					subcategory: repeated("software implementation ", 10),
+					requirementType: repeated("shall ", 10),
+					priority: repeated("mandatory ", 10),
+					confidenceScore: 0.88,
+					pageNumber: 1,
+				}],
+			},
+		]]) as any);
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		const metadataUpdate = updates.find((update) => update.parsingConfidence === 91);
+		expect(String(metadataUpdate?.extractedTitle)).toHaveLength(1000);
+		expect(String(metadataUpdate?.issuingOrganization)).toHaveLength(500);
+		expect(String(metadataUpdate?.solicitationNumber)).toHaveLength(200);
+		expect(String(metadataUpdate?.contractType)).toHaveLength(100);
+		expect(String(metadataUpdate?.setAsideType)).toHaveLength(100);
+		expect(insertedRequirements?.[0]).toMatchObject({
+			requirementText: "Submit a technical proposal.",
+			complianceStatus: "not_addressed",
+		});
+		expect(String(insertedRequirements?.[0]?.requirementNumber)).toHaveLength(50);
+		expect(String(insertedRequirements?.[0]?.sourceSection)).toHaveLength(100);
+		expect(String(insertedRequirements?.[0]?.title)).toHaveLength(500);
+		expect(String(insertedRequirements?.[0]?.category)).toHaveLength(50);
+		expect(String(insertedRequirements?.[0]?.subcategory)).toHaveLength(100);
+		expect(String(insertedRequirements?.[0]?.requirementType)).toHaveLength(20);
+		expect(String(insertedRequirements?.[0]?.priority)).toHaveLength(20);
+	});
+
 	it("normalizes AI parse results that omit sections before requirement extraction", async () => {
 		const updates: Record<string, unknown>[] = [];
 		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
