@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - ZIP Source Packages Become Parseable RFP Intake
+
+Status: implemented and verified.
+
+Purpose: close the source-document intake gap where ZIP tender packages were discovered and downloaded but stored as unparseable package shells, blocking requirement extraction for sources such as AIIB and GIZ that publish RFP/REOI documents inside ZIP archives.
+
+Changes in this slice:
+- Added server-side ZIP package inspection during source-document download.
+- Selects the best supported inner document from a ZIP package, prioritizing PDF/DOC/DOCX/HTML files with RFP/tender/REOI/TOR naming signals.
+- Stores and queues the extracted inner document for parsing while preserving the original source ZIP URL in provenance.
+- Added ZIP to the source-document intake proof selector so scheduled intake can pick package documents.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts --run` passed with 22 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- A targeted live intake selected AIIB source document `REOI-for-S001088-Agriculture-Commercialization-and-Diversification-Project-Phase-2.zip`, extracted inner DOCX `TOR_consultant_firm_FS_and_DED_Component_2_PACD2_to_DAL_3Apr_edit_RN.docx`, stored it in Linode E3, extracted 56,373 characters with Docling, and completed inline RFP parsing with 5 requirements.
+
+Remaining after this slice:
+- Add scheduled evidence for recurring ZIP intake once more package documents accumulate across restored sources.
+- Continue improving XLS/XLSX handling for procurement plans that contain structured future package data rather than narrative RFP requirements.
+
 ### 2026-05-28 - AIIB Project Procurement Source Recovered
 
 Status: implemented and verified.

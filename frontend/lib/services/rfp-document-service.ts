@@ -717,7 +717,9 @@ export async function downloadDocument(
       })
       .where(eq(opportunityDocuments.id, documentId));
 
-    const fetched = await fetchSourceDocument(safeSourceUrl, doc.documentName);
+    const fetched = await prepareFetchedDocumentForIntake(
+      await fetchSourceDocument(safeSourceUrl, doc.documentName)
+    );
     const { buffer, mimeType } = fetched;
 
     // Calculate hash
@@ -791,6 +793,7 @@ export async function downloadDocument(
       pageCount,
       userId: userId || "system",
       parseMode: options.parseMode ?? "background",
+      parserFilename: fetched.extractionFilename,
     });
 
     return {
@@ -1506,7 +1509,7 @@ function safeCandidateUrl(rawUrl: string, baseUrl: URL): URL | undefined {
 }
 
 function isLikelyDirectDocumentUrl(url: URL): boolean {
-  return /\.(pdf|docx?|xlsx?|html?)$/i.test(url.pathname);
+  return /\.(pdf|docx?|xlsx?|zip|html?)$/i.test(url.pathname);
 }
 
 function isHtmlMimeType(mimeType: string): boolean {
@@ -1610,6 +1613,96 @@ function escapeHtml(value: string): string {
 function assertSourceDocumentBufferSize(buffer: Buffer): void {
   if (buffer.length > MAX_FILE_SIZE_MB * 1024 * 1024) {
     throw new Error(`File too large: ${(buffer.length / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`);
+  }
+}
+
+async function prepareFetchedDocumentForIntake(
+  fetched: FetchedSourceDocument
+): Promise<FetchedSourceDocument> {
+  if (!isZipArchive(fetched.filename, fetched.mimeType, fetched.effectiveUrl)) {
+    return fetched;
+  }
+
+  const extracted = await extractBestSupportedDocumentFromZip(fetched);
+  return extracted ?? fetched;
+}
+
+function isZipArchive(filename: string, mimeType: string, url: string): boolean {
+  return extname(filename).toLowerCase() === ".zip" ||
+    extname(new URL(url).pathname).toLowerCase() === ".zip" ||
+    /\bzip\b/i.test(mimeType);
+}
+
+async function extractBestSupportedDocumentFromZip(
+  fetched: FetchedSourceDocument
+): Promise<FetchedSourceDocument | undefined> {
+  try {
+    const JSZip = (await import("jszip")).default;
+    const archive = await JSZip.loadAsync(fetched.buffer);
+    const entries = Object.values(archive.files)
+      .filter((entry) => !entry.dir)
+      .filter((entry) => isSupportedZipMember(entry.name))
+      .sort((a, b) => scoreZipMember(b.name) - scoreZipMember(a.name));
+    const selected = entries[0];
+    if (!selected) return undefined;
+
+    const buffer = await selected.async("nodebuffer");
+    assertSourceDocumentBufferSize(buffer);
+    const filename = sanitizeFilename(basename(selected.name));
+    return {
+      ...fetched,
+      buffer,
+      mimeType: mimeTypeForFilename(filename) ?? "application/octet-stream",
+      filename,
+      extractionFilename: filename,
+    };
+  } catch (error) {
+    logger.warn("[RFP Document Service] Failed to extract supported file from ZIP package", {
+      sourceUrl: fetched.effectiveUrl,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
+function isSupportedZipMember(name: string): boolean {
+  const normalized = name.replace(/\\/g, "/");
+  if (normalized.startsWith("__MACOSX/")) return false;
+  if (basename(normalized).startsWith(".")) return false;
+  const extension = extname(normalized).toLowerCase();
+  return [".pdf", ".docx", ".doc", ".html", ".htm", ".xlsx", ".xls"].includes(extension);
+}
+
+function scoreZipMember(name: string): number {
+  const lower = name.toLowerCase();
+  const extension = extname(lower);
+  let score = 0;
+  if (extension === ".pdf") score += 50;
+  else if (extension === ".docx" || extension === ".doc") score += 45;
+  else if (extension === ".html" || extension === ".htm") score += 35;
+  else if (extension === ".xlsx" || extension === ".xls") score += 25;
+  if (/\b(rfp|request-for-proposal|tender|bid|bidding|reoi|eoi|tor|terms-of-reference)\b/i.test(lower)) score += 30;
+  if (/\b(addendum|corrigendum|amendment)\b/i.test(lower)) score -= 10;
+  return score;
+}
+
+function mimeTypeForFilename(filename: string): string | undefined {
+  switch (extname(filename).toLowerCase()) {
+    case ".pdf":
+      return "application/pdf";
+    case ".docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case ".doc":
+      return "application/msword";
+    case ".xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case ".xls":
+      return "application/vnd.ms-excel";
+    case ".html":
+    case ".htm":
+      return "text/html";
+    default:
+      return undefined;
   }
 }
 
@@ -1747,7 +1840,7 @@ async function storeFetchedRfpDocument(params: {
   }
 
   const opportunityDir = join(DOCUMENT_STORAGE_PATH, params.opportunityId);
-  const fileExt = extname(new URL(params.sourceUrl).pathname) || extname(params.filename) || ".bin";
+  const fileExt = extname(params.filename) || extname(new URL(params.sourceUrl).pathname) || ".bin";
   const safeName = `${params.documentId}${fileExt}`;
   const localPath = join(opportunityDir, safeName);
 
@@ -1822,14 +1915,26 @@ async function queueRfpParsingFromDownloadedDocument(params: {
   pageCount?: number;
   userId: string;
   parseMode: DownloadParseMode;
+  parserFilename: string;
 }): Promise<QueuedRfpParsing> {
-  const fileType = inferRfpParserFileType(params.document.documentName, params.mimeType);
+  const fileType = inferRfpParserFileType(params.parserFilename, params.mimeType);
   if (!fileType) {
     await recordOpportunityDocumentIngestWorkflow({
       document: params.document,
       userId: params.userId,
       toState: "stored_unparseable",
       reason: "Downloaded document was stored, but its file type is not supported by the RFP parser.",
+      priority: "medium",
+      storageReceipt: params.storageReceipt,
+    });
+    return { parsingStatus: "not_queued" };
+  }
+  if ((fileType === "xlsx" || fileType === "xls") && !params.extractedText?.trim()) {
+    await recordOpportunityDocumentIngestWorkflow({
+      document: params.document,
+      userId: params.userId,
+      toState: "stored_unparseable",
+      reason: "Downloaded spreadsheet was stored, but no extracted text was available for the RFP parser.",
       priority: "medium",
       storageReceipt: params.storageReceipt,
     });
@@ -1881,7 +1986,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     const [rfpDocument] = await db.insert(rfpDocuments).values({
       organizationId,
       opportunityId: params.document.opportunityId,
-      filename: params.document.documentName,
+      filename: params.parserFilename,
       fileType,
       fileSize: params.fileSize,
       storagePath: params.storagePath,
@@ -2097,7 +2202,7 @@ function getParseConfidenceGateThreshold(): number {
 function inferRfpParserFileType(
   filename: string,
   mimeType?: string | null
-): "pdf" | "docx" | "doc" | "html" | null {
+): "pdf" | "docx" | "doc" | "html" | "xlsx" | "xls" | null {
   const extension = extname(filename).toLowerCase();
   if (mimeType === "text/html") return "html";
   if (extension === ".pdf" || mimeType === "application/pdf") return "pdf";
@@ -2108,6 +2213,13 @@ function inferRfpParserFileType(
     return "docx";
   }
   if (extension === ".doc" || mimeType === "application/msword") return "doc";
+  if (
+    extension === ".xlsx" ||
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ) {
+    return "xlsx";
+  }
+  if (extension === ".xls" || mimeType === "application/vnd.ms-excel") return "xls";
   if (extension === ".html" || extension === ".htm" || mimeType === "text/html") return "html";
   return null;
 }

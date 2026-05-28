@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
+import JSZip from "jszip";
 
 interface ChainConfig {
 	onSet?: (value: Record<string, unknown>) => void;
@@ -426,6 +427,84 @@ describe("RFP document fetch storage", () => {
 		expect(insertedValues[1]).toMatchObject({
 			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
 			status: "queued",
+		});
+	});
+
+	it("extracts and queues a supported RFP document from a downloaded ZIP package", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const zip = new JSZip();
+		zip.file("readme.txt", "General package notes.");
+		zip.file("docs/Terms-of-Reference-RFP.pdf", Buffer.from("inner-pdf"));
+		const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Procurement-Package.zip",
+			sourceUrl: "https://buyer.example/rfp/Procurement-Package.zip",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(new Blob([zipBuffer as unknown as BlobPart]), {
+			status: 200,
+			headers: {
+				"content-length": String(zipBuffer.length),
+				"content-type": "application/zip",
+			},
+		}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			mimeType: "application/pdf",
+			fileSize: Buffer.from("inner-pdf").length,
+		});
+		expect(storageMock.uploadToLinodeE3).toHaveBeenCalledWith(
+			storageConfig,
+			expect.objectContaining({
+				body: Buffer.from("inner-pdf"),
+				contentType: "application/pdf",
+				contentLength: Buffer.from("inner-pdf").length,
+			})
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "application/pdf",
+			extractedText: "Extracted RFP text",
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "Terms-of-Reference-RFP.pdf",
+			fileType: "pdf",
+			fileSize: Buffer.from("inner-pdf").length,
+			extractedText: "Extracted RFP text",
+			metadata: expect.objectContaining({
+				sourceUrl: "https://buyer.example/rfp/Procurement-Package.zip",
+				ingestWorkflow: expect.objectContaining({
+					sourceOpportunityDocumentId: baseDocument.id,
+				}),
+			}),
+		});
+		expect(processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "00000000-0000-4000-8000-000000000501",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			tenantContext: {
+				userId: "capture-user",
+				organizationId: "org-1",
+			},
 		});
 	});
 
