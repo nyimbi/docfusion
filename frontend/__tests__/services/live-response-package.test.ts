@@ -3,6 +3,7 @@ import {
 	LIVE_RESPONSE_DOCUMENT_TYPES,
 	assessLiveResponsePackageReadiness,
 	assessLiveResponsePursuitFit,
+	buildLiveQualificationPackage,
 	buildLiveResponsePackage,
 	buildLiveResponseWinThemeSeeds,
 	extractLiveResponseEvaluationSignals,
@@ -168,6 +169,51 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		});
 		expect(fit.score).toBeGreaterThanOrEqual(75);
 		expect(fit.rationale).toContain("Prequalification workflow required");
+	});
+
+	it("builds qualification package artifacts for supplier-registration routes", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity: {
+				title: "Registration of suppliers for goods, services and works",
+				organization: "Water Utility",
+				source: "kenya_ppip",
+				sourceId: "supplier-registration",
+				projectSummary: "Registration covers ICT software system, workflow automation, data platforms, cleaning, construction, furniture, and vehicle services.",
+			},
+			sourceText: [
+				"Registration of suppliers for goods, services and works.",
+				"Bidders must submit company profile, tax compliance, registration certificate, declarations, and category-specific evidence.",
+				"Bidders may register for software, API architecture, data platform, payment, records, security, compliance, integration, monitoring, reporting, and digital workflow categories.",
+				"The registration also covers cleaning, construction, furniture, and vehicle services.",
+				"Applicants shall submit implementation, consultancy, project management, technical assistance, training, and quality assurance experience for government procurement.",
+			].join("\n"),
+			generatedAt: new Date("2026-05-28T00:00:00.000Z"),
+		});
+
+		const qualificationPackage = buildLiveQualificationPackage(responsePackage);
+
+		expect(qualificationPackage).toMatchObject({
+			pursuitRoute: "supplier_registration",
+			title: "Supplier Registration Package - Registration of suppliers for goods, services and works",
+		});
+		expect(qualificationPackage?.requiredArtifacts).toEqual(expect.arrayContaining([
+			"Selected supplier category matrix",
+			"Tax compliance certificate",
+			"Category-specific licenses or certifications",
+		]));
+		expect(qualificationPackage?.checklist).toHaveLength(5);
+		expect(qualificationPackage?.operatorBriefMarkdown).toContain("# Supplier Registration Package");
+		expect(qualificationPackage?.operatorBriefMarkdown).toContain("Route: `supplier_registration`");
+	});
+
+	it("does not build qualification package artifacts for ordinary proposal-response routes", () => {
+		const responsePackage = buildLiveResponsePackage({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-05-28T00:00:00.000Z"),
+		});
+
+		expect(buildLiveQualificationPackage(responsePackage)).toBeUndefined();
 	});
 
 	it("extracts evaluator criteria signals from scoring sections", () => {

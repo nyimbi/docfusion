@@ -16,7 +16,9 @@ import { afdbParser, parseAfdbNoticeDetailMarkdown } from "@/lib/scrapers/parser
 import { comesaParser, parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
 import { checkDoclingHealth, convertDocument, type DoclingConvertResponse } from "@/lib/services/docling-client";
 import {
+	buildLiveQualificationPackage,
 	buildLiveResponsePackage,
+	type LiveQualificationPackage,
 	type LiveResponsePackage,
 	type LiveResponseReadinessAssessment,
 } from "@/lib/services/live-response-package";
@@ -158,6 +160,15 @@ interface LiveOpportunityResponseReadinessProof {
 		draftArtifactHashes: Record<string, string>;
 		totalDraftWordCount: number;
 		draftArtifactPaths: string[];
+		qualificationPackage?: {
+			pursuitRoute: LiveQualificationPackage["pursuitRoute"];
+			title: string;
+			requiredArtifactCount: number;
+			checklistCount: number;
+			mandatoryChecklistCount: number;
+			operatorBriefHash: string;
+			artifactPaths: string[];
+		};
 		readiness: LiveResponseReadinessAssessment;
 	};
 	error?: string;
@@ -228,8 +239,17 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 		opportunity,
 		sourceText: extracted.sourceText,
 	});
+	const qualificationPackage = buildLiveQualificationPackage(responsePackage);
 	const draftArtifactPaths = await writeResponsePackageArtifacts(responsePackage);
-	const responseReadiness = proveResponseSeedReadiness(responsePackage, draftArtifactPaths);
+	const qualificationArtifactPaths = qualificationPackage
+		? await writeQualificationPackageArtifacts(qualificationPackage)
+		: [];
+	const responseReadiness = proveResponseSeedReadiness(
+		responsePackage,
+		draftArtifactPaths,
+		qualificationPackage,
+		qualificationArtifactPaths
+	);
 
 	return {
 		source: {
@@ -822,7 +842,9 @@ async function convertSourceDocumentWithRetries(
 
 function proveResponseSeedReadiness(
 	responsePackage: LiveResponsePackage,
-	draftArtifactPaths: string[]
+	draftArtifactPaths: string[],
+	qualificationPackage: LiveQualificationPackage | undefined,
+	qualificationArtifactPaths: string[]
 ): NonNullable<LiveOpportunityResponseReadinessProof["responseReadiness"]> {
 	const seededDocumentWordCounts: Record<string, number> = {};
 	const draftArtifactHashes: Record<string, string> = {};
@@ -849,6 +871,35 @@ function proveResponseSeedReadiness(
 	if (responsePackage.readiness.status !== "ready_for_review") {
 		throw new Error(`Live response package readiness blocked: ${responsePackage.readiness.blockers.join("; ")}`);
 	}
+	if (responsePackage.pursuitFit.pursuitRoute === "proposal_response" && qualificationPackage) {
+		throw new Error("Proposal-response route unexpectedly produced a qualification package");
+	}
+	if (responsePackage.pursuitFit.pursuitRoute !== "proposal_response") {
+		if (!qualificationPackage) {
+			throw new Error(`Qualification route ${responsePackage.pursuitFit.pursuitRoute} did not produce a qualification package`);
+		}
+		if (qualificationPackage.checklist.length < 5) {
+			throw new Error(`Qualification package checklist is too thin: ${qualificationPackage.checklist.length}`);
+		}
+		if (qualificationPackage.requiredArtifacts.length < 7) {
+			throw new Error(`Qualification package required artifact list is too thin: ${qualificationPackage.requiredArtifacts.length}`);
+		}
+		if (qualificationArtifactPaths.length < 2) {
+			throw new Error("Qualification package artifacts were not written and verified");
+		}
+	}
+
+	const qualificationSummary = qualificationPackage
+		? {
+			pursuitRoute: qualificationPackage.pursuitRoute,
+			title: qualificationPackage.title,
+			requiredArtifactCount: qualificationPackage.requiredArtifacts.length,
+			checklistCount: qualificationPackage.checklist.length,
+			mandatoryChecklistCount: qualificationPackage.checklist.filter((item) => item.priority === "mandatory").length,
+			operatorBriefHash: crypto.createHash("sha256").update(qualificationPackage.operatorBriefMarkdown).digest("hex"),
+			artifactPaths: qualificationArtifactPaths,
+		}
+		: undefined;
 
 	return {
 		documentTypes: PROPOSAL_DOCUMENT_TYPES,
@@ -862,6 +913,7 @@ function proveResponseSeedReadiness(
 		draftArtifactHashes,
 		totalDraftWordCount: responsePackage.totalWordCount,
 		draftArtifactPaths,
+		qualificationPackage: qualificationSummary,
 		readiness: responsePackage.readiness,
 	};
 }
@@ -922,6 +974,31 @@ async function writeResponsePackageArtifacts(responsePackage: LiveResponsePackag
 	return relativePaths;
 }
 
+async function writeQualificationPackageArtifacts(qualificationPackage: LiveQualificationPackage): Promise<string[]> {
+	const packageDir = path.resolve(LOG_DIR, "qualification-package");
+	await fs.mkdir(packageDir, { recursive: true });
+
+	const relativePaths: string[] = [];
+	const briefPath = path.resolve(packageDir, "qualification-package.md");
+	await fs.writeFile(briefPath, qualificationPackage.operatorBriefMarkdown, "utf8");
+	const briefReadback = await fs.readFile(briefPath, "utf8");
+	const expectedBriefHash = crypto.createHash("sha256").update(qualificationPackage.operatorBriefMarkdown).digest("hex");
+	const actualBriefHash = crypto.createHash("sha256").update(briefReadback).digest("hex");
+	if (actualBriefHash !== expectedBriefHash) {
+		throw new Error("Qualification package brief readback hash mismatch");
+	}
+	relativePaths.push(path.relative(WORKSPACE_ROOT, briefPath));
+
+	const jsonPath = await writeProofJson(packageDir, "qualification-package.json", qualificationPackage);
+	const jsonReadback = await fs.readFile(jsonPath, "utf8");
+	if (jsonReadback.trim().length === 0) {
+		throw new Error("Qualification package JSON artifact readback was empty");
+	}
+	relativePaths.push(path.relative(WORKSPACE_ROOT, jsonPath));
+
+	return relativePaths;
+}
+
 async function writeArtifacts(
 	proof: LiveOpportunityResponseReadinessProof,
 	disposition: EvidenceRecord["disposition"]
@@ -947,6 +1024,9 @@ async function writeArtifacts(
 			`pursuit-fit-score:${proof.responseReadiness?.pursuitFit.score ?? 0}`,
 			`pursuit-route:${proof.responseReadiness?.pursuitFit.pursuitRoute ?? "not-run"}`,
 			`pursuit-recommendation:${proof.responseReadiness?.pursuitFit.recommendation ?? "not-run"}`,
+			`qualification-package:${proof.responseReadiness?.qualificationPackage?.pursuitRoute ?? "none"}`,
+			`qualification-checklist:${proof.responseReadiness?.qualificationPackage?.checklistCount ?? 0}`,
+			`qualification-artifacts:${proof.responseReadiness?.qualificationPackage?.artifactPaths.length ?? 0}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
 			`evaluator-criteria:${proof.responseReadiness?.readiness.evaluationCriteriaIds.length ?? 0}`,
 			`win-theme-seeds:${proof.responseReadiness?.winThemeSeedCount ?? 0}`,

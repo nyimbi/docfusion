@@ -264,6 +264,8 @@ describe("platform proof scenarios", () => {
 				}),
 				expectedArtifacts: expect.arrayContaining([
 					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
+					".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.json",
+					".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.md",
 				]),
 			}),
 		]);

@@ -8183,3 +8183,26 @@ Verification:
 Remaining after this slice:
 - Build a dedicated persisted qualification/registration workflow once DB connectivity is restored or a non-DB proof harness exists for that lane.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
+### 2026-05-28 - Qualification Package Artifacts for Live Registration Routes
+
+Status: implemented and verified.
+
+Purpose: make supplier-registration and prequalification live pursuits produce an auditable qualification package instead of only flagging the route in pursuit-fit metadata.
+
+Changes in this slice:
+- Added `buildLiveQualificationPackage()` to generate required artifacts, an operator checklist, owner hints, source-signal links, and a Markdown operator brief for supplier-registration and prequalification routes.
+- Extended the live response-readiness proof to write `qualification-package/qualification-package.json` and `qualification-package/qualification-package.md` for non-proposal routes, with readback checks before evidence is recorded.
+- Added qualification-package counts and route IDs to live response-readiness evidence rows.
+- Declared Kenya PPIP qualification package artifacts in the live-safe proof manifest.
+
+Verification:
+- `npm test -- live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed with 26 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 20 tests.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260528T002006Z`, producing `qualificationPackage.pursuitRoute:supplier_registration`, 9 required artifacts, 5 checklist items, 4 mandatory checklist items, and verified Markdown/JSON qualification package artifacts.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T002137Z`, keeping AFDB/UNGM as `pursue_now` and Kenya PPIP as `review_before_pursuit` with `Pursuit route: supplier_registration`.
+
+Remaining after this slice:
+- Build a persisted qualification/registration workflow once DB connectivity is restored or a non-DB proof harness exists for that lane.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.

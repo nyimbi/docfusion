@@ -452,7 +452,7 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		kind: "live-safe",
 		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
 		requiresLiveServices: true,
-		description: "Finds a live Kenya PPIP opportunity, extracts its source PDF with Docling, and verifies concrete Datacraft response package draft artifacts.",
+		description: "Finds a live Kenya PPIP opportunity, extracts its source PDF with Docling, and verifies concrete Datacraft response package plus qualification package artifacts.",
 		command: {
 			command: "npx",
 			args: ["tsx", "scripts/prove-live-opportunity-response-readiness.ts"],
@@ -466,6 +466,8 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		expectedArtifacts: [
 			".omx/state/platform-live-opportunity-response-readiness-evidence.md",
 			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.json",
+			".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.md",
 		],
 	},
 	{

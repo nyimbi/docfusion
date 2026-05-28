@@ -225,6 +225,25 @@ export interface LiveResponseReadinessAssessment {
 	};
 }
 
+type QualificationPursuitRoute = Exclude<LiveResponsePursuitFitAssessment["pursuitRoute"], "proposal_response">;
+
+export interface LiveQualificationChecklistItem {
+	id: string;
+	priority: "mandatory" | "review";
+	text: string;
+	ownerHint: "proposal_manager" | "compliance" | "technical_lead";
+	sourceRequirementIds: string[];
+}
+
+export interface LiveQualificationPackage {
+	pursuitRoute: QualificationPursuitRoute;
+	title: string;
+	summary: string;
+	requiredArtifacts: string[];
+	checklist: LiveQualificationChecklistItem[];
+	operatorBriefMarkdown: string;
+}
+
 export function buildLiveResponsePackage(input: {
 	opportunity: OpportunityData;
 	sourceText: string;
@@ -316,6 +335,33 @@ export function buildLiveResponsePackage(input: {
 	return {
 		...responsePackage,
 		readiness: assessLiveResponsePackageReadiness(responsePackage),
+	};
+}
+
+export function buildLiveQualificationPackage(responsePackage: LiveResponsePackage): LiveQualificationPackage | undefined {
+	const pursuitRoute = responsePackage.pursuitFit.pursuitRoute;
+	if (pursuitRoute === "proposal_response") return undefined;
+
+	const routeLabel = pursuitRoute === "supplier_registration" ? "Supplier Registration" : "Prequalification";
+	const requiredArtifacts = qualificationRequiredArtifacts(pursuitRoute);
+	const checklist = buildQualificationChecklist(responsePackage, pursuitRoute);
+	const summary = [
+		`${routeLabel} workflow for ${responsePackage.opportunityTitle}.`,
+		`Pursuit fit is ${responsePackage.pursuitFit.status} (${responsePackage.pursuitFit.score}/100).`,
+		`Operator review is required before treating this as a proposal-response pursuit.`,
+	].join(" ");
+
+	const packageValue: Omit<LiveQualificationPackage, "operatorBriefMarkdown"> = {
+		pursuitRoute,
+		title: `${routeLabel} Package - ${responsePackage.opportunityTitle}`,
+		summary,
+		requiredArtifacts,
+		checklist,
+	};
+
+	return {
+		...packageValue,
+		operatorBriefMarkdown: formatLiveQualificationBrief(packageValue, responsePackage),
 	};
 }
 
@@ -460,6 +506,122 @@ export function assessLiveResponsePackageReadiness(
 		missingWinThemeEvaluationCriteriaIds,
 		metrics,
 	};
+}
+
+function qualificationRequiredArtifacts(route: QualificationPursuitRoute): string[] {
+	const shared = [
+		"Company profile",
+		"Certificate of incorporation or business registration",
+		"Tax compliance certificate",
+		"Relevant past performance evidence",
+		"Key personnel qualifications",
+		"Signed declarations and eligibility forms",
+		"Submission receipt or portal acknowledgement",
+	];
+	if (route === "supplier_registration") {
+		return [
+			"Selected supplier category matrix",
+			...shared,
+			"Category-specific licenses or certifications",
+		];
+	}
+	return [
+		"Prequalification questionnaire response",
+		...shared,
+		"Financial capacity evidence",
+		"Consortium or specialist partner commitments, if required",
+	];
+}
+
+function buildQualificationChecklist(
+	responsePackage: LiveResponsePackage,
+	route: QualificationPursuitRoute
+): LiveQualificationChecklistItem[] {
+	const requirementIds = responsePackage.requirements.map((requirement) => requirement.id);
+	const mandatoryIds = responsePackage.requirements
+		.filter((requirement) => requirement.priority === "mandatory")
+		.map((requirement) => requirement.id);
+	const evaluationIds = responsePackage.evaluationCriteria.map((criterion) => criterion.id);
+	const checklist: LiveQualificationChecklistItem[] = [
+		{
+			id: "QUAL-001",
+			priority: "mandatory",
+			text: route === "supplier_registration"
+				? "Confirm the supplier categories that Datacraft should register for and exclude unrelated categories before submission."
+				: "Confirm this prequalification should be pursued before preparing a full proposal-response package.",
+			ownerHint: "proposal_manager",
+			sourceRequirementIds: requirementIds.slice(0, 6),
+		},
+		{
+			id: "QUAL-002",
+			priority: "mandatory",
+			text: "Compile legal, tax, eligibility, declaration, and registration evidence required by the source document.",
+			ownerHint: "compliance",
+			sourceRequirementIds: mandatoryIds.slice(0, 8),
+		},
+		{
+			id: "QUAL-003",
+			priority: "mandatory",
+			text: "Map Datacraft past performance, personnel qualifications, and technical capability evidence to each selected category or prequalification criterion.",
+			ownerHint: "technical_lead",
+			sourceRequirementIds: [...mandatoryIds, ...evaluationIds].slice(0, 10),
+		},
+		{
+			id: "QUAL-004",
+			priority: "review",
+			text: "Review specialist-domain risks and decide whether partner evidence or a no-bid decision is required.",
+			ownerHint: "proposal_manager",
+			sourceRequirementIds: requirementIds.slice(0, 10),
+		},
+		{
+			id: "QUAL-005",
+			priority: "mandatory",
+			text: "Prepare the final submission pack and capture the portal or physical submission receipt before marking the qualification complete.",
+			ownerHint: "compliance",
+			sourceRequirementIds: requirementIds.slice(-8),
+		},
+	];
+
+	return checklist;
+}
+
+function formatLiveQualificationBrief(
+	packageValue: Omit<LiveQualificationPackage, "operatorBriefMarkdown">,
+	responsePackage: LiveResponsePackage
+): string {
+	const lines = [
+		`# ${packageValue.title}`,
+		"",
+		`Route: \`${packageValue.pursuitRoute}\``,
+		`Pursuit fit: ${responsePackage.pursuitFit.status} (${responsePackage.pursuitFit.score}/100), ${responsePackage.pursuitFit.recommendation}`,
+		"",
+		"## Summary",
+		"",
+		packageValue.summary,
+		"",
+		"## Required Artifacts",
+		"",
+		...packageValue.requiredArtifacts.map((artifact) => `- ${artifact}`),
+		"",
+		"## Checklist",
+		"",
+		...packageValue.checklist.flatMap((item) => [
+			`### ${item.id}`,
+			"",
+			`- Priority: ${item.priority}`,
+			`- Owner: ${item.ownerHint}`,
+			`- Task: ${item.text}`,
+			`- Source signals: ${item.sourceRequirementIds.length > 0 ? item.sourceRequirementIds.join(", ") : "operator review"}`,
+			"",
+		]),
+		"## Risk Notes",
+		"",
+		...(responsePackage.pursuitFit.riskFactors.length > 0
+			? responsePackage.pursuitFit.riskFactors.map((risk) => `- ${risk}`)
+			: ["- No specialist-domain risk factors were detected."]),
+		"",
+	];
+	return `${lines.join("\n").trimEnd()}\n`;
 }
 
 function hasCompleteSourceCitationMap(document: LiveResponseDraftDocument): boolean {
