@@ -2006,6 +2006,8 @@ export async function processRfpParsingJob(
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
 
+		await updateJobProgress(jobId, rfpDocumentId, organizationId, 90, "Finalizing");
+
 		// Steps 4+5 land atomically. On retry, prior requirements for the
 		// document are removed inside the same transaction so retries do not
 		// double the row count. If anything inside throws, the transaction
@@ -2110,8 +2112,6 @@ export async function processRfpParsingJob(
 				eq(rfpDocuments.organizationId, organizationId),
 			));
 		});
-
-		await updateJobProgress(jobId, rfpDocumentId, organizationId, 90, "Finalizing");
 
 		// Workflow recording is observability — its failure must not unwind the
 		// successful parse transaction above by triggering the outer catch.

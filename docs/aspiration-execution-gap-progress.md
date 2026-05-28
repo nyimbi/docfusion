@@ -8274,6 +8274,32 @@ Remaining after this slice:
 - Run additional live document downloads across more sources to build volume now that automated queueing no longer depends on user workspace rows.
 - Keep Docling health monitored; the local fallback is now covered for PDF/DOCX/HTML, but Docling remains the preferred extraction path when available.
 
+### 2026-05-28 - Batch Source Document Intake Runner
+
+Status: implemented and verified.
+
+Purpose: convert the backlog of discovered source documents into downloaded, parsed RFP records without hand-running one document ID at a time.
+
+Changes in this slice:
+- Added `scripts/run-source-document-intake.ts` and `npm run source-docs:intake`.
+- The runner forces `frontend/.env.local` for `DATABASE_URL`, selects bounded discovered PDF/DOCX/HTML source documents, downloads them through the existing `downloadDocument` path as `system`, records per-document success/failure, waits for parser jobs to reach terminal status by default, and writes live-safe proof artifacts plus source-document intake evidence.
+- Added dry-run, limit, max-attempt, organization filter, parser wait, parser timeout, poll interval, and user override controls via environment variables.
+- Fixed the parser progress ordering bug surfaced by the live runner: successful parse jobs now move to `Finalizing` before the completion transaction, so completed jobs remain at `progress = 100` and `current_step = Completed`.
+- Added parser workflow regression coverage for completed parse progress.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 SOURCE_DOCUMENT_INTAKE_LIMIT=3 npm run source-docs:intake` passed with run `source_document_intake_20260528T050838Z`, selecting 3 discovered UNICEF PDF source documents and skipping them without mutation.
+- `SOURCE_DOCUMENT_INTAKE_LIMIT=2 SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS=240000 npm run source-docs:intake` passed with run `source_document_intake_20260528T050904Z`; it downloaded `Medical-Devices-Tender-Calendar-2025-2026.pdf`, Docling timed out, local PDF fallback extracted 15,047 characters, parse job `15373581-b825-45e3-954d-950f4bffdf09` completed, and 8 requirements were extracted. The second selected UNICEF PDF returned HTTP 403 and was recorded as a failed document without aborting the run.
+- `SOURCE_DOCUMENT_INTAKE_LIMIT=1 SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS=240000 npm run source-docs:intake` passed with run `source_document_intake_20260528T051446Z`, recording a second UNICEF HTTP 403 failure without aborting.
+- `npm test -- rfp-parse-workflow.test.ts rfp-document-service.test.ts --run` passed with 29 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB repair updated the two already-completed parse jobs from the old `90/Finalizing` terminal display to `100/Completed`.
+- Current live DB counts after this slice: 2,723 opportunities, 1,611 RFP opportunities, 164 opportunity source documents, 7 downloaded source documents, 2 failed source documents, 2 RFP documents, 2 completed parse jobs, and 11 persisted RFP requirements.
+
+Remaining after this slice:
+- Add a retry/fallback path for source URLs that return HTTP 403 to direct server fetch, using Firecrawl/browser-assisted resolution when source hosts require browser-like access or signed redirects.
+- Run the batch intake runner across additional discovered source documents after the 403 fallback is in place.
+
 ### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
 
 Status: implemented and verified.

@@ -157,7 +157,7 @@ import {
 	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
 } from "@/lib/actions/rfp-parser";
-import { parseRFPWithAI } from "@/lib/ai/rfp-parser";
+import { batchExtractRequirements, parseRFPWithAI } from "@/lib/ai/rfp-parser";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 beforeEach(() => {
@@ -425,6 +425,81 @@ describe("RFP parse workflow", () => {
 			error: "Parser output can only be reviewed after parsing completes",
 		});
 		expect(dbMock.update).not.toHaveBeenCalled();
+	});
+
+	it("leaves successful parse jobs at completed progress", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "Submission instructions and technical requirements.",
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: "UNICEF",
+			solicitationNumber: "UNICEF-2026",
+			sections: [{
+				sectionId: "s1",
+				title: "Submission Requirements",
+				pageStart: 1,
+				pageEnd: 1,
+				content: "Submit a technical proposal.",
+			}],
+			confidence: 0.91,
+		});
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"s1",
+			{
+				source: "ai",
+				requirements: [{
+					requirementNumber: "REQ-001",
+					sectionReference: "s1",
+					title: "Technical Proposal",
+					fullText: "Submit a technical proposal.",
+					category: "technical",
+					requirementType: "shall",
+					priority: "mandatory",
+					confidenceScore: 0.88,
+					pageNumber: 1,
+				}],
+			},
+		]]));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				progress: 90,
+				currentStep: "Finalizing",
+			}),
+			expect.objectContaining({
+				status: "completed",
+				progress: 100,
+				currentStep: "Completed",
+				requirementsExtracted: 1,
+			}),
+			expect.objectContaining({
+				parsingStatus: "completed",
+				parsingProgress: 100,
+			}),
+		]));
+		const finalizingIndex = updates.findIndex((update) =>
+			update.progress === 90 && update.currentStep === "Finalizing"
+		);
+		const completedIndex = updates.findIndex((update) =>
+			update.status === "completed" && update.progress === 100 && update.currentStep === "Completed"
+		);
+		expect(finalizingIndex).toBeGreaterThanOrEqual(0);
+		expect(completedIndex).toBeGreaterThan(finalizingIndex);
 	});
 
 	it("fails parsing jobs when text extraction returns no readable text", async () => {
