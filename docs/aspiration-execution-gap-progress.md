@@ -16,6 +16,48 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - SearXNG Public Fallback Fans Out Instead Of Stopping At First Instance
+
+Status: implemented, live-probed, and verified.
+
+Purpose: keep broad RFP search moving when `search.lindela.io` is unavailable or when requested engine fanout degrades, while recognizing that public `searx.space` instances are best-effort and often reject server-side API traffic.
+
+Changes in this slice:
+- Changed fallback search from serial first-success retry to bounded fan-out across configured or `searx.space` fallback instances.
+- Deduplicated merged fallback results by normalized URL and preserved provenance with `sourceInstances`, `fallbackFrom`, and `fallbackReason`.
+- Updated public instance selection for the current `searx.space` metadata shape by honoring `timing.search.success_percentage` and `timing.search.all.value`.
+- Added parsing for standard SearXNG HTML result pages when a reachable instance does not return JSON.
+- Raised the default public fallback limit from 4 to 8 because live probes showed the first several public instances commonly returned 403/429 to server-side JSON/API requests.
+
+Verification:
+- `npx vitest run __tests__/services/searxng-client-config.test.ts __tests__/services/rfp-document-service.test.ts` passed with 44 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live primary probe against `https://search.lindela.io` for `site:ungm.org RFP software development` across `google`, `duckduckgo`, `bing`, and `brave` returned 10 results; Brave reported `too many requests`, but DuckDuckGo returned UNGM RFP hits.
+- Forced-public fallback probe with `SEARXNG_URL=http://127.0.0.1:1` confirmed the code fans out to public instances, but the public pool still returned 403/429 or no usable result for that server-side query. This is a coverage safety net, not a substitute for keeping `search.lindela.io` healthy.
+
+Remaining after this slice:
+- Configure a small trusted `SEARXNG_FALLBACK_URLS` pool if we operate additional private SearXNG instances; public instances are too inconsistent to be the only fallback.
+- Continue monitoring warnings for engine-level degradation so missed RFP coverage is visible in discovery proof logs.
+
+### 2026-05-29 - Protected Tender Pages Get Original-Page Scrape Recovery
+
+Status: implemented, unit-verified, live DGMarket still blocked.
+
+Purpose: recover source-document rows where the discovered URL is a tender detail page rather than a direct file, especially protected portals that return 403 to server-side direct fetches.
+
+Changes in this slice:
+- After search recovery candidates are exhausted, the source-document downloader now scrapes the original blocked source URL through the Firecrawl -> browser -> CloakBrowser ladder instead of only doing this for URLs that look like direct documents.
+- Added a separate scrape-content acceptance gate so recovered landing-page content can be accepted without weakening the stricter final stored-HTML extraction gate.
+- Expanded HTML RFP text signals and word counting for French, Spanish, and Cyrillic procurement language so non-English tender pages are not rejected by an ASCII-only gate.
+
+Verification:
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 33 tests.
+- Direct live retry of DGMarket document `f02c6466-3096-4d7d-b20b-818651ab19a4` still failed with `HTTP 403: Forbidden`; public SearXNG fallback candidates also mostly returned 403/429, and the source page scrape did not yield usable recoverable content.
+
+Remaining after this slice:
+- DGMarket remains a protected-source failure path. Keep it in failure telemetry, but do not let it crowd out higher-yield sources in routine source-document intake.
+- If DGMarket is business-critical, it likely needs a portal-specific authenticated/feed path or a dedicated browser session strategy rather than generic SearXNG and Firecrawl recovery.
+
 ### 2026-05-28 - Source Intake Selector Fills Underused Batches
 
 Status: implemented, live-run, parsed, and verified.

@@ -101,10 +101,11 @@ describe("SearXNG client configuration", () => {
 	});
 
 	it("passes explicit engine filters to SearXNG search", async () => {
-		const fetchMock = vi.fn(async () => ({
-			ok: true,
-			json: async () => ({ query: "rfp", number_of_results: 0, results: [] }),
-		}));
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+			query: "rfp",
+			number_of_results: 0,
+			results: [],
+		}), { status: 200 }));
 		vi.stubGlobal("fetch", fetchMock);
 
 		const { searchSearxng } = await import("@/lib/services/searxng-client");
@@ -118,10 +119,11 @@ describe("SearXNG client configuration", () => {
 	});
 
 	it("can omit the JSON Accept header for engines that reject it", async () => {
-		const fetchMock = vi.fn(async () => ({
-			ok: true,
-			json: async () => ({ query: "afdb", number_of_results: 0, results: [] }),
-		}));
+		const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+			query: "afdb",
+			number_of_results: 0,
+			results: [],
+		}), { status: 200 }));
 		vi.stubGlobal("fetch", fetchMock);
 
 		const { searchSearxng } = await import("@/lib/services/searxng-client");
@@ -132,6 +134,40 @@ describe("SearXNG client configuration", () => {
 		expect(requestInit).toEqual(expect.not.objectContaining({
 			headers: expect.anything(),
 		}));
+	});
+
+	it("parses SearXNG HTML results when a reachable instance does not return JSON", async () => {
+		const fetchMock = vi.fn(async () => new Response(`
+			<!doctype html>
+			<html>
+				<body>
+					<article class="result result-default">
+						<h3><a href="https://buyer.example/rfp#overview">Records Platform RFP</a></h3>
+						<p class="content">Request for proposals for records platform implementation.</p>
+						<span class="engine">duckduckgo</span>
+					</article>
+				</body>
+			</html>
+		`, {
+			status: 200,
+			headers: { "content-type": "text/html" },
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("records platform rfp", { engines: ["duckduckgo"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://search.lindela.io",
+			number_of_results: 1,
+			results: [{
+				title: "Records Platform RFP",
+				url: "https://buyer.example/rfp",
+				content: "Request for proposals for records platform implementation.",
+				engine: "duckduckgo",
+			}],
+		});
 	});
 
 	it("falls back to configured SearXNG instances when the primary search fails", async () => {
@@ -217,6 +253,95 @@ describe("SearXNG client configuration", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(fetchMock.mock.calls[1][0]).toBe("https://searx.space/data/instances.json");
 		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://healthy.example");
+	});
+
+	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "2";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://slow.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { all: { median: 0.9 } } },
+					},
+					"https://fast.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { all: { median: 0.1 } } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 2,
+				results: [
+					{
+						title: "Shared RFP",
+						url: "https://buyer.example/shared#section",
+						content: "Request for proposals",
+						engine: "google",
+						score: 2,
+					},
+					{
+						title: "Fast RFP",
+						url: "https://buyer.example/fast",
+						content: "Tender notice",
+						engine: "duckduckgo",
+						score: 1.5,
+					},
+				],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 2,
+				results: [
+					{
+						title: "Shared RFP copy",
+						url: "https://buyer.example/shared",
+						content: "Request for proposals",
+						engine: "bing",
+						score: 1.8,
+					},
+					{
+						title: "Slow RFP",
+						url: "https://buyer.example/slow",
+						content: "Procurement bid",
+						engine: "brave",
+						score: 1.2,
+					},
+				],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://fast.example",
+			sourceInstances: ["https://fast.example", "https://slow.example"],
+			fallbackFrom: "https://primary.example",
+			number_of_results: 3,
+		});
+		expect(result.results.map((item) => item.url)).toEqual([
+			"https://buyer.example/shared#section",
+			"https://buyer.example/fast",
+			"https://buyer.example/slow",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://fast.example");
+		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://slow.example");
 	});
 });
 

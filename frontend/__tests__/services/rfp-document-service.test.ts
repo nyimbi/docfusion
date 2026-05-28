@@ -1321,6 +1321,133 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("tries scraping the original blocked tender page when search recovery has no alternate source", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.dgmarket.com/tender/107625897";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Invitation for Prequalification for Addis Ababa Bus Rapid Transit B2 Systems.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000461", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000561" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Invitation for Prequalification for Addis Ababa Bus Rapid Transit B2 Systems",
+					"The tender notice invites eligible bidders to submit prequalification applications for procurement of BRT systems and network management services.",
+					"Applicants must provide legal registration, audited financial statements, similar contract experience, technical staff credentials, equipment availability, and litigation history.",
+					"The procurement process includes a deadline for application submission, clarification procedures, evaluation criteria, and instructions for preparing the prequalification package.",
+					"Shortlisted firms will receive the bidding document and will be invited to submit technical and financial proposals for the contract.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("eligible bidders"),
+			metadata: expect.objectContaining({
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
+	it("keeps multilingual tender pages eligible after scrape recovery", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.dgmarket.com/tender/108981620";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Закупка устройств аварийной сигнализации.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000471", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000571" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Закупка устройств аварийной сигнализации",
+					"Заказчик объявляет закупку оборудования для аварийной сигнализации и приглашает поставщиков подать заявки в установленный срок.",
+					"Участники должны представить регистрационные документы, подтверждение опыта выполнения аналогичных поставок, техническое описание предлагаемого оборудования, гарантийные обязательства и график поставки.",
+					"Конкурсная документация содержит требования к качеству, условия оплаты, порядок разъяснений, критерии оценки предложений и контактную информацию для подачи вопросов.",
+					"Победитель будет выбран на основании соответствия техническим требованиям, цены, сроков поставки, опыта поставщика и полноты представленных документов.",
+					"Все заявки должны быть подписаны уполномоченным представителем и поданы через электронную площадку до даты закрытия приема предложений.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("аварийной сигнализации"),
+			metadata: expect.objectContaining({
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
 	it("recovers direct document URLs that return HTML error pages", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const sourceUrl = "http://bei.europa.eu/attachments/thematic/procurement_en.pdf";

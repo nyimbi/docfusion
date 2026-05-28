@@ -54,7 +54,7 @@ const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
 const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
 const PDFTOTEXT_TIMEOUT_MS = 30_000;
 const HTML_RFP_TEXT_SIGNAL =
-  /\b(requests?\s+for\s+proposals?|rfps?|tenders?|bids?|bidding|procurement|proposals?|solicitations?|expressions?\s+of\s+interest|eois?|invitations?\s+to\s+bid|terms?\s+of\s+reference|tors?|requests?\s+for\s+quotations?|rfqs?)\b/i;
+  /(?:\brequests?\s+for\s+proposals?\b|\brfps?\b|\btenders?\b|\bbids?\b|\bbidding\b|\bprocurement\b|\bpre-?qualification\b|\bproposals?\b|\bsolicitations?\b|\bexpressions?\s+of\s+interest\b|\beois?\b|\binvitations?\s+to\s+bid\b|\bterms?\s+of\s+reference\b|\btors?\b|\brequests?\s+for\s+quotations?\b|\brfqs?\b|\bappel(?:s)?\s+d['’]offres?\b|\bavis\s+d['’]appel\b|\bmarch[eé]s?\b|\bconsultations?\b|\bacquisition\b|\brecrutement\b|\blicitaci[oó]n\b|\badquisici[oó]n\b|\bcontrataci[oó]n\b|закупк[а-яё]*|тендер[а-яё]*|конкурс[а-яё]*|поставк[а-яё]*|заявк[а-яё]*|предложени[а-яё]*)/iu;
 
 // ============================================================================
 // Types
@@ -1211,20 +1211,18 @@ async function recoverSourceDocumentViaSearchAndScrape(
     if (fallback) return fallback;
   }
 
-  if (isLikelyDirectDocumentUrl(sourceUrl)) {
-    const scraped = await scrapeRecoveryCandidate(sourceUrl);
-    if (scraped) {
-      for (const link of extractDocumentLinksFromScrape(scraped, sourceUrl, sourceUrl, documentName)) {
-        if (attemptedUrls.has(link.toString())) continue;
-        attemptedUrls.add(link.toString());
-        const linkMethod = sourceDocumentLinkMethod(scraped.method);
-        const linked = await tryFetchSourceDocumentUrl(link, documentName, linkMethod);
-        if (linked.ok) return linked.document;
-      }
-
-      const fallback = buildScrapedSourceDocument(sourceUrl, documentName, scraped);
-      if (fallback) return fallback;
+  const scraped = await scrapeRecoveryCandidate(sourceUrl);
+  if (scraped) {
+    for (const link of extractDocumentLinksFromScrape(scraped, sourceUrl, sourceUrl, documentName)) {
+      if (attemptedUrls.has(link.toString())) continue;
+      attemptedUrls.add(link.toString());
+      const linkMethod = sourceDocumentLinkMethod(scraped.method);
+      const linked = await tryFetchSourceDocumentUrl(link, documentName, linkMethod);
+      if (linked.ok) return linked.document;
     }
+
+    const fallback = buildScrapedSourceDocument(sourceUrl, documentName, scraped);
+    if (fallback) return fallback;
   }
 
   return undefined;
@@ -1445,9 +1443,8 @@ function buildScrapedSourceDocument(
 ): FetchedSourceDocument | undefined {
   const content = cleanExtractedText(scraped.markdown || scraped.html || "");
   if (
-    content.length < 250 ||
     isChallengeOrErrorPage(content) ||
-    !/\b(tender|rfp|bid|procurement|calendar|proposal|solicitation)\b/i.test(content)
+    !isUsableScrapedSourceContent(content)
   ) {
     return undefined;
   }
@@ -1558,12 +1555,23 @@ function looksLikeHtml(buffer: Buffer): boolean {
 }
 
 function isUsableHtmlExtractedText(text: string): boolean {
-  const wordCount = text.match(/[A-Za-z0-9][A-Za-z0-9'-]*/g)?.length ?? 0;
   return (
     text.length >= MIN_HTML_EXTRACTED_TEXT_LENGTH &&
-    wordCount >= MIN_HTML_EXTRACTED_WORD_COUNT &&
+    countExtractedWords(text) >= MIN_HTML_EXTRACTED_WORD_COUNT &&
     HTML_RFP_TEXT_SIGNAL.test(text)
   );
+}
+
+function isUsableScrapedSourceContent(text: string): boolean {
+  return (
+    text.length >= 250 &&
+    countExtractedWords(text) >= 25 &&
+    HTML_RFP_TEXT_SIGNAL.test(text)
+  );
+}
+
+function countExtractedWords(text: string): number {
+  return text.match(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu)?.length ?? 0;
 }
 
 function isUsableExtractedTextForFilename(filename: string, text: string): boolean {

@@ -11,7 +11,7 @@ const SEARXNG_URL = process.env.SEARXNG_URL || "https://search.lindela.io";
 const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 const SEARXNG_SPACE_INSTANCES_URL = process.env.SEARXNG_SPACE_INSTANCES_URL || "https://searx.space/data/instances.json";
 const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
-const DEFAULT_SEARXNG_FALLBACK_LIMIT = 4;
+const DEFAULT_SEARXNG_FALLBACK_LIMIT = 8;
 
 export function getSearxngBaseUrl(): string {
   return SEARXNG_BASE_URL;
@@ -41,6 +41,7 @@ export interface SearxngSearchResponse {
   suggestions?: string[];
   unresponsive_engines?: SearxngUnresponsiveEngine[];
   sourceInstance?: string;
+  sourceInstances?: string[];
   fallbackFrom?: string;
   fallbackReason?: string;
 }
@@ -67,8 +68,10 @@ type SearxngInstanceRecord = {
   tls?: unknown;
   timing?: {
     search?: {
+      success_percentage?: number;
       all?: {
         median?: number;
+        value?: number;
       };
     };
   };
@@ -98,8 +101,15 @@ export async function searchSearxng(
     ? describeDegradedSearch(primary.response, options)
     : primary.error;
   const fallbacks = await getSearxngFallbackUrls(SEARXNG_BASE_URL);
-  for (const fallbackBaseUrl of fallbacks) {
-    const fallback = await searchSearxngBase(fallbackBaseUrl, query, options);
+  const fallbackResponses = await Promise.all(
+    fallbacks.map(async (fallbackBaseUrl) => ({
+      fallbackBaseUrl,
+      result: await searchSearxngBase(fallbackBaseUrl, query, options),
+    }))
+  );
+  const usableFallbacks: Array<{ baseUrl: string; response: SearxngSearchResponse }> = [];
+
+  for (const { fallbackBaseUrl, result: fallback } of fallbackResponses) {
     if (!fallback.ok) {
       logger.warn("[SearXNG] Fallback instance search failed", {
         query,
@@ -117,13 +127,29 @@ export async function searchSearxng(
       continue;
     }
 
-    logger.warn("[SearXNG] Used fallback instance after primary search degradation", {
+    if (fallback.response.results.length === 0) {
+      continue;
+    }
+
+    usableFallbacks.push({
+      baseUrl: fallbackBaseUrl,
+      response: fallback.response,
+    });
+  }
+
+  if (usableFallbacks.length > 0) {
+    logger.warn("[SearXNG] Used fallback instance fanout after primary search degradation", {
       query,
       primaryBaseUrl: SEARXNG_BASE_URL,
-      fallbackBaseUrl,
+      fallbackBaseUrls: usableFallbacks.map(({ baseUrl }) => baseUrl),
       fallbackReason,
     });
-    return withFallbackProvenance(fallback.response, fallbackBaseUrl, SEARXNG_BASE_URL, fallbackReason);
+    return withFallbackProvenance(
+      mergeSearxngResponses(query, usableFallbacks.map(({ response }) => response)),
+      usableFallbacks.map(({ baseUrl }) => baseUrl),
+      SEARXNG_BASE_URL,
+      fallbackReason
+    );
   }
 
   if (primary.ok) {
@@ -183,9 +209,26 @@ async function searchSearxngBase(
       };
     }
 
+    const body = await response.text();
+    const parsedJson = parseSearxngJsonBody(body);
+    if (parsedJson) {
+      return {
+        ok: true,
+        response: parsedJson,
+      };
+    }
+
+    const parsedHtml = parseSearxngHtmlBody(body, query, baseUrl);
+    if (parsedHtml) {
+      return {
+        ok: true,
+        response: parsedHtml,
+      };
+    }
+
     return {
-      ok: true,
-      response: await response.json(),
+      ok: false,
+      error: `${baseUrl} search failed: response was not valid SearXNG JSON or HTML`,
     };
   } catch (error) {
     return {
@@ -217,6 +260,50 @@ function describeUnresponsiveEngine(engine: SearxngUnresponsiveEngine): string {
   return reason ? `${name}: ${reason}` : name;
 }
 
+function parseSearxngJsonBody(body: string): SearxngSearchResponse | undefined {
+  const trimmed = body.trimStart();
+  if (!trimmed.startsWith("{")) return undefined;
+  try {
+    return JSON.parse(body) as SearxngSearchResponse;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseSearxngHtmlBody(body: string, query: string, baseUrl: string): SearxngSearchResponse | undefined {
+  if (!/<html[\s>]/i.test(body) && !/<article\b/i.test(body)) return undefined;
+  const results: SearxngResult[] = [];
+  const seen = new Set<string>();
+  const articlePattern = /<article\b[^>]*class=["'][^"']*\bresult\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi;
+  let articleMatch: RegExpExecArray | null;
+  while ((articleMatch = articlePattern.exec(body)) && results.length < 50) {
+    const article = articleMatch[1] ?? "";
+    const linkMatch = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(article);
+    if (!linkMatch) continue;
+    const url = normalizeSearxngHtmlResultUrl(decodeHtmlEntities(linkMatch[1] ?? ""), baseUrl);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const content =
+      extractHtmlClassText(article, "content") ||
+      extractHtmlClassText(article, "result-content") ||
+      "";
+    const engine = extractHtmlClassText(article, "engine") || "searxng_html";
+    results.push({
+      title: stripHtml(linkMatch[2] ?? ""),
+      url,
+      content,
+      engine,
+      score: Math.max(0.1, 1 - results.length / 100),
+    });
+  }
+
+  return {
+    query,
+    number_of_results: results.length,
+    results,
+  };
+}
+
 function withSourceInstance(response: SearxngSearchResponse, sourceInstance: string): SearxngSearchResponse {
   return {
     ...response,
@@ -226,13 +313,14 @@ function withSourceInstance(response: SearxngSearchResponse, sourceInstance: str
 
 function withFallbackProvenance(
   response: SearxngSearchResponse,
-  sourceInstance: string,
+  sourceInstances: string[],
   fallbackFrom: string,
   fallbackReason: string
 ): SearxngSearchResponse {
   return {
     ...response,
-    sourceInstance,
+    sourceInstance: sourceInstances[0],
+    sourceInstances,
     fallbackFrom,
     fallbackReason,
     unresponsive_engines: [
@@ -243,6 +331,45 @@ function withFallbackProvenance(
       },
     ],
   };
+}
+
+function mergeSearxngResponses(query: string, responses: SearxngSearchResponse[]): SearxngSearchResponse {
+  const seenResultUrls = new Set<string>();
+  const results: SearxngResult[] = [];
+  for (const response of responses) {
+    for (const result of response.results) {
+      const identity = normalizeSearchResultUrl(result.url) ?? `${result.engine}:${result.title}:${result.url}`;
+      if (seenResultUrls.has(identity)) continue;
+      seenResultUrls.add(identity);
+      results.push(result);
+    }
+  }
+
+  return {
+    query: responses[0]?.query ?? query,
+    number_of_results: results.length,
+    results,
+    answers: mergeUniqueStrings(responses.flatMap((response) => response.answers ?? [])),
+    corrections: mergeUniqueStrings(responses.flatMap((response) => response.corrections ?? [])),
+    infoboxes: responses.flatMap((response) => response.infoboxes ?? []),
+    suggestions: mergeUniqueStrings(responses.flatMap((response) => response.suggestions ?? [])),
+    unresponsive_engines: responses.flatMap((response) => response.unresponsive_engines ?? []),
+  };
+}
+
+function mergeUniqueStrings(values: string[]): string[] | undefined {
+  const merged = Array.from(new Set(values.filter((value) => value.trim().length > 0)));
+  return merged.length > 0 ? merged : undefined;
+}
+
+function normalizeSearchResultUrl(rawUrl: string): string | undefined {
+  try {
+    const url = new URL(rawUrl);
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 async function getSearxngFallbackUrls(primaryBaseUrl: string): Promise<string[]> {
@@ -293,7 +420,10 @@ async function publicSearxngFallbackUrls(primaryBaseUrl: string): Promise<string
     const payload = await response.json() as SearxngInstancesPayload;
     const urls = Object.entries(payload.instances ?? {})
       .filter(([, instance]) => isUsablePublicSearxngInstance(instance))
-      .sort(([, a], [, b]) => instanceSearchMedian(a) - instanceSearchMedian(b))
+      .sort(([, a], [, b]) =>
+        (instanceSearchSuccess(b) ?? 0) - (instanceSearchSuccess(a) ?? 0) ||
+        instanceSearchMedian(a) - instanceSearchMedian(b)
+      )
       .map(([url]) => normalizeBaseUrl(url))
       .filter((url): url is string => Boolean(url && url !== primaryBaseUrl));
 
@@ -320,12 +450,19 @@ function isUsablePublicSearxngInstance(instance: SearxngInstanceRecord): boolean
   if (instance.http?.status_code !== 200) return false;
   if (instance.network_type && instance.network_type !== "normal") return false;
   if (instance.git_url && !instance.git_url.includes("searxng")) return false;
+  const searchSuccess = instanceSearchSuccess(instance);
+  if (searchSuccess !== undefined && searchSuccess <= 0) return false;
   return true;
 }
 
 function instanceSearchMedian(instance: SearxngInstanceRecord): number {
-  const median = instance.timing?.search?.all?.median;
+  const median = instance.timing?.search?.all?.median ?? instance.timing?.search?.all?.value;
   return Number.isFinite(median) ? median! : Number.MAX_SAFE_INTEGER;
+}
+
+function instanceSearchSuccess(instance: SearxngInstanceRecord): number | undefined {
+  const success = instance.timing?.search?.success_percentage;
+  return Number.isFinite(success) ? success : undefined;
 }
 
 function searxngFallbackLimit(): number {
@@ -347,6 +484,50 @@ function normalizeBaseUrl(value: string | undefined): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeSearxngHtmlResultUrl(rawUrl: string, baseUrl: string): string | undefined {
+  try {
+    const url = new URL(rawUrl, baseUrl);
+    if (url.origin === baseUrl && url.pathname === "/url" && url.searchParams.get("url")) {
+      return normalizeSearxngHtmlResultUrl(url.searchParams.get("url") ?? "", baseUrl);
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function extractHtmlClassText(html: string, className: string): string | undefined {
+  const pattern = new RegExp(
+    `<[^>]*class=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/[^>]+>`,
+    "i"
+  );
+  const match = pattern.exec(html);
+  const text = stripHtml(match?.[1] ?? "");
+  return text || undefined;
+}
+
+function stripHtml(html: string): string {
+  return decodeHtmlEntities(html.replace(/<[^>]+>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
