@@ -38,6 +38,7 @@ type DiscoveryPresetRunResult = {
 	results?: DiscoveryImportResult["results"];
 	errors?: DiscoveryImportResult["errors"];
 	warnings?: DiscoveryImportResult["warnings"];
+	sourceHealth?: DiscoveryImportResult["sourceHealth"];
 	message?: string;
 };
 
@@ -184,6 +185,7 @@ export async function POST(request: NextRequest) {
 					results: result.results,
 					errors: result.errors,
 					warnings: result.warnings,
+					sourceHealth: result.sourceHealth,
 				});
 			} catch (error) {
 				presetResults.push({

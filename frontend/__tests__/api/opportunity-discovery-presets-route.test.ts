@@ -102,6 +102,17 @@ beforeEach(() => {
 			url: "https://search.lindela.io/search",
 			message: "bing: timeout",
 		}],
+		sourceHealth: [{
+			sourceUrl: "https://www.ungm.org/Public/Notice",
+			status: "healthy",
+			candidates: 5,
+			imported: 1,
+			updated: 4,
+			skipped: 0,
+			failed: 0,
+			warnings: 0,
+			warningTypes: {},
+		}],
 	});
 	delete process.env.DISCOVERY_IMPORT_USER_ID;
 	delete process.env.DISCOVERY_IMPORT_ORGANIZATION_ID;
@@ -199,6 +210,11 @@ describe("scheduled discovery preset run route", () => {
 					warnings: [{
 						type: "searxng_engine_degraded",
 						query: "ICT tender Kenya",
+					}],
+					sourceHealth: [{
+						sourceUrl: "https://www.ungm.org/Public/Notice",
+						status: "healthy",
+						candidates: 5,
 					}],
 				},
 			],

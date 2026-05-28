@@ -232,6 +232,22 @@ export interface ImportRecordWarning {
 }
 
 /**
+ * Source-level health summary persisted for automated discovery imports.
+ */
+export interface ImportSourceHealth {
+	sourceUrl: string;
+	status: "healthy" | "degraded" | "empty" | "failed" | "not_run";
+	candidates: number;
+	imported: number;
+	updated: number;
+	skipped: number;
+	failed: number;
+	warnings: number;
+	warningTypes: Record<string, number>;
+	message?: string;
+}
+
+/**
  * Import configuration.
  */
 export interface ImportConfig {
@@ -248,6 +264,7 @@ export interface ImportConfig {
 	/** Non-blocking audit details from automated import sources */
 	audit?: {
 		warnings?: ImportRecordWarning[];
+		sourceHealth?: ImportSourceHealth[];
 	};
 }
 

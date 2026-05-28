@@ -56,7 +56,14 @@ async function requireOpportunityContext(): Promise<OpportunityUserContext> {
 async function resolveOpportunityContext(
 	override?: OpportunityActorOverride
 ): Promise<OpportunityUserContext> {
-	const userContext = await getUserContext();
+	let userContext: UserContext | null = null;
+	try {
+		userContext = await getUserContext();
+	} catch (error) {
+		if (!override?.actorId || !override.organizationId) {
+			throw error;
+		}
+	}
 	if (userContext) {
 		if (!userContext.organizationId) {
 			throw new Error("No organization context");

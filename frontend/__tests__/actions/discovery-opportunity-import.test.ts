@@ -756,6 +756,19 @@ describe("discoverAndImportOpportunities", () => {
 			skipped: 0,
 			failed: 0,
 		});
+		expect(result.sourceHealth).toEqual([
+			{
+				sourceUrl: "https://buyer.example/tenders",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+				updated: 0,
+				skipped: 0,
+				failed: 0,
+				warnings: 0,
+				warningTypes: {},
+			},
+		]);
 		expect(createImportRecordMock).toHaveBeenCalledWith("searxng-discovery", 1, expect.any(Object), "user-1");
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Tender for Digital Records Platform",
@@ -855,14 +868,25 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 		expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
 			config: expect.objectContaining({
-				audit: {
+				audit: expect.objectContaining({
 					warnings: [
 						expect.objectContaining({
 							type: "browser_fallback_used",
 							message: "DNS lookup failed",
 						}),
 					],
-				},
+					sourceHealth: [
+						expect.objectContaining({
+							sourceUrl: "https://buyer.example/tenders",
+							status: "degraded",
+							candidates: 1,
+							imported: 1,
+							warnings: 1,
+							warningTypes: { browser_fallback_used: 1 },
+							message: "DNS lookup failed",
+						}),
+					],
+				}),
 			}),
 		}), "user-1");
 	});
@@ -988,6 +1012,51 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			"service-user-1",
 			"org-service-1"
+		);
+	});
+
+	it("runs explicit service discovery outside a request-scoped auth context", async () => {
+		getUserContextMock.mockRejectedValue(new Error("headers was called outside a request scope"));
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Tender for offline records platform",
+					url: "https://example.org/tenders/offline-records",
+					content: "Tender notice for records platform implementation.",
+					engine: "bing",
+					score: 9,
+					category: "general",
+				},
+			],
+		});
+		selectResultsQueue.push([]);
+
+		const result = await executeOpportunityDiscoveryImport(
+			{ query: "offline records tender", limitPerQuery: 1 },
+			"service-user-1",
+			"org-service-1"
+		);
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createImportRecordMock).toHaveBeenCalledWith(
+			"searxng-discovery",
+			1,
+			expect.any(Object),
+			"service-user-1",
+			"org-service-1"
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				assignedTo: "service-user-1",
+				title: "Tender for offline records platform",
+			}),
+			{ actorId: "service-user-1", organizationId: "org-service-1" }
 		);
 	});
 
@@ -1343,7 +1412,7 @@ describe("discoverAndImportOpportunities", () => {
 			source: "unicef",
 			sourcePlatform: "UNICEF Supply Division",
 			sourceFile: "source:https://www.unicef.org/supply/service-contracts-tender-calendar",
-			sourceId: "unicef-lta-for-conferencing-telephony-equipment-ribbon-hardware-and-software-itb",
+			sourceId: "unicef-lta-for-conferencing-telephony-e-e80790450d",
 			title: "LTA for Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB)",
 			category: "Service contract tender calendar",
 			countryRegion: "Global",

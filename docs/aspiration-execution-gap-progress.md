@@ -8657,6 +8657,32 @@ Remaining after this slice:
 - Recheck Docling service health on `84.247.181.100:3600`; the proof is now resilient to that outage, but Docling should still be restored for richer extraction/OCR coverage.
 - Promote the same local PDF fallback into the user-facing RFP document ingestion path if live operators hit the same Docling outage outside proof runs.
 
+### 2026-05-28 - Broad Live RFP Collection Source Health
+
+Status: implemented and verified.
+
+Purpose: make broad RFP collection auditable source-by-source and run the default live collection profile against `db.lindela.io` so weak sources, parser gaps, and schema problems are visible instead of hidden in row-level warnings.
+
+Changes in this slice:
+- Added `sourceHealth` rollups to discovery import results and persisted import audit config, including per-source status, candidate/import/update/skip/fail counts, warning counts, and warning-type totals.
+- Returned source-health rollups from scheduled discovery preset runs.
+- Added `scripts/run-live-discovery-import.ts` to execute the broad default discovery profile against the configured live DB, write JSON proof artifacts, and append live evidence.
+- Made explicit service discovery imports work outside a request-scoped NextAuth context, so API-key/scripted collection can use the configured service actor and organization.
+- Normalized live source IDs to the deployed `opportunities.source_id` 50-character limit with a stable hash suffix; this fixed AFDB, COMESA, and UNICEF source rows that previously failed insert because portal slugs were too long.
+- The live runner now forces `frontend/.env.local` for `DATABASE_URL` before loading the DB module, preventing stale ambient shell DB URLs from sending collection runs to `88.80.188.224/lnd`.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts opportunity-discovery-route.test.ts opportunity-discovery-presets-route.test.ts --run` passed with 36 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Full broad live run `live_discovery_import_20260528T041642Z` reached `db.lindela.io`, processed 121 candidates, imported 112 opportunities, created 134 source-document rows, downloaded 5 bounded source documents, and persisted 19 source-health rollups. Its source-health result showed 5 healthy sources, 6 degraded sources, 8 empty sources, and 0 source-scrape failures.
+- The full broad run surfaced 9 row failures from overlong source IDs. After source-ID normalization, targeted live run `live_discovery_import_20260528T042913Z` against the failed AFDB, COMESA, and UNICEF source groups processed 17 candidates with 9 imports, 8 updates, 0 failures, 14 new source-document rows, and 4 healthy source-health rollups persisted in import `f584f07a-8366-4ba2-a737-be94af08f8f8`.
+- Current `db.lindela.io:5432/docfusion` counts after the live collection runs: 2,723 total opportunities, 1,611 `rfp` opportunities, and 164 `opportunity_documents` rows.
+
+Remaining after this slice:
+- Restore Docling on `84.247.181.100:3600`; broad collection can seed/download source documents, but Docling refused live parse requests during the run.
+- Apply or repair the deployed workflow runtime migration for `workflow_instances.organization_id`; document downloads succeeded, but parse-queue workflow recording warned that the live table is missing that column.
+- Improve parsers or source-specific clients for the sources now marked empty: `tenders.worldbank.org`, ADB, EBRD, DGMarket, USAID, SAM.gov, EU Funding & Tenders, and GIZ.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: superseded by later `db.lindela.io` verification and Kenya PPIP extraction fallback.

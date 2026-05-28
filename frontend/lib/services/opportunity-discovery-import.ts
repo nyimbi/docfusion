@@ -24,7 +24,7 @@ import {
 	type SearxngResult,
 	type SearxngUnresponsiveEngine,
 } from "@/lib/services/searxng-client";
-import type { ImportConfig, ImportRecordResult, OpportunityInput } from "@/lib/types/opportunity";
+import type { ImportConfig, ImportRecordResult, ImportSourceHealth, OpportunityInput } from "@/lib/types/opportunity";
 import {
 	createImportRecord,
 	createOpportunity,
@@ -110,6 +110,7 @@ export interface DiscoveryImportResult {
 	results: ImportResultsSummary;
 	errors: ImportRecordResult[];
 	warnings: DiscoveryRunWarning[];
+	sourceHealth: ImportSourceHealth[];
 	sourceDocumentsCreated: number;
 	sourceDocumentsExisting: number;
 	sourceDocumentsDownloadAttempted: number;
@@ -120,6 +121,13 @@ export interface DiscoveryImportResult {
 type SourceDocumentSeedResult =
 	| { state: "created" | "existing"; documentId: string; sourceUrl: string }
 	| { state: "none" | "failed"; documentId?: undefined; sourceUrl?: string };
+
+type SourceCandidateImportStatus = ImportRecordResult["status"];
+
+interface SourceCandidateImportOutcome {
+	sourceUrl: string;
+	status: SourceCandidateImportStatus;
+}
 
 type FirecrawlScrapeResult = Awaited<ReturnType<FirecrawlClient["scrape"]>>;
 
@@ -209,6 +217,20 @@ function slugForSourceFile(query: string): string {
 		.replace(/^-|-$/g, "")
 		.slice(0, 80);
 	return `searxng:${slug || "opportunity-discovery"}`;
+}
+
+function compactSourceId(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.length <= 50) return trimmed;
+
+	const hash = sha256Hex(trimmed).slice(0, 10);
+	const slug = trimmed
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "")
+		|| "source";
+	const prefix = slug.slice(0, 50 - hash.length - 1).replace(/-+$/g, "") || "source";
+	return `${prefix}-${hash}`;
 }
 
 function normalizeDiscoveryQueries(input: DiscoveryImportInput): string[] {
@@ -682,12 +704,81 @@ async function downloadSeededSourceDocumentSafely(
 
 function importConfigWithWarnings(
 	baseConfig: ImportConfig,
-	warnings: DiscoveryRunWarning[]
+	warnings: DiscoveryRunWarning[],
+	sourceHealth: ImportSourceHealth[] = []
 ): ImportConfig {
+	const audit = {
+		...(warnings.length > 0 ? { warnings } : {}),
+		...(sourceHealth.length > 0 ? { sourceHealth } : {}),
+	};
 	return {
 		...baseConfig,
-		...(warnings.length > 0 ? { audit: { warnings } } : {}),
+		...(Object.keys(audit).length > 0 ? { audit } : {}),
 	};
+}
+
+function sourceQuery(sourceUrl: string): string {
+	return `source:${sourceUrl}`;
+}
+
+function incrementRecordCounter(record: Record<string, number>, key: string): void {
+	record[key] = (record[key] ?? 0) + 1;
+}
+
+function warningBelongsToSource(warning: DiscoveryRunWarning, sourceUrl: string): boolean {
+	return warning.query === sourceQuery(sourceUrl)
+		|| warning.url === sourceUrl
+		|| warning.url.startsWith(`${sourceUrl}/`);
+}
+
+function buildSourceHealthRollups(
+	sourceUrls: string[],
+	candidates: DiscoveryCandidate[],
+	outcomes: SourceCandidateImportOutcome[],
+	warnings: DiscoveryRunWarning[]
+): ImportSourceHealth[] {
+	return sourceUrls.map((sourceUrl) => {
+		const sourceCandidates = candidates.filter((candidate) => candidate.sourceUrl === sourceUrl);
+		const sourceOutcomes = outcomes.filter((outcome) => outcome.sourceUrl === sourceUrl);
+		const sourceWarnings = warnings.filter((warning) => warningBelongsToSource(warning, sourceUrl));
+		const warningTypes: Record<string, number> = {};
+		for (const warning of sourceWarnings) {
+			incrementRecordCounter(warningTypes, warning.type);
+		}
+
+		const imported = sourceOutcomes.filter((outcome) => outcome.status === "created").length;
+		const updated = sourceOutcomes.filter((outcome) => outcome.status === "updated").length;
+		const skipped = sourceOutcomes.filter((outcome) => outcome.status === "skipped").length;
+		const failed = sourceOutcomes.filter((outcome) => outcome.status === "failed").length;
+		const hasFailedScrape = Boolean(
+			warningTypes.source_scrape_failed
+			|| warningTypes.browser_fallback_failed
+		);
+		const hasEmptyScrape = Boolean(warningTypes.source_scrape_empty);
+		const hasDegradation = sourceWarnings.length > 0 || failed > 0;
+		const status: ImportSourceHealth["status"] = sourceCandidates.length === 0 && sourceWarnings.length === 0
+			? "not_run"
+			: sourceCandidates.length === 0 && hasFailedScrape
+				? "failed"
+			: sourceCandidates.length === 0 && hasEmptyScrape
+				? "empty"
+			: hasDegradation
+				? "degraded"
+				: "healthy";
+
+		return {
+			sourceUrl,
+			status,
+			candidates: sourceCandidates.length,
+			imported,
+			updated,
+			skipped,
+			failed,
+			warnings: sourceWarnings.length,
+			warningTypes,
+			...(sourceWarnings[0]?.message ? { message: sourceWarnings[0].message } : {}),
+		};
+	});
 }
 
 function buildOpportunityFromDiscovery(
@@ -714,7 +805,7 @@ function buildOpportunityFromDiscovery(
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
 	return {
-		sourceId: sourceOpportunity?.sourceId || `searxng-${urlHash.slice(0, 42)}`,
+		sourceId: compactSourceId(sourceOpportunity?.sourceId || `searxng-${urlHash.slice(0, 42)}`),
 		title: compactText(sourceOpportunity?.title || candidate.scrape?.title || candidate.result.title || candidate.result.url, 1000)!,
 		category: input.category || sourceOpportunity?.category || candidate.result.category || "External discovery",
 		countryRegion: input.countryRegion || sourceOpportunity?.countryRegion,
@@ -802,7 +893,12 @@ async function actionOverrideForDiscoveryActor(
 	userId: string,
 	organizationId: string
 ): Promise<OpportunityActionOverride | undefined> {
-	const userContext = await getUserContext();
+	let userContext: Awaited<ReturnType<typeof getUserContext>> = null;
+	try {
+		userContext = await getUserContext();
+	} catch {
+		return { actorId: userId, organizationId };
+	}
 	if (userContext?.userId === userId && userContext.organizationId === organizationId) {
 		return undefined;
 	}
@@ -1650,6 +1746,7 @@ export async function executeOpportunityDiscoveryImport(
 	let sourceDocumentsDownloaded = 0;
 	let sourceDocumentsDownloadFailed = 0;
 	const allErrors: ImportRecordResult[] = [...searchFailures];
+	const sourceImportOutcomes: SourceCandidateImportOutcome[] = [];
 
 	for (let i = 0; i < candidates.length; i++) {
 		const candidate = candidates[i];
@@ -1660,6 +1757,9 @@ export async function executeOpportunityDiscoveryImport(
 
 			if (existingId && !updateExisting) {
 				importResults.skipped++;
+				if (candidate.sourceUrl) {
+					sourceImportOutcomes.push({ sourceUrl: candidate.sourceUrl, status: "skipped" });
+				}
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
 					status: "skipped",
@@ -1704,6 +1804,9 @@ export async function executeOpportunityDiscoveryImport(
 					}
 				}
 				importResults.updated++;
+				if (candidate.sourceUrl) {
+					sourceImportOutcomes.push({ sourceUrl: candidate.sourceUrl, status: "updated" });
+				}
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
 					status: "updated",
@@ -1743,6 +1846,9 @@ export async function executeOpportunityDiscoveryImport(
 					}
 				}
 				importResults.imported++;
+				if (candidate.sourceUrl) {
+					sourceImportOutcomes.push({ sourceUrl: candidate.sourceUrl, status: "created" });
+				}
 				allErrors.push({
 					rowIndex: searchFailures.length + i + 1,
 					status: "created",
@@ -1751,6 +1857,9 @@ export async function executeOpportunityDiscoveryImport(
 			}
 		} catch (err) {
 			importResults.failed++;
+			if (candidate.sourceUrl) {
+				sourceImportOutcomes.push({ sourceUrl: candidate.sourceUrl, status: "failed" });
+			}
 			allErrors.push({
 				rowIndex: searchFailures.length + i + 1,
 				status: "failed",
@@ -1763,6 +1872,7 @@ export async function executeOpportunityDiscoveryImport(
 		}
 	}
 
+	const sourceHealth = buildSourceHealthRollups(sourceUrls, candidates, sourceImportOutcomes, warnings);
 	const completedImportResults = {
 		importedRecords: importResults.imported,
 		updatedRecords: importResults.updated,
@@ -1770,7 +1880,7 @@ export async function executeOpportunityDiscoveryImport(
 		failedRecords: importResults.failed,
 		status: "completed",
 		errors: allErrors.filter((e) => e.status === "failed"),
-		config: importConfigWithWarnings(baseImportConfig, warnings),
+		config: importConfigWithWarnings(baseImportConfig, warnings, sourceHealth),
 	} as const;
 	if (actionOverride) {
 		await updateImportRecord(importId, completedImportResults, userId, actionOverride.organizationId);
@@ -1783,6 +1893,7 @@ export async function executeOpportunityDiscoveryImport(
 		results: importResults,
 		errors: allErrors,
 		warnings,
+		sourceHealth,
 		sourceDocumentsCreated,
 		sourceDocumentsExisting,
 		sourceDocumentsDownloadAttempted,
