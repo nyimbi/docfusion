@@ -1099,7 +1099,7 @@ async function fetchSourceDocument(
   const direct = await tryFetchSourceDocumentUrl(sourceUrl, documentName, "direct");
   if (direct.ok) return direct.document;
 
-  if (!shouldTrySourceRecovery(direct.status)) {
+  if (!shouldTrySourceRecovery(direct.status, direct.error)) {
     throw new Error(direct.error);
   }
 
@@ -1176,8 +1176,8 @@ async function recoverSourceDocumentViaSearchAndScrape(
   sourceUrl: URL,
   documentName: string
 ): Promise<FetchedSourceDocument | undefined> {
-  const candidates = await findSourceDocumentRecoveryCandidates(sourceUrl, documentName);
   const attemptedUrls = new Set<string>([sourceUrl.toString()]);
+  const candidates = await findSourceDocumentRecoveryCandidates(sourceUrl, documentName);
 
   for (const candidate of candidates) {
     const candidateUrl = await safeCandidateUrl(candidate.url, sourceUrl);
@@ -1202,6 +1202,22 @@ async function recoverSourceDocumentViaSearchAndScrape(
 
     const fallback = buildScrapedSourceDocument(candidateUrl, documentName, scraped);
     if (fallback) return fallback;
+  }
+
+  if (isLikelyDirectDocumentUrl(sourceUrl)) {
+    const scraped = await scrapeRecoveryCandidate(sourceUrl);
+    if (scraped) {
+      for (const link of extractDocumentLinksFromScrape(scraped, sourceUrl, sourceUrl, documentName)) {
+        if (attemptedUrls.has(link.toString())) continue;
+        attemptedUrls.add(link.toString());
+        const linkMethod = sourceDocumentLinkMethod(scraped.method);
+        const linked = await tryFetchSourceDocumentUrl(link, documentName, linkMethod);
+        if (linked.ok) return linked.document;
+      }
+
+      const fallback = buildScrapedSourceDocument(sourceUrl, documentName, scraped);
+      if (fallback) return fallback;
+    }
   }
 
   return undefined;
@@ -1461,8 +1477,11 @@ function browserLikeDocumentHeaders(url: URL): Record<string, string> {
   };
 }
 
-function shouldTrySourceRecovery(status: number | undefined): boolean {
-  return status === 401 || status === 403 || status === 404 || status === 429 || status === 503;
+function shouldTrySourceRecovery(status: number | undefined, error?: string): boolean {
+  if (status === 401 || status === 403 || status === 404 || status === 429 || status === 503) {
+    return true;
+  }
+  return status === 200 && error?.startsWith("Unexpected HTML response while fetching document URL") === true;
 }
 
 function sourceDocumentLinkMethod(method: SourceRecoveryScrape["method"]): SourceDocumentFetchMethod {

@@ -1027,6 +1027,132 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("tries scraping the original blocked document URL when search recovery finds no usable landing page", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.afdb.org/sites/default/files/documents/project-related-procurement/reoi_for_meteorology_mobile_application87.pdf";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "reoi_for_meteorology_mobile_application87.pdf",
+			sourceUrl,
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000431", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000531" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# REOI for Meteorology Mobile Application",
+					"The procurement notice invites expressions of interest from bidders for consulting services.",
+					"Submission instructions, eligibility criteria, evaluation criteria, deadline, and contract scope are included for tender response planning.",
+					"This recovered document text is long enough to serve as the source surrogate when direct PDF fetch is blocked.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("Meteorology Mobile Application"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("expressions of interest"),
+			metadata: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
+	it("recovers direct document URLs that return HTML error pages", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "http://bei.europa.eu/attachments/thematic/procurement_en.pdf";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "procurement_en.pdf",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000441", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000541" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("<html><body>Moved</body></html>", {
+			status: 200,
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Procurement Guide",
+					"This procurement notice includes tender procedures, bidder eligibility, submission instructions, and contract award criteria.",
+					"The proposal response should address the procurement timetable, compliance evidence, evaluation process, and requested documentation.",
+					"Recovered source text is used because the original PDF URL returned an HTML page to direct server fetch.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("Procurement Guide"),
+		});
+	});
+
 	it("uses the browser scraper when Firecrawl recovery returns a challenge page", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
