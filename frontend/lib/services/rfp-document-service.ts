@@ -13,7 +13,9 @@ import { db } from "@/lib/db";
 import { opportunityDocuments, opportunities, userWorkspaces, type NewOpportunityDocument } from "@/lib/db/schema";
 import { rfpDocuments, rfpParsingJobs } from "@/lib/db/schema-rfp";
 import { eq, and, inArray } from "drizzle-orm";
-import { mkdir, writeFile, readFile, access, unlink } from "fs/promises";
+import { mkdir, writeFile, readFile, access, unlink, mkdtemp, rm } from "fs/promises";
+import { execFile } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
@@ -45,6 +47,8 @@ const MIN_EXTRACTED_TEXT_LENGTH = 10;
 const SOURCE_DOCUMENT_FETCH_TIMEOUT_MS = 60_000;
 const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
 const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
+const PDFTOTEXT_BIN = process.env.PDFTOTEXT_BIN?.trim() || "pdftotext";
+const PDFTOTEXT_TIMEOUT_MS = 30_000;
 
 // ============================================================================
 // Types
@@ -137,7 +141,7 @@ type FetchedSourceDocument = {
 type ExtractedDocumentText = {
   text: string;
   pageCount?: number;
-  extractor: "docling" | "local_pdf_parse" | "local_docx_parse" | "local_html_text" | "local_xlsx_parse";
+  extractor: "docling" | "local_pdftotext" | "local_pdf_parse" | "local_docx_parse" | "local_html_text" | "local_xlsx_parse";
 };
 
 type SourceRecoveryScrape = {
@@ -1712,8 +1716,20 @@ async function extractSupportedDocumentText(
   filename: string
 ): Promise<ExtractedDocumentText | undefined> {
   if (!isSupportedFileType(filename)) {
-    logger.debug(`[DocLing] File type not supported for extraction: ${filename}`);
+    logger.debug(`[RFP Document Service] File type not supported for extraction: ${filename}`);
     return undefined;
+  }
+
+  const extension = extname(filename).toLowerCase();
+  if (extension === ".pdf") {
+    const localPdf = await extractPdfTextWithPdftotext(buffer, filename);
+    if (localPdf) {
+      logger.debug(`[RFP Document Service] Used ${localPdf.extractor} for ${filename}`, {
+        extractedTextLength: localPdf.text.length,
+      });
+      return localPdf;
+    }
+    logger.warn(`[RFP Document Service] pdftotext could not extract usable text from ${filename}; trying DocLing`);
   }
 
   try {
@@ -1743,6 +1759,67 @@ async function extractSupportedDocumentText(
     });
   }
   return local;
+}
+
+async function extractPdfTextWithPdftotext(
+  buffer: Buffer,
+  filename: string
+): Promise<ExtractedDocumentText | undefined> {
+  const tempDir = await mkdtemp(join(tmpdir(), "docfusion-pdftotext-"));
+  const tempPdfPath = join(tempDir, safeTempPdfFilename(filename));
+  try {
+    await writeFile(tempPdfPath, buffer);
+    const { stdout } = await execFileAsync(PDFTOTEXT_BIN, [
+      "-layout",
+      "-enc",
+      "UTF-8",
+      tempPdfPath,
+      "-",
+    ], {
+      timeout: PDFTOTEXT_TIMEOUT_MS,
+      maxBuffer: Math.max(buffer.length * 4, 16 * 1024 * 1024),
+    });
+    const text = cleanExtractedText(stdout);
+    if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+    return { text, extractor: "local_pdftotext" };
+  } catch (error) {
+    logger.warn(`[RFP Document Service] pdftotext failed for ${filename}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function execFileAsync(
+  file: string,
+  args: string[],
+  options: {
+    timeout: number;
+    maxBuffer: number;
+  }
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, {
+      ...options,
+      encoding: "utf8",
+    }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
+function safeTempPdfFilename(filename: string): string {
+  const base = basename(filename).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return base.toLowerCase().endsWith(".pdf") ? base : `${base || "document"}.pdf`;
 }
 
 async function extractDocumentTextLocally(

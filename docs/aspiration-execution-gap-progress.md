@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - PDF RFP Intake Uses Lightweight Extraction Before Docling
+
+Status: implemented and verified.
+
+Purpose: make high-volume RFP document intake cheaper and more resilient by extracting PDF text locally before using the remote Docling service.
+
+Changes in this slice:
+- Changed PDF extraction in `lib/services/rfp-document-service.ts` to run local `pdftotext` first for PDFs.
+- Docling is now the second path for PDFs, used only when `pdftotext` cannot produce usable text.
+- Kept the existing JS `pdf-parse` fallback after Docling so ingestion can still complete when both `pdftotext` and Docling fail.
+- Added regression coverage proving successful `pdftotext` extraction prevents Docling and `pdf-parse` from running.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- `npm test -- rfp-document-service.test.ts --run` passed with 24 tests.
+- Live source-health run `live_source_health_20260528T1148` produced 72 records, including 13 newly imported opportunities and 12 newly created source-document rows; it also showed SearXNG query degradation and AFDB source emptiness, making direct configured-source document intake more important.
+- Live source-document intake run `source_document_intake_20260528T1158` drained 10 discovered Kenya PPIP PDF RFP documents: 10/10 downloaded, 10/10 parse jobs completed, 0 failures, 0 timeouts, and 84 requirements extracted. Docling was unstable during that run, but local PDF fallback preserved intake.
+- Live proof run `source_document_intake_pdftotext_first_20260528T1217` downloaded and parsed one additional PDF using `local_pdftotext` first, without needing Docling, and extracted 18 requirements.
+- Post-run database snapshot showed opportunity documents moved to 41 downloaded, RFP documents increased to 34, extracted RFP requirements increased to 162, and completed parsing jobs increased to 30.
+
+Remaining after this slice:
+- Continue draining the remaining discovered document backlog in bounded batches.
+- Fix or route around AFDB Cloudflare blocking separately; the dedicated AFDB proof still fails because browser fallback receives HTTP 403.
+
 ### 2026-05-28 - Final Packages Have a Governed Submission Receipt Path
 
 Status: implemented and verified for dry-run readiness; live submission apply correctly requires a real external receipt reference.

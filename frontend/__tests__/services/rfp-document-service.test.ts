@@ -83,6 +83,7 @@ const doclingMock = vi.hoisted(() => ({
 const pdfParseGetTextMock = vi.hoisted(() => vi.fn());
 const pdfParseDestroyMock = vi.hoisted(() => vi.fn());
 const mammothExtractRawTextMock = vi.hoisted(() => vi.fn());
+const execFileMock = vi.hoisted(() => vi.fn());
 
 const dnsLookupMock = vi.hoisted(() =>
 	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
@@ -95,6 +96,9 @@ const searchSearxngMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: dnsLookupMock,
+}));
+vi.mock("node:child_process", () => ({
+	execFile: execFileMock,
 }));
 
 vi.mock("@/lib/security/public-url", async (importOriginal) => {
@@ -237,6 +241,9 @@ beforeEach(() => {
 	doclingMock.processRfpDocument.mockResolvedValue({
 		text: "Extracted RFP text",
 		pageCount: 3,
+	});
+	execFileMock.mockImplementation((_file, _args, _options, callback) => {
+		callback(new Error("pdftotext unavailable"), "", "");
 	});
 	pdfParseGetTextMock.mockResolvedValue({
 		text: "Locally extracted PDF RFP text with enough content.",
@@ -577,7 +584,49 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
-	it("falls back to local PDF extraction when DocLing is unavailable during download", async () => {
+	it("uses pdftotext before DocLing for PDF extraction during download", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		execFileMock.mockImplementation((_file, args, _options, callback) => {
+			expect(args).toEqual(expect.arrayContaining(["-layout", "-enc", "UTF-8", "-"]));
+			callback(null, "pdftotext extracted RFP text with enough content.", "");
+		});
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+		expect(pdfParseGetTextMock).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: "pdftotext extracted RFP text with enough content.",
+			extractedAt: expect.any(Date),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			extractedText: "pdftotext extracted RFP text with enough content.",
+		});
+	});
+
+	it("falls back to local PDF extraction when pdftotext and DocLing are unavailable during download", async () => {
 		const updates: Record<string, unknown>[] = [];
 		const insertedValues: Record<string, unknown>[] = [];
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
