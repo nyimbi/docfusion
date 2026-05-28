@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Eligible Binary Source Drain Reaches Diminishing Returns
+
+Status: live-run, parsed, and selector rechecked.
+
+Purpose: finish the remaining high-yield eligible source-document drain before switching from raw intake to selector/recovery improvements.
+
+Changes in this slice:
+- Ran a third bounded source-document intake pass against the remaining eligible rows under the current selector.
+- Processed the parse jobs queued by that pass.
+- Rechecked the selector afterward and confirmed the remaining immediately eligible rows are now mostly protected or notice-style HTML pages rather than direct binary RFP documents.
+
+Verification:
+- Live source-document intake run `source_intake_backlog_drain2_20260528T2056` selected 6 documents, downloaded 4, failed 2 DGMarket 403 rows, and queued 2 parse jobs.
+- Live queued-parse drain `queued_parse_after_backlog_drain2_20260528T2057` processed 2 parse jobs, completed 2, failed 0, and extracted 19 requirements.
+- Live source-document intake run `source_intake_backlog_drain3_20260528T2059` selected 5 documents, downloaded 3, failed 2 DGMarket 403 rows, and queued 1 parse job.
+- Live queued-parse drain `queued_parse_after_backlog_drain3_20260528T2100` processed 1 parse job, completed 1, failed 0, and extracted 8 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 114 RFP documents, 112 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 705 requirements, 90 RFP documents with requirements, 167 selected discovered source documents, 152 downloaded source documents, and 55 failed source documents.
+- A follow-up dry-run source intake selected only 4 fresh rows, all HTML/protected notice-style pages.
+
+Remaining after this slice:
+- Inspect why 167 selected discovered source rows are not eligible under the current selector; likely causes are unsupported URLs, duplicate-source suppression, stale/deadline filtering, or weak document naming.
+- Improve protected-source recovery for DGMarket if those rows are worth keeping; public SearXNG fallback now frequently returns 403/429 for DGMarket-specific recovery queries.
+
 ### 2026-05-28 - Second Source Backlog Drain Adds Requirement-Bearing RFPs
 
 Status: live-run and parsed.
