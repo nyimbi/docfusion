@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Parse-Reviewed Requirements Advance Into Response Execution
+
+Status: implemented and verified.
+
+Purpose: remove the pending-requirement-acceptance blocker from backfilled response packages without bypassing parse-confidence review or accepting unreviewed requirements.
+
+Changes in this slice:
+- Added `scripts/run-requirement-acceptance-backfill.ts`, a bounded live-DB backfill for requirements from RFP documents whose parse review is `accepted` or `auto_accepted` with no quality-signal flags.
+- The backfill requires source trace, category, priority, a real owner, a real due date, and a matching response document before accepting a requirement. Owner and due date may come from persisted requirement/opportunity data or explicit operator-supplied defaults, but are not silently invented.
+- Accepted requirements are linked to the matching response document, moved to `partial` compliance when previously unaddressed, recorded through the workflow runtime, and assigned an open runtime writing task.
+- The script detects whether the live legacy `proposal_tasks` table supports the richer Drizzle projection; on `db.lindela.io` it does not, so the script uses workflow runtime tasks instead of crashing or writing incompatible task rows.
+- Existing `proposal_response_package` workflow receipts are refreshed after acceptance so accepted-requirement counts are current while draft coverage remains blocked for the standard response readiness pass.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- Dry run `live_requirement_acceptance_backfill_20260528T104903Z` found 1 eligible parse-review-ready requirement and confirmed `proposalTaskProjection: not-supported`.
+- Live run `live_requirement_acceptance_backfill_20260528T104915Z` accepted requirement `67cfc4a8-231e-4e36-b0f7-aa0fa030485d`, linked response document `2dc80e4b-553a-49dc-b86a-2f38c556b585`, and skipped 0 requirements.
+- Post-run database verification showed the requirement is `partial`, workflow state `accepted`, and has a linked response document.
+- The refreshed response-package receipt for opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb` remains honestly `blocked`, but only for the standard response readiness pass.
+- A workflow runtime task `requirement-writing:67cfc4a8-231e-4e36-b0f7-aa0fa030485d` exists, is open, assigned to `system`, and due on 2026-06-10.
+- Follow-up dry run `live_requirement_acceptance_backfill_20260528T105245Z` found 0 remaining eligible requirements, confirming the acceptance path is idempotent after apply.
+- Receipt refresh run `live_requirement_acceptance_backfill_20260528T105858Z` kept accepted requirement count at 1 but reset drafted requirement count and requirement coverage to 0 until the standard response readiness pass proves draft coverage.
+
+Remaining after this slice:
+- Run the standard response readiness pass so fully drafted packages can move from governed draft state toward final rendering.
+- Decide whether to migrate the live `proposal_tasks` table to the richer task projection or keep requirement execution on the workflow runtime task layer.
+
 ### 2026-05-28 - Parsed RFPs Backfill Into Persisted Response Packages
 
 Status: implemented and verified.
