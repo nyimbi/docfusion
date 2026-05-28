@@ -204,6 +204,12 @@ function normalizeUrlForIdentity(url: string): string {
 	}
 }
 
+function sourceOpportunityIdentity(opportunity: OpportunityData, sourceUrl: string): string {
+	const url = opportunity.documentUrl ?? opportunity.rfpLink ?? opportunity.portalUrl;
+	if (url) return normalizeUrlForIdentity(url);
+	return `${normalizeUrlForIdentity(sourceUrl)}#${opportunity.sourceId ?? opportunity.noticeId ?? opportunity.title}`;
+}
+
 function compactText(value: string | undefined | null, maxLength: number): string | undefined {
 	const compacted = value?.replace(/\s+/g, " ").trim();
 	if (!compacted) return undefined;
@@ -279,6 +285,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
+	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
 
@@ -481,6 +488,18 @@ function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): Discovery
 		}
 	}
 
+	for (const link of sourceOpportunityDocumentLinks(candidate.opportunity)) {
+		addDocumentLinkCandidate(candidates, seenUrls, link);
+	}
+
+	if (candidates.length > 0 && candidate.opportunity?.source === "giz") {
+		return candidates
+			.map((candidateLink, order) => ({ ...candidateLink, order }))
+			.sort((a, b) => b.score - a.score || a.order - b.order)
+			.slice(0, MAX_DISCOVERY_SOURCE_DOCUMENTS)
+			.map(({ order: _order, ...candidateLink }) => candidateLink);
+	}
+
 	for (const link of extractDocumentLinks(candidate.scrape?.markdown, candidate.scrape?.links, candidate.result.url)) {
 		addDocumentLinkCandidate(candidates, seenUrls, link);
 	}
@@ -490,6 +509,27 @@ function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): Discovery
 		.sort((a, b) => b.score - a.score || a.order - b.order)
 		.slice(0, MAX_DISCOVERY_SOURCE_DOCUMENTS)
 		.map(({ order: _order, ...candidateLink }) => candidateLink);
+}
+
+function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
+	const gizLinks = opportunity?.metadata?.giz && typeof opportunity.metadata.giz === "object"
+		? (opportunity.metadata.giz as { documentLinks?: unknown }).documentLinks
+		: undefined;
+	if (!Array.isArray(gizLinks)) return [];
+
+	return gizLinks
+		.map((link): DiscoveryDocumentLink | undefined => {
+			if (!link || typeof link !== "object") return undefined;
+			const { url, label } = link as { url?: unknown; label?: unknown };
+			if (typeof url !== "string" || !isDocumentUrl(url)) return undefined;
+			return {
+				url,
+				label: typeof label === "string" ? label : undefined,
+				source: "opportunity_document_url",
+				score: scoreDocumentLink(typeof label === "string" ? label : "", url) + 2,
+			};
+		})
+		.filter((link): link is DiscoveryDocumentLink => Boolean(link));
 }
 
 function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: string): string | undefined {
@@ -505,6 +545,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
+	if (opportunity?.source === "giz") return "GIZ";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -521,6 +562,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
+		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }
@@ -786,10 +828,12 @@ function buildOpportunityFromDiscovery(
 	userId: string,
 	input: DiscoveryImportInput
 ): OpportunityInput {
-	const normalizedUrl = normalizeUrlForIdentity(candidate.result.url);
-	const urlHash = sha256Hex(normalizedUrl);
 	const discoveryMethod = candidate.discoveryMethod ?? "searxng";
 	const sourceOpportunity = candidate.opportunity;
+	const normalizedUrl = discoveryMethod === "source_scrape" && sourceOpportunity
+		? sourceOpportunityIdentity(sourceOpportunity, candidate.sourceUrl ?? candidate.result.url)
+		: normalizeUrlForIdentity(candidate.result.url);
+	const urlHash = sha256Hex(normalizedUrl);
 	const markdownSummary = compactText(candidate.scrape?.markdown, 2200);
 	const summary = compactText(
 		sourceOpportunity?.projectSummary || candidate.scrape?.description || candidate.result.content || markdownSummary,
@@ -800,7 +844,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
@@ -865,6 +909,22 @@ async function findExistingDiscoveredOpportunity(opp: OpportunityInput, organiza
 				eq(opportunities.organizationId, organizationId),
 				eq(opportunities.fingerprint, opp.fingerprint)
 			)!)
+			.limit(1);
+
+		if (existing?.id) return existing.id;
+	}
+
+	if (opp.sourceId && opp.sourceFile) {
+		const [existing] = await db
+			.select({ id: opportunities.id })
+			.from(opportunities)
+			.where(
+				and(
+					eq(opportunities.organizationId, organizationId),
+					eq(opportunities.sourceId, opp.sourceId),
+					eq(opportunities.sourceFile, opp.sourceFile)
+				)!
+			)
 			.limit(1);
 
 		if (existing?.id) return existing.id;
@@ -1025,9 +1085,9 @@ async function discoverConfiguredSourceCandidates(
 
 		for (const opportunity of opportunities) {
 			const url = opportunity.portalUrl ?? sourceUrl;
-			const normalizedUrl = normalizeUrlForIdentity(url);
-			if (seenUrls.has(normalizedUrl)) continue;
-			seenUrls.add(normalizedUrl);
+			const identity = sourceOpportunityIdentity(opportunity, sourceUrl);
+			if (seenUrls.has(identity)) continue;
+			seenUrls.add(identity);
 
 			candidates.push({
 				query: `source:${sourceUrl}`,

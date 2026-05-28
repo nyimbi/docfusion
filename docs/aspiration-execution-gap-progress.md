@@ -60,6 +60,31 @@ Remaining after this slice:
 - Improve low-yield configured sources such as SAM.gov, EU Funding & Tenders, ADB, EBRD, USAID, and GIZ with source-specific API or browser parsers instead of relying on the generic scraper.
 - Investigate why the imported 446,783-character `RL32229.pdf` parse produced zero requirements despite successful text extraction.
 
+### 2026-05-28 - GIZ Africa Tender Sources Added
+
+Status: implemented and verified.
+
+Purpose: replace the dead GIZ default source with stable GIZ country-office tender pages and prevent same-page tender blocks from collapsing into a single candidate.
+
+Changes in this slice:
+- Added a source-specific `giz` parser for GIZ country tender pages, extracting deadline blocks, procurement titles, downloadable ZIP/PDF/DOC/XLSX package links, country office, source IDs, and metadata.
+- Replaced the 404 `https://www.giz.de/en/jobs/tenders.html` default source with live GIZ Ghana and GIZ South Africa tender pages.
+- Routed `giz.de/.../tenders` pages through the GIZ parser in both discovery import and live source proof scripts.
+- Fixed configured-source candidate identity and fingerprints to use source document URL/source ID when multiple tenders share one portal page.
+- Added legacy matching by `sourceId` + `sourceFile` so rows created under older `source-scrape` identity are updated instead of causing duplicate insert failures after source identity becomes more specific.
+- Kept source-specific document links scoped to each GIZ tender block so each opportunity does not inherit unrelated documents from the full country page.
+
+Verification:
+- `env LIVE_SOURCE_DISCOVERY_URL=https://www.giz.de/en/regions/africa/ghana/tenders LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_giz_ghana_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_giz_ghana_source_20260528T070228Z`; Firecrawl parsed 6 GIZ Ghana tender opportunities.
+- `env LIVE_DISCOVERY_IMPORT_RUN_ID=live_giz_africa_import_20260528T0711 LIVE_DISCOVERY_IMPORT_SOURCE_URLS=https://www.giz.de/en/regions/africa/ghana/tenders,https://www.giz.de/en/regions/africa/south-africa/tenders LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed with 7 total candidates, 7 updates, 0 failures, 0 warnings, 6 healthy Ghana candidates, and 1 healthy South Africa candidate.
+- `npm test -- giz-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 31 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB verification after this slice: 2,754 opportunities, 10 `giz` opportunities, 14 GIZ source-document rows, and 3 downloaded GIZ source documents.
+
+Remaining after this slice:
+- Continue replacing empty generic sources with source-specific paths, especially SAM.gov, EU Funding & Tenders, ADB, EBRD, and USAID.
+- Decide whether to add intermittent non-Africa GIZ country pages only after they pass repeatable live source/import proofs.
+
 ### 2026-05-27 - Live Portfolio Expansion Recheck
 
 Status: verified with live-source failures.

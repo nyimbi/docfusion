@@ -62,6 +62,7 @@ vi.mock("@/lib/db/schema", () => ({
 		fingerprint: "opportunities.fingerprint",
 		source: "opportunities.source",
 		sourceId: "opportunities.sourceId",
+		sourceFile: "opportunities.sourceFile",
 	},
 	opportunityDocuments: {
 		id: "opportunityDocuments.id",
@@ -444,6 +445,89 @@ describe("discoverAndImportOpportunities", () => {
 			"https://procurement.example.com/docs/grants-management-bid-form.docx",
 		]);
 		expect(insertedSourceUrls).not.toContain("https://procurement.example.com/docs/annual-report.pdf");
+	});
+
+	it("imports multiple GIZ country tenders that share a portal page", async () => {
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"Ghana",
+					"=====",
+					"Deadline: 11.06.2026",
+					"Procurement Of Service: Consultancy for The Design and Implementation of a Business Development Program for Creators",
+					"[](https://www.giz.de/sites/default/files/media/els-document/2026-05/7000010646-contract-documents-bus-dev-4-content-creators.zip \"dd_media.zip.download\")",
+					"Deadline: 08.06.2026",
+					"Procurement of Goods: Printing of Study in Europe Desk Information Materials",
+					"[](https://www.giz.de/sites/default/files/media/els-document/2026-05/giz-reoi-printing-study-europe-desk-information-materials-15-05-2026.pdf \"Download PDF\")",
+				].join("\n\n"),
+				links: [
+					"https://www.giz.de/sites/default/files/media/els-document/2026-05/7000010646-contract-documents-bus-dev-4-content-creators.zip",
+					"https://www.giz.de/sites/default/files/media/els-document/2026-05/giz-reoi-printing-study-europe-desk-information-materials-15-05-2026.pdf",
+				],
+				metadata: {
+					title: "Ghana Tenders | GIZ",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.giz.de/en/regions/africa/ghana/tenders"],
+			sourceScrapeLimit: 10,
+		});
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(2);
+		expect(createOpportunityMock).toHaveBeenCalledTimes(2);
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+			title: "Procurement Of Service: Consultancy for The Design and Implementation of a Business Development Program for Creators",
+			source: "giz",
+			sourceId: "giz-7000010646",
+			sourcePlatform: "GIZ",
+			portalUrl: "https://www.giz.de/en/regions/africa/ghana/tenders",
+			documentUrl: "https://www.giz.de/sites/default/files/media/els-document/2026-05/7000010646-contract-documents-bus-dev-4-content-creators.zip",
+		}));
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+			title: "Procurement of Goods: Printing of Study in Europe Desk Information Materials",
+			source: "giz",
+			sourcePlatform: "GIZ",
+			documentUrl: "https://www.giz.de/sites/default/files/media/els-document/2026-05/giz-reoi-printing-study-europe-desk-information-materials-15-05-2026.pdf",
+		}));
+	});
+
+	it("updates legacy configured-source rows when source identity becomes more specific", async () => {
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"Ghana",
+					"=====",
+					"Deadline: 11.06.2026",
+					"Procurement Of Service: Consultancy for The Design and Implementation of a Business Development Program for Creators",
+					"[](https://www.giz.de/sites/default/files/media/els-document/2026-05/7000010646-contract-documents-bus-dev-4-content-creators.zip \"dd_media.zip.download\")",
+				].join("\n\n"),
+				metadata: {
+					title: "Ghana Tenders | GIZ",
+				},
+			},
+		});
+		selectResultsQueue.push([], [{ id: "legacy-source-scrape-opp" }], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.giz.de/en/regions/africa/ghana/tenders"],
+			sourceScrapeLimit: 10,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 0, updated: 1, failed: 0 });
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(updateOpportunityMock).toHaveBeenCalledWith("legacy-source-scrape-opp", expect.objectContaining({
+			source: "giz",
+			sourceId: "giz-7000010646",
+			sourceFile: "source:https://www.giz.de/en/regions/africa/ghana/tenders",
+		}));
 	});
 
 	it("keeps opportunity imports successful when source document row seeding fails", async () => {

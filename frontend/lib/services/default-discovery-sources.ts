@@ -35,7 +35,8 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.usaid.gov/work-usaid/find-a-funding-opportunity",
 	"https://sam.gov/search/?index=opp",
 	"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/tenders",
-	"https://www.giz.de/en/jobs/tenders.html",
+	"https://www.giz.de/en/regions/africa/ghana/tenders",
+	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;
 
 export const DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT = 15;

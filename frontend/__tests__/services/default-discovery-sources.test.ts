@@ -39,7 +39,8 @@ describe("default discovery sources", () => {
 			"https://www.usaid.gov/work-usaid/find-a-funding-opportunity",
 			"https://sam.gov/search/?index=opp",
 			"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/tenders",
-			"https://www.giz.de/en/jobs/tenders.html",
+			"https://www.giz.de/en/regions/africa/ghana/tenders",
+			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 		]);
 		expect(new Set(DEFAULT_DISCOVERY_QUERIES).size).toBe(DEFAULT_DISCOVERY_QUERIES.length);
 		expect(new Set(DEFAULT_DISCOVERY_SOURCE_URLS).size).toBe(DEFAULT_DISCOVERY_SOURCE_URLS.length);
