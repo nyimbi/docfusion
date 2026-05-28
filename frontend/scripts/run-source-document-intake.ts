@@ -252,6 +252,15 @@ function diversifyCandidates<T extends { sourceUrl: string }>(
 		if (selected.length >= limit) return selected;
 	}
 
+	for (const candidate of candidates) {
+		const normalizedUrl = normalizeSourceUrl(candidate.sourceUrl);
+		if (seenUrls.has(normalizedUrl)) continue;
+
+		selected.push(candidate);
+		seenUrls.add(normalizedUrl);
+		if (selected.length >= limit) return selected;
+	}
+
 	return selected;
 }
 
