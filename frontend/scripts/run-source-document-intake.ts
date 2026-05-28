@@ -205,7 +205,7 @@ async function selectDiscoveredDocuments(
 		else 2
 	end`;
 
-	const candidateLimit = Math.min(Math.max(config.limit * 8, config.limit), 200);
+	const candidateLimit = Math.min(Math.max(config.limit * 20, 200), 500);
 	const candidates = await db
 		.select({
 			id: opportunityDocuments.id,
