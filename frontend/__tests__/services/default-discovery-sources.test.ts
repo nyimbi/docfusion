@@ -27,7 +27,7 @@ describe("default discovery sources", () => {
 			"https://projects.worldbank.org/en/projects-operations/procurement",
 			"https://tenders.worldbank.org/procurement-notices",
 			"https://www.afdb.org/en/projects-and-operations/procurement",
-			"https://www.adb.org/projects/tenders",
+			"https://www.adb.org/business/institutional-procurement/notices",
 			"https://www.aiib.org/en/opportunities/business/index.html",
 			"https://www.isdb.org/project-procurement/tenders",
 			"https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html",

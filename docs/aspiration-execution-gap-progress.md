@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - ADB Institutional Procurement Source Recovered
+
+Status: implemented and verified.
+
+Purpose: replace the Cloudflare-blocked ADB project-tenders default source with an accessible institutional procurement source that produces current RFP/RFQ/bid opportunities and source documents without depending on Firecrawl or browser fallback.
+
+Changes in this slice:
+- Added an `adb` parser for ADB institutional procurement notice tables, including direct static-page fetch fallback, deadline/start-date parsing, document-link extraction, source IDs, platform identity, and ADB/development-bank tags.
+- Updated the default ADB source from `https://www.adb.org/projects/tenders` to `https://www.adb.org/business/institutional-procurement/notices`.
+- Routed ADB URLs through the source-specific parser in discovery import and live source proof scripts.
+- Treated ADB as a direct source path in configured-source import/proof flows so ADB collection does not fail when scraper services return blocked or table-less content.
+
+Verification:
+- `npm test -- adb-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 35 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `LIVE_SOURCE_DISCOVERY_URL='https://www.adb.org/business/institutional-procurement/notices' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_adb_institutional_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_adb_institutional_source_20260528T081201Z`; the direct source path returned 6 current ADB opportunities, including 2 RFPs, without Firecrawl/browser dependency.
+- `LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://www.adb.org/business/institutional-procurement/notices' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 npx tsx scripts/run-live-discovery-import.ts` passed with run `live_discovery_import_20260528T081223Z`; 6 candidates were created, 0 failed, 0 warnings, source health was healthy, 6 source-document rows were created, and 5 documents downloaded.
+
+Remaining after this slice:
+- The live import proof exposed a separate proof-harness issue: background RFP parsing can continue after `run-live-discovery-import.ts` closes the database pool, producing post-result parser errors even though opportunity/source-document import succeeded. Fix the proof harness before using downloaded-document parsing success as completion evidence.
+- Continue replacing remaining empty or blocked generic sources, especially AIIB and IsDB.
+
 ### 2026-05-28 - EU Funding & Tenders Source API Added
 
 Status: implemented and verified.

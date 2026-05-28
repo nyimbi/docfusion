@@ -10,6 +10,7 @@ export * from "./types";
 
 // Import parsers to trigger self-registration
 import "./afdb";
+import "./adb";
 import "./comesa";
 import "./dgmarket";
 import "./ebrd";
@@ -26,6 +27,7 @@ import "./world-bank";
 
 // Re-export for direct access
 export { afdbParser } from "./afdb";
+export { adbParser } from "./adb";
 export { comesaParser } from "./comesa";
 export { dgmarketParser } from "./dgmarket";
 export { ebrdParser } from "./ebrd";

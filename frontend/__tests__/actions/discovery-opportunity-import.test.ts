@@ -497,6 +497,60 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports ADB institutional procurement notices from the accessible source page", async () => {
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		fetchMock.mockResolvedValue({
+			ok: true,
+			text: async () => [
+				"<h2>Request for Proposal</h2>",
+				"<table><tbody>",
+				"<tr>",
+				"<td data-th=\"Title\"><a href=\"/sites/default/files/page/559266/rfp-broad-commodities-precious-metals-20260527.pdf\">Request for Proposal: Investment Manager Selection for Broad Commodities and Precious Metals Portfolio</a></td>",
+				"<td data-th=\"Start date\">27 May 2026</td>",
+				"<td data-th=\"End date\">3 July 2026, 5:00 p.m. (Manila time)</td>",
+				"</tr>",
+				"</tbody></table>",
+				"<h2>Invitation to Bid</h2>",
+				"<table><tbody>",
+				"<tr>",
+				"<td data-th=\"Title\"><a href=\"/sites/default/files/page/559266/itb-adb-unified-ai-big-data.zip\">Invitation to Bid: ADB Unified AI &amp; Big Data</a></td>",
+				"<td data-th=\"Start date\">18 May 2026</td>",
+				"<td data-th=\"End date\">5 June 2026, 11:30 p.m. (Manila time)</td>",
+				"</tr>",
+				"</tbody></table>",
+			].join("\n"),
+		});
+		selectResultsQueue.push([], [], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.adb.org/business/institutional-procurement/notices"],
+			sourceScrapeLimit: 10,
+		});
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(2);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.adb.org/business/institutional-procurement/notices",
+			expect.objectContaining({ headers: expect.any(Object) })
+		);
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+			title: "Request for Proposal: Investment Manager Selection for Broad Commodities and Precious Metals Portfolio",
+			source: "adb",
+			sourceId: "adb-rfp-broad-commodities-precious-metals-20260527",
+			sourcePlatform: "Asian Development Bank",
+			opportunityType: "rfp",
+			documentUrl: "https://www.adb.org/sites/default/files/page/559266/rfp-broad-commodities-precious-metals-20260527.pdf",
+		}));
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+			title: "Invitation to Bid: ADB Unified AI & Big Data",
+			source: "adb",
+			sourcePlatform: "Asian Development Bank",
+			opportunityType: "tender",
+			documentUrl: "https://www.adb.org/sites/default/files/page/559266/itb-adb-unified-ai-big-data.zip",
+		}));
+	});
+
 	it("updates legacy configured-source rows when source identity becomes more specific", async () => {
 		searchSearxngMock.mockResolvedValue({ results: [] });
 		firecrawlScrapeMock.mockResolvedValue({
