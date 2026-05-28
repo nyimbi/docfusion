@@ -13,8 +13,8 @@ import {
 	type CleanupResult,
 	type EvidenceRecord,
 } from "./platform-proof/core";
+import { forceLocalEnv } from "./env-utils";
 import { and, eq, inArray } from "drizzle-orm";
-import { closeDatabaseConnection, db } from "@/lib/db";
 import {
 	documents,
 	opportunities,
@@ -79,6 +79,9 @@ const PROCUREMENT_INDICATORS = [
 	"procurement",
 	"submission",
 ];
+
+let db: typeof import("@/lib/db")["db"];
+let closeDatabaseConnection: typeof import("@/lib/db")["closeDatabaseConnection"] = async () => undefined;
 
 interface PersistedProofIds {
 	organizationId: string;
@@ -195,6 +198,9 @@ interface LivePersistedSourceResult {
 }
 
 async function main() {
+	forceLocalEnv(["DATABASE_URL"]);
+	await loadDatabaseModule();
+
 	const cleanup = new ProofCleanupRegistry();
 	const proof: LivePersistedImportResponseProof = {
 		runId: RUN_ID,
@@ -232,6 +238,12 @@ async function main() {
 
 	console.log(JSON.stringify(proof, null, 2));
 	if (disposition !== "pass") process.exit(1);
+}
+
+async function loadDatabaseModule(): Promise<void> {
+	const databaseModule = await import("@/lib/db");
+	db = databaseModule.db;
+	closeDatabaseConnection = databaseModule.closeDatabaseConnection;
 }
 
 async function proveLivePersistedImportResponse(

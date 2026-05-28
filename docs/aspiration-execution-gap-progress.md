@@ -16,6 +16,25 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - DB-Backed Kenya PPIP Import-to-Response Restored
+
+Status: implemented and verified.
+
+Purpose: remove the stale database-target blocker from live persisted import-to-response proofing and prove that a real Kenya PPIP tender can flow through PostgreSQL-backed opportunity, source document, RFP, requirement, response draft, and win-theme persistence.
+
+Changes in this slice:
+- Updated the live persisted import-response proof to force the local project `DATABASE_URL` before importing the Drizzle database module, so an inherited shell `DATABASE_URL` cannot silently bind the proof to a stale database host.
+- Deferred Drizzle connection initialization until after the local env override, matching the safer pattern used by other DB-backed operational scripts.
+
+Verification:
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` first reproduced the stale target failure against `88.80.188.224:5432/lnd`.
+- After the fix, the same proof passed with run `live_kenya_ppip_persisted_import_response_20260528T063442Z` against `db.lindela.io:5432/docfusion`; schema preflight passed.
+- Kenya PPIP returned 836 active tenders, the proof selected `PROVISION OF COMPANY SECRETARIAL SERVICES`, downloaded a 1,559,699-byte PDF, extracted 90,748 Docling characters, generated 24 source requirements, 14 evaluator criteria, 6 response drafts, 14 win themes, and 11,914 draft words.
+- The proof verified 1 opportunity row, 1 source-document row, 1 RFP document row, 24 requirement rows, 6 proposal-document rows, 6 response-document rows, and 14 win-theme rows, then cleaned all proof rows back to zero.
+
+Remaining after this slice:
+- Use the restored DB-backed proof path to harden broad recurring imports and product UI handoff from persisted opportunity history.
+
 ### 2026-05-27 - Live Portfolio Expansion Recheck
 
 Status: verified with live-source failures.
