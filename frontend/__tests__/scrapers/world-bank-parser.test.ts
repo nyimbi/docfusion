@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	parseWorldBankNoticeListApiResponse,
@@ -16,6 +16,10 @@ const worldBankMarkdown = `
 | [Procurement of Battery Energy Storage Systems](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00431982) | Ukraine | [Improving Power System Resilience - P176114](http://projects.worldbank.org/en/projects-operations/project-detail/P176114) | Invitation for Bids | English | May 25, 2026 |
 | [Awarded consultant contract](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00440000) | Kenya | [Awarded Project - P100000](http://projects.worldbank.org/en/projects-operations/project-detail/P100000) | Contract Award | English | May 25, 2026 |
 `;
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 describe("World Bank parser", () => {
 	it("extracts procurement notice table rows without award rows", async () => {
@@ -227,6 +231,42 @@ Feedback Survey
 					discoveryMethod: "procnotices-api-v2",
 				}),
 			},
+		});
+	});
+
+	it("uses the public notice list API when called as a source API parser", async () => {
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				procnotices: [{
+					id: "OP00440843",
+					bid_description: "Support the development of energy management systems and capacity building",
+					project_ctry_name: "Viet Nam",
+					project_id: "P164938",
+					project_name: "Vietnam Scaling Up Energy Efficiency Project",
+					notice_type: "Request for Expression of Interest",
+					notice_status: "Published",
+					notice_lang_name: "English",
+					noticedate: "26-May-2026",
+				}],
+			}),
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await worldBankParser.parse({
+			url: "https://projects.worldbank.org/en/projects-operations/procurement",
+		});
+
+		expect(fetchMock).toHaveBeenCalledWith(worldBankNoticeListApiUrl(50, 0), expect.objectContaining({
+			headers: { Accept: "application/json" },
+		}));
+		expect(result.opportunities).toHaveLength(1);
+		expect(result.opportunities[0]).toMatchObject({
+			source: "world_bank",
+			sourceId: "OP00440843",
+			title: "Support the development of energy management systems and capacity building",
+			tags: ["world-bank", "development-bank", "global-procurement", "api-list"],
 		});
 	});
 });

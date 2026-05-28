@@ -306,7 +306,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 }
 
 function isSourceApiParser(parser: TenderParser): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib";
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib" || parser.sourceId === "world_bank";
 }
 
 function isLikelyOpportunity(result: SearxngResult): boolean {

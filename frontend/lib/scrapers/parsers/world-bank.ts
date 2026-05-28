@@ -412,6 +412,19 @@ export const worldBankParser: TenderParser = {
 	name: "World Bank Procurement Notices",
 	requiresJavascript: false,
 	async parse(content: ParseInput): Promise<ParseResult> {
+		if (!content.markdown?.trim() && !content.html?.trim()) {
+			try {
+				return {
+					opportunities: await fetchWorldBankNoticeList(50),
+				};
+			} catch (error) {
+				return {
+					opportunities: [],
+					error: error instanceof Error ? error.message : "World Bank notice list API failed",
+				};
+			}
+		}
+
 		return {
 			opportunities: parseWorldBankMarkdown(content.markdown),
 		};

@@ -2118,22 +2118,35 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports World Bank configured sources with the World Bank parser", async () => {
-		firecrawlScrapeMock.mockResolvedValueOnce({
-			success: true,
-			data: {
-				markdown: [
-					"| Description | Country | Project Title | Notice Type | Language | Published Date |",
-					"| --- | --- | --- | --- | --- | --- |",
-					"| [Contratacao de Especialista em Conectividade](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547) | Angola | [Angola Digital Acceleration Project - P180693](http://projects.worldbank.org/en/projects-operations/project-detail/P180693) | Request for Expression of Interest | Portuguese | May 25, 2026 |",
-					"| [Awarded consultant contract](http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00440000) | Kenya | [Awarded Project - P100000](http://projects.worldbank.org/en/projects-operations/project-detail/P100000) | Contract Award | English | May 25, 2026 |",
-				].join("\n"),
-				links: [
-					"http://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
-				],
-				metadata: { title: "Procurement Notices" },
-			},
-		});
 		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				procnotices: [
+					{
+						id: "OP00428547",
+						bid_description: "Contratacao de Especialista em Conectividade",
+						project_ctry_name: "Angola",
+						project_id: "P180693",
+						project_name: "Angola Digital Acceleration Project - P180693",
+						notice_type: "Request for Expression of Interest",
+						notice_status: "Published",
+						notice_lang_name: "Portuguese",
+						noticedate: "25-May-2026",
+					},
+					{
+						id: "OP00440000",
+						bid_description: "Awarded consultant contract",
+						project_ctry_name: "Kenya",
+						project_name: "Awarded Project",
+						notice_type: "Contract Award",
+						notice_status: "Published",
+						notice_lang_name: "English",
+						noticedate: "25-May-2026",
+					},
+				],
+			}),
+		}).mockResolvedValueOnce({
 			ok: true,
 			status: 200,
 			json: async () => ({
@@ -2162,11 +2175,11 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(searchSearxngMock).not.toHaveBeenCalled();
-		expect(firecrawlScrapeMock).toHaveBeenNthCalledWith(1, "https://projects.worldbank.org/en/projects-operations/procurement", expect.objectContaining({
-			formats: ["markdown", "html", "links"],
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("https://search.worldbank.org/api/v2/procnotices?"), expect.objectContaining({
+			headers: { Accept: "application/json" },
 		}));
-		expect(firecrawlScrapeMock).toHaveBeenCalledTimes(1);
-		expect(fetchMock).toHaveBeenCalledWith("https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00428547", expect.objectContaining({
+		expect(fetchMock).toHaveBeenNthCalledWith(2, "https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00428547", expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));
 		expect(result.results).toEqual({
@@ -2192,7 +2205,7 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
 			portalUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
 			documentUrl: "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00428547",
-			tags: ["external-discovery", "source-scrape", "world-bank", "development-bank", "global-procurement"],
+			tags: ["external-discovery", "source-scrape", "world-bank", "development-bank", "global-procurement", "api-list"],
 			metadata: expect.objectContaining({
 				worldBank: expect.objectContaining({
 					projectTitle: "Angola Digital Acceleration Project",
@@ -2203,9 +2216,8 @@ describe("discoverAndImportOpportunities", () => {
 					contactEmail: "consultor.conectividade@ima.gov.ao",
 				}),
 				discovery: expect.objectContaining({
-					resultEngine: "firecrawl-source",
-					scrapeMethod: "firecrawl",
-					scrapedWithFirecrawl: true,
+					scrapeMethod: "source_api",
+					scrapedWithFirecrawl: false,
 					sourceUrl: "https://projects.worldbank.org/en/projects-operations/procurement",
 				}),
 			}),

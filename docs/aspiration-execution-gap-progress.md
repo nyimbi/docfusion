@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - World Bank Collection Uses Public Notice API
+
+Status: implemented and verified.
+
+Purpose: remove a Firecrawl dependency from World Bank procurement collection so a high-value global development-bank source can reliably produce current opportunities through its public notice API.
+
+Changes in this slice:
+- Made the World Bank parser fetch the public procurement notice list API when invoked as a configured source without scraped page content.
+- Treated `world_bank` as a source-API parser in live imports and live source proofs, matching the direct paths already used for SAM.gov, EU Funding & Tenders, ADB, and AIIB.
+- Kept existing detail enrichment from the World Bank notice detail API so imported opportunities retain borrower reference, procurement method, deadline, contact, and notice text.
+
+Verification:
+- `npm test -- world-bank-parser.test.ts discovery-opportunity-import.test.ts default-discovery-sources.test.ts --run` passed with 40 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- `LIVE_SOURCE_DISCOVERY_URL='https://projects.worldbank.org/en/projects-operations/procurement' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_world_bank_source_api npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_world_bank_source_api_20260528T093705Z`; the source API path returned 22 current World Bank procurement opportunities with `scrapeMethod: source_api`.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_world_bank_import_20260528T0937 LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://projects.worldbank.org/en/projects-operations/procurement' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=15 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed; 15 candidates were processed, 1 opportunity was created, 14 were updated, source health was healthy, 1 source-document row was created, 14 were reused, and there were 0 failures or warnings.
+
+Remaining after this slice:
+- The second default World Bank URL, `https://tenders.worldbank.org/procurement-notices`, now routes through the same parser by host; verify whether it should remain as a duplicate coverage path or be removed after scheduled dedupe evidence.
+- Continue replacing low-yield generic/default sources only when live evidence shows current opportunities are available.
+
 ### 2026-05-28 - XLSX Procurement Plans Survive Docling Outages
 
 Status: implemented and verified.

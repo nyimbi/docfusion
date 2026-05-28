@@ -231,7 +231,7 @@ function parserForSourceUrl(sourceUrl: string) {
 }
 
 function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib";
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib" || parser.sourceId === "world_bank";
 }
 
 async function writeArtifacts(proof: LiveSourceDiscoveryProof, disposition: EvidenceRecord["disposition"]) {
