@@ -16,6 +16,39 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Parsed RFPs Backfill Into Persisted Response Packages
+
+Status: implemented and verified.
+
+Purpose: turn already parsed live RFP documents into usable, persisted response packages instead of leaving source-grounded drafting as proof-only or manual UI work.
+
+Changes in this slice:
+- Added `scripts/run-response-package-backfill.ts`, a bounded live-DB backfill for parsed RFP documents that have requirements but no proposal documents yet.
+- The backfill builds the same source-grounded Datacraft response package used by live readiness proofs, then persists response documents, proposal-document links, document versions, win-theme seeds, and a response-package workflow receipt.
+- It respects parse-confidence review by default, only selecting `accepted` or `auto_accepted` RFP parses with no quality-signal review flags unless explicitly overridden.
+- It does not force requirement acceptance; packages with pending requirement acceptance are drafted and blocked honestly from final rendering until the normal requirement review/acceptance workflow runs.
+- Added a default unattended pursuit-fit floor of 60/100 so poor-fit parsed RFPs are skipped unless an operator explicitly overrides the threshold.
+- The script is idempotent for opportunities that already have proposal documents and defaults to dry-run unless `LIVE_RESPONSE_BACKFILL_DRY_RUN=0` is set.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- Review pass caught three real integration risks before commit: parse-review gating, unsafe requirement acceptance, and missing response-package workflow receipt; the script was updated before committing.
+- A premature live package created before the parse-review fix was removed: 6 generated documents and 2 generated win themes were deleted, and 11 requirements were restored to review/not-addressed state.
+- Dry run `live_response_package_backfill_20260528T102640Z` found 3 parse-review-ready candidates; it qualified the auto-accepted AV equipment RFQ with fit 83/100 and skipped two low-fit packages below the 60/100 fit floor.
+- A superseded live package created before the structured-content/readiness fix was removed: 6 generated documents, 2 generated win themes, and 1 generated workflow receipt were deleted.
+- Live run `live_response_package_backfill_20260528T103330Z` persisted draft response documents and win themes for auto-accepted opportunity `Request for Quotation: Supply and Delivery of Various Audio-Visual (AV) Equipment and Related Items`.
+- Post-run database verification for opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb`: 6 proposal documents, 6 response documents, 2 win themes, 7,155 total draft words, and 892 minimum draft words.
+- Stored document content uses structured Tiptap nodes; the first persisted node type is `heading`, not a raw markdown paragraph.
+- The recorded `proposal_response_package` workflow receipt is `blocked`, with requirement coverage `0` and blockers for the standard readiness pass plus pending requirement acceptance.
+- Global live database counts moved to 23 RFP documents, 60 RFP requirements, 13 proposal documents, 13 response documents, and 2 win themes.
+- `npm test -- live-response-package.test.ts --run` passed with 21 tests.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Continue running the backfill in bounded batches as more high-fit parsed RFPs accumulate.
+- Add a controlled service path for accepting parse-review-ready requirements, or route the generated blocked workflow tasks to proposal managers, so drafted packages can move to final-render readiness without bypassing authority gates.
+- Add an operator-facing queue view for parsed RFPs skipped by the pursuit-fit floor so bid/no-bid review can override intentionally.
+
 ### 2026-05-28 - Source Intake Prioritizes Direct RFP Artifacts
 
 Status: implemented and verified.
