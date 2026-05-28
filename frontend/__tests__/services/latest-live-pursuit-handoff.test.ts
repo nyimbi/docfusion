@@ -62,6 +62,19 @@ describe("latest live pursuit handoff reader", () => {
 		expect(handoff.index.primaryPursuit.title).toBe("UNGM goAML security consultancy");
 		expect(handoff.index.executionPlan.criticalTaskCount).toBe(1);
 		expect(handoff.operatorBriefMarkdown).toContain("## Execution Checklist");
+		expect(handoff.artifactLinks).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				kind: "handoff",
+				label: "Live Pursuit Handoff",
+				path: ".omx/logs/platform-completion/live-pursuit-handoff/live-pursuit-handoff.json",
+			}),
+			expect.objectContaining({
+				kind: "primary_response",
+				label: "Cover Letter",
+				path: ".omx/logs/platform-completion/live-response-readiness/response-package/cover_letter.md",
+				sourceRunId: "live_response_readiness_20260528T010842Z",
+			}),
+		]));
 		expect(handoff.actionReadiness).toMatchObject({
 			status: "blocked",
 			taskCount: 1,
@@ -108,6 +121,22 @@ async function writeWorkspaceState(
 	await fs.writeFile(
 		path.resolve(stateDir, "latest-live-pursuit-handoff.md"),
 		markdown,
+		"utf8",
+	);
+	const handoffPath = path.resolve(workspaceRoot, ".omx", "logs", "platform-completion", "live-pursuit-handoff", "live-pursuit-handoff.json");
+	await fs.mkdir(path.dirname(handoffPath), { recursive: true });
+	await fs.writeFile(
+		handoffPath,
+		JSON.stringify({
+			primaryPursuit: {
+				runId: index.primaryPursuit.runId,
+				sourceKind: index.primaryPursuit.sourceKind,
+				title: index.primaryPursuit.title,
+				responseArtifactPaths: [
+					".omx/logs/platform-completion/live-response-readiness/response-package/cover_letter.md",
+				],
+			},
+		}),
 		"utf8",
 	);
 	return workspaceRoot;

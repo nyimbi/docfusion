@@ -8533,6 +8533,28 @@ Remaining after this slice:
 - Move the action-state, audit-event ledger, and submission-readiness verdict into DB-backed runtime tables once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Handoff Response Artifact Links
+
+Status: implemented and verified.
+
+Purpose: let operators open the generated response package and qualification artifacts directly from the live handoff surface instead of hunting through proof directories.
+
+Changes in this slice:
+- Expanded the latest handoff reader to load the full handoff JSON referenced by the stable index when available.
+- Added typed artifact links for handoff proof artifacts, primary response drafts, review-queue response drafts, qualification package artifacts, and qualification workflow artifacts.
+- Preserved source run ID, source kind, opportunity title, path, kind, and human-readable labels on each artifact link.
+- Updated `/opportunities/live-handoff` to group and display the response package artifacts by purpose.
+
+Verification:
+- `npm test -- latest-live-pursuit-handoff.test.ts live-handoff-latest-route.test.ts --run` passed with 9 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 41 tests across response package, qualification workflow, pursuit handoff, latest-handoff reader, action-state store, readiness summary, audit event projection, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Replace filesystem proof artifact paths with authenticated download/review URLs once the response package is persisted in DB/object storage.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

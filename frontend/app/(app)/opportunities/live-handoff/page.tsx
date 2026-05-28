@@ -486,15 +486,29 @@ function SubmissionGate({ readiness }: { readiness: LatestLivePursuitHandoffActi
 }
 
 function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }) {
+	const groupedArtifacts = groupArtifacts(handoff.artifactLinks);
 	return (
 		<section className="rounded-lg border bg-card p-5">
-			<h2 className="text-lg font-semibold text-foreground">Proof Links</h2>
+			<h2 className="text-lg font-semibold text-foreground">Response Package Artifacts</h2>
 			<div className="mt-3 grid gap-2 text-sm text-muted-foreground">
 				<div>Portfolio: <code className="text-foreground">{handoff.index.sourcePortfolio.runId}</code></div>
 				<div>Index: <code className="text-foreground">{handoff.paths.indexPath}</code></div>
 				<div>Brief: <code className="text-foreground">{handoff.paths.briefPath}</code></div>
-				{handoff.index.handoffArtifactPaths.map((artifactPath) => (
-					<div key={artifactPath}>Artifact: <code className="text-foreground">{artifactPath}</code></div>
+			</div>
+			<div className="mt-4 space-y-4">
+				{groupedArtifacts.map(([kind, artifacts]) => (
+					<div key={kind}>
+						<h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{artifactKindLabel(kind)}</h3>
+						<div className="mt-2 grid gap-2">
+							{artifacts.map((artifact) => (
+								<div key={`${artifact.kind}:${artifact.path}`} className="grid gap-1 border-l pl-3 text-sm">
+									<div className="font-medium text-foreground">{artifact.label}</div>
+									{artifact.title && <div className="truncate text-muted-foreground">{artifact.title}</div>}
+									<code className="break-all text-xs text-muted-foreground">{artifact.path}</code>
+								</div>
+							))}
+						</div>
+					</div>
 				))}
 			</div>
 		</section>
@@ -508,6 +522,31 @@ function Metric({ label, value }: { label: string; value: string }) {
 			<div className="mt-1 break-words font-medium text-foreground">{value}</div>
 		</div>
 	);
+}
+
+function groupArtifacts(
+	artifacts: LatestLivePursuitHandoffPayload["artifactLinks"],
+): Array<[LatestLivePursuitHandoffPayload["artifactLinks"][number]["kind"], LatestLivePursuitHandoffPayload["artifactLinks"]]> {
+	const grouped = new Map<LatestLivePursuitHandoffPayload["artifactLinks"][number]["kind"], LatestLivePursuitHandoffPayload["artifactLinks"]>();
+	for (const artifact of artifacts) {
+		grouped.set(artifact.kind, [...(grouped.get(artifact.kind) ?? []), artifact]);
+	}
+	return [...grouped.entries()];
+}
+
+function artifactKindLabel(kind: LatestLivePursuitHandoffPayload["artifactLinks"][number]["kind"]): string {
+	switch (kind) {
+		case "primary_response":
+			return "Primary response";
+		case "review_response":
+			return "Review queue responses";
+		case "qualification_package":
+			return "Qualification packages";
+		case "qualification_workflow":
+			return "Qualification workflows";
+		case "handoff":
+			return "Handoff proof";
+	}
 }
 
 function formatDateTime(value: string): string {

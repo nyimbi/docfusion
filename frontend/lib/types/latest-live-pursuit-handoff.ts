@@ -50,6 +50,7 @@ export interface LatestLivePursuitHandoffIndex {
 export interface LatestLivePursuitHandoffPayload {
 	index: LatestLivePursuitHandoffIndex;
 	operatorBriefMarkdown: string;
+	artifactLinks: LatestLivePursuitHandoffArtifactLink[];
 	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
 	actionEvents: LatestLivePursuitHandoffTaskActionAuditEvent[];
 	actionReadiness: LatestLivePursuitHandoffActionReadiness;
@@ -57,6 +58,22 @@ export interface LatestLivePursuitHandoffPayload {
 		indexPath: string;
 		briefPath: string;
 	};
+}
+
+export type LatestLivePursuitHandoffArtifactKind =
+	| "handoff"
+	| "primary_response"
+	| "review_response"
+	| "qualification_package"
+	| "qualification_workflow";
+
+export interface LatestLivePursuitHandoffArtifactLink {
+	path: string;
+	kind: LatestLivePursuitHandoffArtifactKind;
+	label: string;
+	title?: string;
+	sourceRunId?: string;
+	sourceKind?: string;
 }
 
 export type LatestLivePursuitHandoffTaskActionStatus =

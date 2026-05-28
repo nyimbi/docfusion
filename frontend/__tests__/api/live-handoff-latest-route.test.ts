@@ -48,6 +48,14 @@ const handoffPayload = {
 		},
 	},
 	operatorBriefMarkdown: "# Latest Live Pursuit Handoff",
+	artifactLinks: [{
+		path: ".omx/logs/platform-completion/live-response-readiness/response-package/cover_letter.md",
+		kind: "primary_response",
+		label: "Cover Letter",
+		title: "UNGM goAML security consultancy",
+		sourceRunId: "live_response_readiness_20260528T010842Z",
+		sourceKind: "ungm",
+	}],
 	paths: {
 		indexPath: ".omx/state/latest-live-pursuit-handoff.json",
 		briefPath: ".omx/state/latest-live-pursuit-handoff.md",
