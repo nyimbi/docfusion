@@ -326,9 +326,9 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates deterministic source-driven response package drafting and readiness gates for complete, evidence-backed Datacraft proposal drafts.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "live-response-package.test.ts"],
+			args: ["test", "--", "live-response-package.test.ts", "live-qualification-workflow.test.ts"],
 		},
-		expectedArtifacts: ["vitest:live-response-package"],
+		expectedArtifacts: ["vitest:live-response-package", "vitest:live-qualification-workflow"],
 	},
 	{
 		id: "wave9-presentation-export-artifacts",
@@ -468,6 +468,25 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 			".omx/logs/platform-completion/live-response-readiness-<run_id>/live-opportunity-response-readiness.json",
 			".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.json",
 			".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.md",
+		],
+	},
+	{
+		id: "live-qualification-workflow",
+		wave: 9,
+		title: "Live qualification workflow proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005", "F-008", "F-020"],
+		requiresLiveServices: true,
+		description: "Consumes the latest live qualification package artifact and verifies an operator-executable supplier-registration or prequalification workflow without database access.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/prove-live-qualification-workflow.ts"],
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-qualification-workflow-evidence.md",
+			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow-proof.json",
+			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.json",
+			".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.md",
 		],
 	},
 	{

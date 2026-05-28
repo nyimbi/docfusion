@@ -42,6 +42,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-discovery-services");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-opportunity-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-response-readiness");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-qualification-workflow");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-response-readiness");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-comesa-response-readiness");
@@ -211,6 +212,7 @@ describe("platform proof scenarios", () => {
 				proofTargets: expect.arrayContaining(["F-005", "F-008", "F-020"]),
 				expectedArtifacts: expect.arrayContaining([
 					"vitest:live-response-package",
+					"vitest:live-qualification-workflow",
 				]),
 			}),
 		]);
@@ -266,6 +268,19 @@ describe("platform proof scenarios", () => {
 					".omx/state/platform-live-opportunity-response-readiness-evidence.md",
 					".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.json",
 					".omx/logs/platform-completion/live-response-readiness-<run_id>/qualification-package/qualification-package.md",
+				]),
+			}),
+		]);
+		expect(listProofScenarios({ ids: ["live-qualification-workflow"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-qualification-workflow",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005", "F-020"]),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-qualification-workflow-evidence.md",
+					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow-proof.json",
+					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.json",
+					".omx/logs/platform-completion/live-qualification-workflow-<run_id>/live-qualification-workflow.md",
 				]),
 			}),
 		]);

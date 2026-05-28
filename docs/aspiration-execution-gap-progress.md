@@ -8206,3 +8206,25 @@ Verification:
 Remaining after this slice:
 - Build a persisted qualification/registration workflow once DB connectivity is restored or a non-DB proof harness exists for that lane.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
+### 2026-05-28 - Non-DB Qualification Workflow Proof
+
+Status: implemented and verified.
+
+Purpose: turn live qualification package artifacts into an operator-executable workflow proof without waiting on PostgreSQL connectivity.
+
+Changes in this slice:
+- Added a deterministic live qualification workflow builder with route review, artifact assembly, capability mapping, compliance review, and submission-control gates.
+- Added regression coverage proving supplier-registration packages generate 5 workflow gates and block when mandatory compliance artifacts are missing.
+- Added `prove-live-qualification-workflow.ts`, which reads the latest live qualification package artifact, writes workflow JSON/Markdown artifacts, verifies readback integrity, and appends a dedicated evidence row.
+- Registered `live-qualification-workflow` as a Wave 9 live-safe proof and expanded the response-readiness package proof to include the qualification workflow unit tests.
+
+Verification:
+- `npm test -- live-qualification-workflow.test.ts live-response-package.test.ts platform-proof-scenarios.test.ts --run` passed with 28 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 22 tests.
+- `npm run platform:proof -- --run live-qualification-workflow --include-live-safe` passed with run `live_qualification_workflow_20260528T002713Z`, consuming source run `live_kenya_ppip_response_readiness_20260528T002006Z` and producing 5 gates, 5 tasks, 4 mandatory tasks, 22 source signals, and no blocked gates.
+
+Remaining after this slice:
+- Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
