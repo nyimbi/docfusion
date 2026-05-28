@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - RFQ/TOR Source Backlog Converts Into Parsed Requirements
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: turn the newly broadened RFQ/ITB/TOR acceptance surface into concrete RFP document and requirement growth.
+
+Changes in this slice:
+- Ran source-document intake dry-run with failed retries disabled to confirm the next batch was fresh direct documents rather than protected retry noise.
+- Ran a bounded live intake batch from that fresh backlog.
+- Drained the queued RFP parser jobs created by the live intake.
+
+Verification:
+- Dry-run `source_intake_after_acceptance_probe_dryrun_20260529` selected 25 fresh documents with 0 DGMarket rows, including RFQ, ITB, TOR, and RFP files from Kenya PPIP, PPDA Malawi, IOM, AFD, AU, IsDB, GIZ, SAM.gov, and other sources.
+- Live intake `source_intake_after_acceptance_probe_live_20260529` selected 12 documents, downloaded 10, failed 2, and queued 10 parser jobs. Successful downloads used local `pdftotext`/DOCX extraction before any heavier fallback.
+- Failed intake rows were IOM `request-for-quotations.docx` with `HTTP 403: Forbidden` after search/scrape recovery attempts, and a British Council procurement-consultants DOCX that timed out.
+- Queued parse drain `queued_parse_after_acceptance_probe_intake_20260529` selected 10 jobs, completed 10, failed 0, and extracted 90 requirements.
+- Post-run live database snapshot: 3,117 opportunities, 159 RFP documents, 157 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,021 requirements, 131 RFP documents with requirements, 435 selected source-document rows, 197 downloaded source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Continue draining the fresh source-document backlog in bounded batches.
+- Add a source-specific recovery path for IOM if those 403-protected document URLs remain valuable.
+
 ### 2026-05-29 - Search Acceptance Keeps More Procurement Notices
 
 Status: implemented, unit-verified, and typechecked.
