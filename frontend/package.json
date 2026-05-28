@@ -19,6 +19,7 @@
     "workflow:seed-templates": "npx tsx scripts/seed-workflow-templates.ts",
     "rfp-parse:audit-quality": "npx tsx scripts/audit-rfp-parse-quality.ts",
     "rfp-parse:recover-stalled": "npx tsx scripts/recover-stalled-rfp-parses.ts",
+    "rfp:cycle": "npx tsx scripts/run-rfp-intake-response-cycle.ts",
     "source-docs:intake": "npx tsx scripts/run-source-document-intake.ts",
     "platform:proof": "npx tsx scripts/platform-proof.ts",
     "platform:proof:phase1": "npx tsx scripts/prove-platform-phase1.ts",

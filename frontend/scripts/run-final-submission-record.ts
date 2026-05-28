@@ -11,7 +11,6 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import { forceLocalEnv } from "./env-utils";
-import { recordWorkflowRuntimeTransition } from "@/lib/actions/workflow-runtime";
 import {
 	documents,
 	opportunities,
@@ -46,6 +45,7 @@ const REQUIRED_DOCUMENT_TYPES = new Set(["technical_approach", "management_plan"
 
 let db: typeof import("@/lib/db")["db"];
 let closeDatabaseConnection: typeof import("@/lib/db")["closeDatabaseConnection"] = async () => undefined;
+let recordWorkflowRuntimeTransition: typeof import("@/lib/actions/workflow-runtime")["recordWorkflowRuntimeTransition"];
 type DbClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 type CandidateRow = {
@@ -189,8 +189,10 @@ async function main() {
 
 async function loadRuntime(): Promise<void> {
 	const databaseModule = await import("@/lib/db");
+	const workflowRuntimeModule = await import("@/lib/actions/workflow-runtime");
 	db = databaseModule.db;
 	closeDatabaseConnection = databaseModule.closeDatabaseConnection;
+	recordWorkflowRuntimeTransition = workflowRuntimeModule.recordWorkflowRuntimeTransition;
 }
 
 async function selectCandidates(): Promise<CandidateRow[]> {

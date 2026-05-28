@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export function forceLocalEnv(keys: string[], envFile = ".env.local"): void {
+export function forceLocalEnv(
+	keys: string[],
+	envFile = process.env.DOCFUSION_SCRIPT_ENV_FILE || ".env.local"
+): void {
 	const filePath = path.resolve(process.cwd(), envFile);
 	if (!fs.existsSync(filePath)) return;
 
