@@ -8374,6 +8374,24 @@ Remaining after this slice:
 - Move the latest-handoff index behind authenticated product/API access once DB-backed runtime persistence is reachable.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
+
+Status: externally blocked.
+
+Purpose: recheck the DB-backed persisted import-to-response path after the latest live handoff and operator-index work, now that broader verification is allowed again.
+
+Attempted:
+- `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` failed with run `live_persisted_import_response_20260528T012823Z`.
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` failed with run `live_kenya_ppip_persisted_import_response_20260528T012841Z`.
+
+Result:
+- Both proofs failed before source discovery, source document persistence, RFP parsing, requirement persistence, response draft persistence, or cleanup rows because PostgreSQL refused the connection to `88.80.188.224:5432`.
+- Both evidence rows record database host `88.80.188.224`, port `5432`, database `lnd`, schema preflight `not-run`, 0 persisted rows, and `idempotent-noop` cleanup.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity to `88.80.188.224:5432`, then rerun `live-persisted-import-response` and `live-kenya-ppip-persisted-import-response`.
+- Continue using the live-safe non-DB source/readiness/portfolio/handoff path as the currently verified live execution path.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.
