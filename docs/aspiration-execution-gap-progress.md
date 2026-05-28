@@ -8599,13 +8599,35 @@ Verification:
 - Live SearXNG probe against `https://search.lindela.io` for `"request for proposals" Africa submission deadline` with `duckduckgo,bing` returned actionable DuckDuckGo RFP results.
 
 Current count check:
-- Confirmed-current persisted RFP count is still unavailable because PostgreSQL refused the count query at `88.80.188.224:5432`.
-- Latest local export snapshot `data/sync_exports/opportunities_export_20260405_145344.json` contains 20 tender opportunities, but this is an old snapshot, not a current app count.
+- Confirmed-current persisted count against `db.lindela.io:5432/docfusion`: 2,602 total opportunities, including 1,596 `rfp` opportunities.
+- `rfp_documents` currently has 0 rows after proof cleanup; source RFP document persistence is verified by live proof but no long-lived RFP document rows remain in the app database yet.
 
 Remaining after this slice:
-- Restore PostgreSQL connectivity and run a live count across `opportunities.opportunity_type` and `rfp_documents`.
-- Run the broad default collection profile through the authenticated API once DB connectivity is restored, then measure imported/updated/skipped/failed rows and source warning rates.
+- Run the broad default collection profile through the authenticated API against `db.lindela.io`, then measure imported/updated/skipped/failed rows and source warning rates.
 - Add source-health rollups so chronically empty or degraded sources are visible before they cause missed RFPs.
+
+### 2026-05-28 - db.lindela.io Database Verified
+
+Status: implemented and verified.
+
+Purpose: create or verify the production app database on `db.lindela.io` so live persisted opportunity sourcing and response proofs are no longer blocked by PostgreSQL connectivity.
+
+Result:
+- Verified `docfusion` already exists on `db.lindela.io:5432` for user `docfusion`.
+- Verified the app database opens and contains the expected `opportunities` and `rfp_documents` tables.
+- Counted 2,602 persisted opportunities, including 1,596 `rfp` opportunities.
+- Counted 0 persisted `rfp_documents` rows after live proof cleanup.
+- Reran `live-persisted-import-response` with `frontend/.env.local` explicitly exported; it passed against `db.lindela.io:5432/docfusion` with schema preflight `passed`.
+- The passing proof persisted and verified one UNGM opportunity, one source document, one RFP document, 24 RFP requirements, six proposal documents, six response documents, and three win themes, then restored all proof rows to zero remaining cleanup rows.
+
+Verification:
+- `psql` against the maintenance database confirmed `docfusion` exists.
+- `psql` against `docfusion` confirmed `current_database = docfusion`, `current_user = docfusion`, `to_regclass('public.opportunities') = opportunities`, and `to_regclass('public.rfp_documents') = rfp_documents`.
+- `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` passed when run with `frontend/.env.local` sourced.
+
+Follow-up:
+- The first unsourced proof attempt still used a stale ambient `DATABASE_URL` for `88.80.188.224/lnd`; keep live proof commands explicitly sourced from `frontend/.env.local` or clean the ambient shell environment.
+- `live-kenya-ppip-persisted-import-response` now reaches `db.lindela.io:5432/docfusion` but fails later because Docling extracted 0 source-text characters from the selected Kenya PPIP document; this is now a document extraction/source selection issue, not a database creation or connectivity issue.
 
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
