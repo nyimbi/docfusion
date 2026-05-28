@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - SearXNG Fallback Covers Partial Engine Degradation
+
+Status: implemented, unit-verified, and typechecked.
+
+Purpose: ensure `searx.space` fallback fan-out is used when `search.lindela.io` returns only partial engine coverage, not just when the primary search fails or returns zero results.
+
+Changes in this slice:
+- Changed SearXNG fallback selection so requested-engine degradation triggers fallback fan-out even when the primary host returned some results.
+- Merged primary results with fallback instance results in partial-degradation cases, preserving the local host's usable hits while adding recovered results from fallback instances.
+- Preserved provenance through `sourceInstances`, `fallbackFrom`, and `fallbackReason` so discovery warnings show when a result set came from primary plus fallback fan-out.
+- Added equivalent fallback merging to the Python `DefaultDiscoveryService` path so agent/backend discovery is not left single-instance-only.
+- Updated the opportunity discovery runbook to describe partial-degradation fallback behavior.
+
+Verification:
+- Added a regression test proving that a primary response with one usable result plus a degraded requested engine still queries a `searx.space` fallback instance and returns the merged two-result set.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 12 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `uv run pytest tests/ci/test_discovery_service_contract.py -q` passed with 6 tests.
+- Forced-primary-failure live probe attempted three public `searx.space` fallback instances; all returned 429, confirming that public fallback is being reached but remains unreliable under server-side traffic.
+
+Remaining after this slice:
+- Public `searx.space` instances remain opportunistic and often reject server-side API traffic. A trusted `SEARXNG_FALLBACK_URLS` pool would materially improve reliability.
+- Continue live discovery runs to confirm the added fallback path increases accepted RFP candidates under real engine throttling.
+
 ### 2026-05-29 - Broad Reseed Adds Fresh RFP Documents And Requirements
 
 Status: live-run, downloaded, parsed, and verified.

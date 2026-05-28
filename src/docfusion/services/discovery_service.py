@@ -10,11 +10,13 @@ import hashlib
 import os
 import re
 from typing import Protocol, Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, urlunparse
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEARXNG_URL = "https://search.lindela.io"
+DEFAULT_SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json"
+DEFAULT_SEARXNG_PUBLIC_FALLBACK_LIMIT = 8
 DEFAULT_FIRECRAWL_URL = "http://84.247.181.100:3002"
 DEFAULT_FIRECRAWL_ENRICH_LIMIT = 3
 MAX_SCRAPED_MARKDOWN_CHARS = 12_000
@@ -126,6 +128,16 @@ class DefaultDiscoveryService:
 			or os.getenv("SEARXNG_BASE_URL")
 			or DEFAULT_SEARXNG_URL
 		).rstrip("/")
+		self._searxng_fallback_urls = self._parse_searxng_fallback_urls(
+			os.getenv("SEARXNG_FALLBACK_URLS"),
+			self._searxng_url,
+		)
+		self._searxng_public_fallbacks = os.getenv("SEARXNG_PUBLIC_FALLBACKS") != "0"
+		self._searxng_public_fallback_limit = self._coerce_public_fallback_limit()
+		self._searxng_space_instances_url = (
+			os.getenv("SEARXNG_SPACE_INSTANCES_URL")
+			or DEFAULT_SEARXNG_SPACE_INSTANCES_URL
+		)
 		self._firecrawl_url = (
 			os.getenv("FIRECRAWL_URL")
 			or os.getenv("FIRECRAWL_BASE_URL")
@@ -281,28 +293,214 @@ class DefaultDiscoveryService:
 		except (TypeError, ValueError):
 			return default
 
+	def _coerce_public_fallback_limit(self) -> int:
+		try:
+			return max(0, min(int(os.getenv("SEARXNG_PUBLIC_FALLBACK_LIMIT", "")), 12))
+		except ValueError:
+			return DEFAULT_SEARXNG_PUBLIC_FALLBACK_LIMIT
+
 	async def _discover_with_searxng(self, query: str, limit: int) -> list[dict[str, Any]]:
 		import httpx
 
 		async with httpx.AsyncClient(timeout=15.0) as client:
-			response = await client.get(
-				f"{self._searxng_url}/search",
-				params={
-					"q": query,
-					"format": "json",
-					"safesearch": 1,
-				},
-			)
-			response.raise_for_status()
-			payload = response.json()
+			primary_payload: dict[str, Any] | None = None
+			primary_error: Exception | None = None
+			try:
+				primary_payload = await self._fetch_searxng_payload(
+					client,
+					self._searxng_url,
+					query,
+				)
+			except Exception as exc:
+				primary_error = exc
+				logger.warning("Primary SearXNG search failed for %s: %s", self._searxng_url, exc)
 
-		results = payload.get("results", [])
+			payloads: list[dict[str, Any]] = []
+			if primary_payload and primary_payload.get("results"):
+				payloads.append(primary_payload)
+
+			if primary_payload is None or self._should_try_searxng_fallback(primary_payload):
+				payloads.extend(await self._fetch_searxng_fallback_payloads(client, query))
+
+			if not payloads:
+				if primary_payload is not None:
+					payloads.append(primary_payload)
+				elif primary_error is not None:
+					raise primary_error
+
+		results = self._merge_searxng_results(payloads)
 		opportunities = [
 			self._normalize_search_result(result, query, index)
 			for index, result in enumerate(results)
 			if self._is_opportunity_result(result)
 		]
 		return opportunities[:limit]
+
+	async def _fetch_searxng_payload(
+		self,
+		client: Any,
+		base_url: str,
+		query: str,
+	) -> dict[str, Any]:
+		response = await client.get(
+			f"{base_url.rstrip('/')}/search",
+			params={
+				"q": query,
+				"format": "json",
+				"safesearch": 1,
+			},
+		)
+		response.raise_for_status()
+		return response.json()
+
+	def _should_try_searxng_fallback(self, payload: dict[str, Any]) -> bool:
+		return bool(payload.get("unresponsive_engines"))
+
+	async def _fetch_searxng_fallback_payloads(
+		self,
+		client: Any,
+		query: str,
+	) -> list[dict[str, Any]]:
+		fallback_urls = await self._searxng_fallback_urls_for_client(client)
+		if not fallback_urls:
+			return []
+
+		import asyncio
+
+		async def fetch_fallback(base_url: str) -> dict[str, Any] | None:
+			try:
+				payload = await self._fetch_searxng_payload(client, base_url, query)
+			except Exception as exc:
+				logger.warning("SearXNG fallback search failed for %s: %s", base_url, exc)
+				return None
+			if not payload.get("results"):
+				return None
+			return payload
+
+		results = await asyncio.gather(
+			*(fetch_fallback(url) for url in fallback_urls),
+		)
+		return [payload for payload in results if payload is not None]
+
+	async def _searxng_fallback_urls_for_client(self, client: Any) -> list[str]:
+		limit = min(12, max(0, int(getattr(
+			self,
+			"_searxng_public_fallback_limit",
+			DEFAULT_SEARXNG_PUBLIC_FALLBACK_LIMIT,
+		))))
+		configured = list(getattr(self, "_searxng_fallback_urls", []) or [])
+		if len(configured) >= limit:
+			return configured[:limit]
+
+		public_urls = await self._public_searxng_fallback_urls(client)
+		seen: set[str] = set()
+		urls: list[str] = []
+		for raw_url in [*configured, *public_urls]:
+			url = self._normalize_base_url(raw_url)
+			if not url or url == self._searxng_url or url in seen:
+				continue
+			seen.add(url)
+			urls.append(url)
+		return urls[:limit]
+
+	async def _public_searxng_fallback_urls(self, client: Any) -> list[str]:
+		if not getattr(self, "_searxng_public_fallbacks", True):
+			return []
+		try:
+			response = await client.get(
+				getattr(self, "_searxng_space_instances_url", DEFAULT_SEARXNG_SPACE_INSTANCES_URL),
+				params={},
+			)
+			response.raise_for_status()
+			payload = response.json()
+		except Exception as exc:
+			logger.warning("Could not refresh searx.space fallback instances: %s", exc)
+			return []
+
+		instances = payload.get("instances") or {}
+		candidates = [
+			(url, instance)
+			for url, instance in instances.items()
+			if self._is_usable_public_searxng_instance(instance)
+		]
+		candidates.sort(
+			key=lambda item: (
+				-(self._instance_search_success(item[1]) or 0),
+				self._instance_search_median(item[1]),
+			)
+		)
+		return [
+			url
+			for url, _instance in candidates
+			if self._normalize_base_url(url)
+		]
+
+	def _parse_searxng_fallback_urls(self, raw: str | None, primary_url: str) -> list[str]:
+		if not raw:
+			return []
+		urls: list[str] = []
+		for value in raw.split(","):
+			url = self._normalize_base_url(value)
+			if url and url != primary_url and url not in urls:
+				urls.append(url)
+		return urls
+
+	def _normalize_base_url(self, value: str | None) -> str | None:
+		parsed = urlparse(str(value or "").strip())
+		if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+			return None
+		return urlunparse((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", "", "")).rstrip("/")
+
+	def _is_usable_public_searxng_instance(self, instance: Any) -> bool:
+		if not isinstance(instance, dict):
+			return False
+		http = instance.get("http") or {}
+		if instance.get("error") or http.get("error"):
+			return False
+		if http.get("status_code") != 200:
+			return False
+		if instance.get("network_type") not in (None, "normal"):
+			return False
+		git_url = instance.get("git_url")
+		if git_url and "searxng" not in str(git_url).lower():
+			return False
+		success = self._instance_search_success(instance)
+		return success is None or success > 0
+
+	def _instance_search_success(self, instance: dict[str, Any]) -> float | None:
+		value = (((instance.get("timing") or {}).get("search") or {}).get("success_percentage"))
+		try:
+			return float(value)
+		except (TypeError, ValueError):
+			return None
+
+	def _instance_search_median(self, instance: dict[str, Any]) -> float:
+		search_timing = ((instance.get("timing") or {}).get("search") or {})
+		all_timing = search_timing.get("all") or {}
+		value = all_timing.get("median", all_timing.get("value"))
+		try:
+			return float(value)
+		except (TypeError, ValueError):
+			return float("inf")
+
+	def _merge_searxng_results(self, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+		seen: set[str] = set()
+		results: list[dict[str, Any]] = []
+		for payload in payloads:
+			for result in payload.get("results") or []:
+				identity = self._search_result_identity(result)
+				if identity in seen:
+					continue
+				seen.add(identity)
+				results.append(result)
+		return results
+
+	def _search_result_identity(self, result: dict[str, Any]) -> str:
+		url = str(result.get("url") or "").strip()
+		if not url:
+			return f"{result.get('engine')}:{result.get('title')}"
+		parsed = urlparse(url)
+		return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", parsed.query, ""))
 
 	def _normalize_search_result(
 		self,

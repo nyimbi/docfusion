@@ -34,6 +34,17 @@ class _FakeSearchResponse:
 		}
 
 
+class _FakeJsonResponse:
+	def __init__(self, payload: dict[str, Any]) -> None:
+		self.payload = payload
+
+	def raise_for_status(self) -> None:
+		return None
+
+	def json(self) -> dict[str, Any]:
+		return self.payload
+
+
 class _FakeAsyncClient:
 	calls: list[dict[str, Any]] = []
 
@@ -50,6 +61,27 @@ class _FakeAsyncClient:
 	async def get(self, url: str, params: dict[str, Any]) -> _FakeSearchResponse:
 		self.calls.append({"url": url, "params": params})
 		return _FakeSearchResponse()
+
+
+class _SequenceAsyncClient:
+	calls: list[dict[str, Any]] = []
+	responses: list[_FakeJsonResponse] = []
+
+	def __init__(self, *args: Any, **kwargs: Any) -> None:
+		self.args = args
+		self.kwargs = kwargs
+
+	async def __aenter__(self) -> "_SequenceAsyncClient":
+		return self
+
+	async def __aexit__(self, *args: Any) -> None:
+		return None
+
+	async def get(self, url: str, params: dict[str, Any]) -> _FakeJsonResponse:
+		self.calls.append({"url": url, "params": params})
+		if not self.responses:
+			raise AssertionError(f"No fake response queued for {url}")
+		return self.responses.pop(0)
 
 
 class _FakeAnalysis:
@@ -127,6 +159,58 @@ async def test_default_discovery_searches_searxng_and_caches_opportunities(monke
 	assert await service.get_opportunity_details(results[0]["id"]) == results[0]
 	assert _FakeAsyncClient.calls[0]["url"] == "https://search.lindela.io/search"
 	assert _FakeAsyncClient.calls[0]["params"]["q"] == "case management tender"
+
+
+@pytest.mark.asyncio
+async def test_default_discovery_merges_searxng_public_fallback_when_primary_is_partially_degraded(monkeypatch):
+	_SequenceAsyncClient.calls = []
+	_SequenceAsyncClient.responses = [
+		_FakeJsonResponse({
+			"results": [{
+				"title": "Primary case management tender",
+				"url": "https://example.test/tenders/primary",
+				"content": "Tender for case management implementation.",
+				"engine": "duckduckgo",
+				"score": 2.0,
+			}],
+			"unresponsive_engines": [{"engine": "google", "error": "access denied"}],
+		}),
+		_FakeJsonResponse({
+			"instances": {
+				"https://fallback.example/": {
+					"network_type": "normal",
+					"git_url": "https://github.com/searxng/searxng",
+					"http": {"status_code": 200},
+					"timing": {"search": {"success_percentage": 100, "all": {"median": 0.2}}},
+				},
+			},
+		}),
+		_FakeJsonResponse({
+			"results": [{
+				"title": "Fallback RFP",
+				"url": "https://buyer.example/rfp",
+				"content": "Request for proposals for implementation services.",
+				"engine": "google",
+				"score": 3.0,
+			}],
+		}),
+	]
+	monkeypatch.setattr("httpx.AsyncClient", _SequenceAsyncClient)
+	service = _bare_discovery_service()
+	service._searxng_public_fallback_limit = 1
+	service._searxng_space_instances_url = "https://searx.space/data/instances.json"
+
+	results = await service.discover_opportunities(filters={"query": "case management tender", "limit": 5, "enrich": False})
+
+	assert [result["title"] for result in results] == [
+		"Primary case management tender",
+		"Fallback RFP",
+	]
+	assert [call["url"] for call in _SequenceAsyncClient.calls] == [
+		"https://search.lindela.io/search",
+		"https://searx.space/data/instances.json",
+		"https://fallback.example/search",
+	]
 
 
 @pytest.mark.asyncio

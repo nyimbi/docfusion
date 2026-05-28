@@ -138,6 +138,14 @@ export async function searchSearxng(
   }
 
   if (usableFallbacks.length > 0) {
+    const includePrimaryResults = primary.ok && primary.response.results.length > 0;
+    const mergedResponses = includePrimaryResults
+      ? [primary.response, ...usableFallbacks.map(({ response }) => response)]
+      : usableFallbacks.map(({ response }) => response);
+    const sourceInstances = includePrimaryResults
+      ? [SEARXNG_BASE_URL, ...usableFallbacks.map(({ baseUrl }) => baseUrl)]
+      : usableFallbacks.map(({ baseUrl }) => baseUrl);
+
     logger.warn("[SearXNG] Used fallback instance fanout after primary search degradation", {
       query,
       primaryBaseUrl: SEARXNG_BASE_URL,
@@ -145,8 +153,8 @@ export async function searchSearxng(
       fallbackReason,
     });
     return withFallbackProvenance(
-      mergeSearxngResponses(query, usableFallbacks.map(({ response }) => response)),
-      usableFallbacks.map(({ baseUrl }) => baseUrl),
+      mergeSearxngResponses(query, mergedResponses),
+      sourceInstances,
       SEARXNG_BASE_URL,
       fallbackReason
     );
@@ -239,16 +247,24 @@ async function searchSearxngBase(
 }
 
 function shouldRetryOnFallback(response: SearxngSearchResponse, options: SearchOptions): boolean {
-  if (response.results.length > 0) return false;
   if (!response.unresponsive_engines?.length) return false;
-  if (!options.engines?.length) return true;
-  const degraded = response.unresponsive_engines.map(describeUnresponsiveEngine).join(" ").toLowerCase();
-  return options.engines.some((engine) => degraded.includes(engine.toLowerCase()));
+  if (!options.engines?.length) return response.results.length === 0;
+  return responseHasRequestedEngineDegradation(response, options);
+}
+
+function responseHasRequestedEngineDegradation(response: SearxngSearchResponse, options: SearchOptions): boolean {
+  const degradedEngines = response.unresponsive_engines ?? [];
+  const requestedEngines = options.engines ?? [];
+  const degraded = degradedEngines.map(describeUnresponsiveEngine).join(" ").toLowerCase();
+  return requestedEngines.some((engine) => degraded.includes(engine.toLowerCase()));
 }
 
 function describeDegradedSearch(response: SearxngSearchResponse, options: SearchOptions): string {
   const engines = options.engines?.join(",") || "default engines";
   const degraded = response.unresponsive_engines?.map(describeUnresponsiveEngine).join("; ") || "unknown degradation";
+  if (response.results.length > 0) {
+    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but requested engine fanout degraded for ${engines}; degraded engines: ${degraded}`;
+  }
   return `${SEARXNG_BASE_URL} returned no results for ${engines}; degraded engines: ${degraded}`;
 }
 
