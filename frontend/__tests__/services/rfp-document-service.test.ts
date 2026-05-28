@@ -88,6 +88,7 @@ const dnsLookupMock = vi.hoisted(() =>
 );
 const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
+const searchSearxngMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
 	lookup: dnsLookupMock,
@@ -106,6 +107,9 @@ vi.mock("@/lib/scrapers/firecrawl", () => ({
 	FirecrawlClient: vi.fn(() => ({
 		scrape: firecrawlScrapeMock,
 	})),
+}));
+vi.mock("@/lib/services/searxng-client", () => ({
+	searchSearxng: searchSearxngMock,
 }));
 vi.mock("@/lib/services/docling-client", () => doclingMock);
 vi.mock("pdf-parse", () => ({
@@ -164,6 +168,7 @@ beforeEach(() => {
 	dbMock.update.mockImplementation(() => createChain());
 	dbMock.delete.mockImplementation(() => createChain());
 	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not mocked" });
+	searchSearxngMock.mockResolvedValue({ results: [] });
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(storageConfig);
 	storageMock.uploadToLinodeE3.mockResolvedValue({
 		bucket: "mansa",
@@ -546,6 +551,96 @@ describe("RFP document fetch storage", () => {
 				assignedTo: null,
 			})
 		);
+	});
+
+	it("recovers blocked source document downloads from a Firecrawl-scraped landing page", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Medicines-Tender-Calendar-2025-2026.pdf",
+			sourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({
+			results: [{
+				url: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				title: "Medicines Tender Calendar | UNICEF Supply Division",
+				content: "Medicines Tender Calendar 2025-2026 pdf procurement",
+				engine: "brave",
+				score: 1,
+			}],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Medicines Tender Calendar",
+					"2025-2026 calendar for the yearly bidding exercise for medicines procurement.",
+					"Files available for download",
+					"[Medicines Tender Calendar 2025-2026 (pdf)](https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf)",
+					"Suppliers should register on UNGM and monitor tender launch timing.",
+				].join("\n\n"),
+				links: ["https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf"],
+			},
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				originalSourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(searchSearxngMock).toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			"https://www.unicef.org/supply/documents/medicines-tender-calendar",
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(storageMock.uploadToLinodeE3).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.objectContaining({
+				contentType: "text/html",
+				key: expect.stringContaining("Main-RFP.pdf"),
+			})
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "text/html",
+			extractedText: expect.stringContaining("Medicines Tender Calendar"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("Medicines Tender Calendar"),
+			metadata: expect.objectContaining({
+				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+			}),
+		});
 	});
 
 	it("rejects oversized downloads even when content-length is absent", async () => {

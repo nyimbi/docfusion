@@ -20,6 +20,7 @@ import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { searchSearxng } from "@/lib/services/searxng-client";
 import {
   buildRfpObjectKey,
   downloadFromLinodeE3,
@@ -38,6 +39,8 @@ const MAX_FILE_SIZE_MB = 100; // Maximum file size to download
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar"];
 const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
 const MIN_EXTRACTED_TEXT_LENGTH = 10;
+const SOURCE_DOCUMENT_FETCH_TIMEOUT_MS = 60_000;
+const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
 
 // ============================================================================
 // Types
@@ -87,6 +90,8 @@ export interface RfpIngestProvenance {
   source: "opportunity_document_download";
   sourceOpportunityDocumentId: string;
   sourceUrl: string;
+  originalSourceUrl?: string;
+  downloadMethod?: SourceDocumentFetchMethod;
   downloadedBy: string;
   downloadedAt: string;
 }
@@ -95,6 +100,22 @@ interface StoredFetchedRfpDocument {
   storagePath: string;
   receipt: RfpStorageReceipt;
 }
+
+type SourceDocumentFetchMethod =
+  | "direct"
+  | "searxng_direct"
+  | "firecrawl_link"
+  | "firecrawl_landing_page_html";
+
+type FetchedSourceDocument = {
+  buffer: Buffer;
+  mimeType: string;
+  effectiveUrl: string;
+  originalUrl: string;
+  filename: string;
+  extractionFilename: string;
+  method: SourceDocumentFetchMethod;
+};
 
 type ExtractedDocumentText = {
   text: string;
@@ -665,39 +686,13 @@ export async function downloadDocument(
       .set({ 
         status: "downloading",
         downloadAttempts: doc.downloadAttempts + 1,
+        lastError: null,
         updatedAt: new Date(),
       })
       .where(eq(opportunityDocuments.id, documentId));
 
-    // Download the file
-    const response = await fetchPublicHttpUrl(safeSourceUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
-      allowInvalidTlsForHosts: invalidTlsHostsForDocumentSource(safeSourceUrl),
-    }, "Document source URL");
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const contentLength = response.headers.get("content-length");
-    const fileSize = contentLength ? parseInt(contentLength, 10) : 0;
-
-    // Check file size
-    if (fileSize > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      throw new Error(`File too large: ${(fileSize / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`);
-    }
-
-    // Get mime type
-    const mimeType = response.headers.get("content-type") || "application/octet-stream";
-
-    // Read file data
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      throw new Error(`File too large: ${(buffer.length / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`);
-    }
+    const fetched = await fetchSourceDocument(safeSourceUrl, doc.documentName);
+    const { buffer, mimeType } = fetched;
 
     // Calculate hash
     const fileHash = createHash("sha256").update(buffer).digest("hex");
@@ -707,8 +702,8 @@ export async function downloadDocument(
     const stored = await storeFetchedRfpDocument({
       documentId: doc.id,
       opportunityId: doc.opportunityId,
-      filename: doc.documentName,
-      sourceUrl: safeSourceUrlString,
+      filename: fetched.filename,
+      sourceUrl: fetched.effectiveUrl,
       buffer,
       mimeType,
       userId,
@@ -720,8 +715,8 @@ export async function downloadDocument(
     let extractedText: string | undefined;
     let pageCount: number | undefined;
     
-    if (isSupportedFileType(doc.documentName)) {
-      const processed = await extractSupportedDocumentText(buffer, doc.documentName);
+    if (isSupportedFileType(fetched.extractionFilename)) {
+      const processed = await extractSupportedDocumentText(buffer, fetched.extractionFilename);
       if (processed) {
         extractedText = processed.text;
         pageCount = processed.pageCount;
@@ -738,6 +733,7 @@ export async function downloadDocument(
         downloadedAt: new Date(),
         downloadedBy: userId || "system",
         status: "downloaded",
+        lastError: null,
         extractedText,
         pageCount,
         extractedAt: extractedText ? new Date() : undefined,
@@ -751,7 +747,9 @@ export async function downloadDocument(
     const provenance: RfpIngestProvenance = {
       source: "opportunity_document_download",
       sourceOpportunityDocumentId: doc.id,
-      sourceUrl: safeSourceUrlString,
+      sourceUrl: fetched.effectiveUrl,
+      originalSourceUrl: fetched.effectiveUrl !== safeSourceUrlString ? safeSourceUrlString : undefined,
+      downloadMethod: fetched.method,
       downloadedBy: userId || "system",
       downloadedAt: new Date().toISOString(),
     };
@@ -1052,6 +1050,405 @@ export async function extractDocumentText(documentId: string): Promise<string | 
   } catch (error) {
     logger.error(`[DocLing] Text extraction failed for ${documentId}:`, error);
     return null;
+  }
+}
+
+async function fetchSourceDocument(
+  sourceUrl: URL,
+  documentName: string
+): Promise<FetchedSourceDocument> {
+  const direct = await tryFetchSourceDocumentUrl(sourceUrl, documentName, "direct");
+  if (direct.ok) return direct.document;
+
+  if (!shouldTrySourceRecovery(direct.status)) {
+    throw new Error(direct.error);
+  }
+
+  logger.warn("[RFP Document Service] Direct source document fetch failed; trying search/scrape recovery", {
+    sourceUrl: sourceUrl.toString(),
+    status: direct.status,
+    error: direct.error,
+  });
+
+  const recovered = await recoverSourceDocumentViaSearchAndScrape(sourceUrl, documentName);
+  if (recovered) return recovered;
+
+  throw new Error(direct.error);
+}
+
+type SourceFetchAttempt =
+  | { ok: true; document: FetchedSourceDocument }
+  | { ok: false; status?: number; error: string };
+
+async function tryFetchSourceDocumentUrl(
+  url: URL,
+  documentName: string,
+  method: SourceDocumentFetchMethod
+): Promise<SourceFetchAttempt> {
+  const response = await fetchPublicHttpUrl(url, {
+    headers: browserLikeDocumentHeaders(url),
+    timeoutMs: SOURCE_DOCUMENT_FETCH_TIMEOUT_MS,
+    allowInvalidTlsForHosts: invalidTlsHostsForDocumentSource(url),
+  }, "Document source URL");
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+
+  const mimeType = response.headers.get("content-type") || "application/octet-stream";
+  const contentLength = response.headers.get("content-length");
+  const fileSize = contentLength ? parseInt(contentLength, 10) : 0;
+  if (fileSize > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `File too large: ${(fileSize / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`,
+    };
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  assertSourceDocumentBufferSize(buffer);
+  if (isLikelyDirectDocumentUrl(url) && isHtmlMimeType(mimeType) && looksLikeHtml(buffer)) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `Unexpected HTML response while fetching document URL ${url.toString()}`,
+    };
+  }
+  return {
+    ok: true,
+    document: {
+      buffer,
+      mimeType,
+      effectiveUrl: url.toString(),
+      originalUrl: url.toString(),
+      filename: documentName,
+      extractionFilename: documentName,
+      method,
+    },
+  };
+}
+
+async function recoverSourceDocumentViaSearchAndScrape(
+  sourceUrl: URL,
+  documentName: string
+): Promise<FetchedSourceDocument | undefined> {
+  const candidates = await findSourceDocumentRecoveryCandidates(sourceUrl, documentName);
+  const attemptedUrls = new Set<string>([sourceUrl.toString()]);
+
+  for (const candidate of candidates) {
+    const candidateUrl = await safeCandidateUrl(candidate.url, sourceUrl);
+    if (!candidateUrl || attemptedUrls.has(candidateUrl.toString())) continue;
+    attemptedUrls.add(candidateUrl.toString());
+
+    if (isLikelyDirectDocumentUrl(candidateUrl)) {
+      const direct = await tryFetchSourceDocumentUrl(candidateUrl, documentName, "searxng_direct");
+      if (direct.ok) return direct.document;
+    }
+
+    const scraped = await scrapeRecoveryCandidate(candidateUrl);
+    if (!scraped) continue;
+
+    for (const link of extractDocumentLinksFromScrape(scraped, candidateUrl, sourceUrl, documentName)) {
+      if (attemptedUrls.has(link.toString())) continue;
+      attemptedUrls.add(link.toString());
+      const linked = await tryFetchSourceDocumentUrl(link, documentName, "firecrawl_link");
+      if (linked.ok) return linked.document;
+    }
+
+    const fallback = buildScrapedSourceDocument(candidateUrl, documentName, scraped);
+    if (fallback) return fallback;
+  }
+
+  return undefined;
+}
+
+async function findSourceDocumentRecoveryCandidates(
+  sourceUrl: URL,
+  documentName: string
+): Promise<Array<{ url: string; title?: string; content?: string }>> {
+  const queries = buildSourceRecoveryQueries(sourceUrl, documentName);
+  const candidates: Array<{ url: string; title?: string; content?: string }> =
+    deterministicRecoveryCandidates(sourceUrl, documentName);
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    seen.add(candidate.url);
+  }
+
+  for (const query of queries) {
+    try {
+      const response = await searchSearxng(query, {
+        engines: ["brave", "bing"],
+        language: "en",
+        safesearch: 1,
+        sendAcceptHeader: false,
+      });
+      for (const result of response.results.slice(0, 6)) {
+        if (!result.url || seen.has(result.url)) continue;
+        const candidate = {
+          url: result.url,
+          title: result.title,
+          content: result.content,
+        };
+        if (!isAllowedRecoveryCandidate(candidate, sourceUrl, documentName)) continue;
+        seen.add(result.url);
+        candidates.push(candidate);
+      }
+    } catch (error) {
+      logger.warn("[RFP Document Service] Source document recovery search failed", {
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return candidates.sort((a, b) =>
+    scoreRecoveryCandidate(b, sourceUrl, documentName) - scoreRecoveryCandidate(a, sourceUrl, documentName)
+  );
+}
+
+function deterministicRecoveryCandidates(
+  sourceUrl: URL,
+  documentName: string
+): Array<{ url: string; title?: string; content?: string }> {
+  const slug = slugifyDocumentTitle(documentTitleForSearch(documentName));
+  const candidates: Array<{ url: string; title?: string; content?: string }> = [];
+
+  if (/\/media\/.+\/file\/[^/]+$/i.test(sourceUrl.pathname) && slug) {
+    const documentPage = new URL(sourceUrl.toString());
+    documentPage.pathname = documentPage.pathname.replace(/\/media\/.+\/file\/[^/]+$/i, `/documents/${slug}`);
+    documentPage.search = "";
+    documentPage.hash = "";
+    candidates.push({
+      url: documentPage.toString(),
+      title: documentTitleForSearch(documentName),
+      content: "same-host media-file document landing page",
+    });
+  }
+
+  return candidates;
+}
+
+function isAllowedRecoveryCandidate(
+  candidate: { url: string; title?: string; content?: string },
+  sourceUrl: URL,
+  documentName: string
+): boolean {
+  const candidateUrl = safeCandidateUrl(candidate.url, sourceUrl);
+  if (!candidateUrl) return false;
+  if (candidateUrl.hostname === sourceUrl.hostname) return true;
+  return scoreRecoveryCandidate(candidate, sourceUrl, documentName) >= 12;
+}
+
+function buildSourceRecoveryQueries(sourceUrl: URL, documentName: string): string[] {
+  const title = documentTitleForSearch(documentName);
+  const host = sourceUrl.hostname.replace(/^www\./, "");
+  const quotedTitle = `"${title}"`;
+  return [
+    `${quotedTitle} site:${host}`,
+    `${quotedTitle} pdf`,
+    `${title} ${host} pdf`,
+  ];
+}
+
+async function scrapeRecoveryCandidate(candidateUrl: URL): Promise<{
+  markdown?: string;
+  html?: string;
+  links?: string[];
+} | undefined> {
+  const firecrawl = new FirecrawlClient({ timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS });
+  const result = await firecrawl.scrape(candidateUrl.toString(), {
+    formats: ["markdown", "html", "links"],
+    timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS,
+  });
+  if (!result.success) {
+    logger.warn("[RFP Document Service] Firecrawl recovery scrape failed", {
+      candidateUrl: candidateUrl.toString(),
+      error: result.error,
+    });
+    return undefined;
+  }
+  return {
+    markdown: result.data?.markdown,
+    html: result.data?.html ?? result.data?.rawHtml,
+    links: result.data?.links,
+  };
+}
+
+function extractDocumentLinksFromScrape(
+  scraped: { markdown?: string; html?: string; links?: string[] },
+  pageUrl: URL,
+  sourceUrl: URL,
+  documentName: string
+): URL[] {
+  const rawLinks = new Set<string>(scraped.links ?? []);
+  for (const value of [scraped.markdown, scraped.html]) {
+    if (!value) continue;
+    for (const match of value.matchAll(/\((https?:\/\/[^)\s]+)\)|href=["']([^"']+)["']/gi)) {
+      rawLinks.add(match[1] || match[2]);
+    }
+  }
+
+  const titleTokens = new Set(tokenizeDocumentTitle(documentTitleForSearch(documentName)));
+  return [...rawLinks]
+    .map((link) => safeCandidateUrl(link, pageUrl))
+    .filter((url): url is URL => Boolean(url))
+    .filter((url) => isLikelyDirectDocumentUrl(url))
+    .filter((url) => isAllowedRecoveredDocumentLink(url, pageUrl, sourceUrl, titleTokens))
+    .sort((a, b) =>
+      scoreDocumentLink(b, titleTokens) - scoreDocumentLink(a, titleTokens)
+    );
+}
+
+function isAllowedRecoveredDocumentLink(
+  url: URL,
+  pageUrl: URL,
+  sourceUrl: URL,
+  titleTokens: Set<string>
+): boolean {
+  if (url.hostname === pageUrl.hostname || url.hostname === sourceUrl.hostname) return true;
+  return scoreDocumentLink(url, titleTokens) >= Math.max(6, titleTokens.size * 2);
+}
+
+function buildScrapedSourceDocument(
+  pageUrl: URL,
+  documentName: string,
+  scraped: { markdown?: string; html?: string }
+): FetchedSourceDocument | undefined {
+  const content = cleanExtractedText(scraped.markdown || scraped.html || "");
+  if (content.length < 250 || !/\b(tender|rfp|bid|procurement|calendar|proposal|solicitation)\b/i.test(content)) {
+    return undefined;
+  }
+
+  const html = [
+    "<!doctype html><html><head><meta charset=\"utf-8\">",
+    `<title>${escapeHtml(documentName)} recovered source page</title>`,
+    "</head><body>",
+    `<h1>${escapeHtml(documentName)}</h1>`,
+    `<p>Recovered from ${escapeHtml(pageUrl.toString())} after the original document binary was unavailable to server-side fetch.</p>`,
+    `<pre>${escapeHtml(content)}</pre>`,
+    "</body></html>",
+  ].join("");
+  const buffer = Buffer.from(html, "utf8");
+  assertSourceDocumentBufferSize(buffer);
+
+  return {
+    buffer,
+    mimeType: "text/html",
+    effectiveUrl: pageUrl.toString(),
+    originalUrl: pageUrl.toString(),
+    filename: replaceFileExtension(documentName, ".html"),
+    extractionFilename: replaceFileExtension(documentName, ".html"),
+    method: "firecrawl_landing_page_html",
+  };
+}
+
+function browserLikeDocumentHeaders(url: URL): Record<string, string> {
+  return {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Accept": "application/pdf,application/octet-stream,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": `${url.origin}/`,
+  };
+}
+
+function shouldTrySourceRecovery(status: number | undefined): boolean {
+  return status === 401 || status === 403 || status === 404 || status === 429 || status === 503;
+}
+
+function scoreRecoveryCandidate(
+  candidate: { url: string; title?: string; content?: string },
+  sourceUrl: URL,
+  documentName: string
+): number {
+  const haystack = `${candidate.url} ${candidate.title ?? ""} ${candidate.content ?? ""}`.toLowerCase();
+  const candidateUrl = safeCandidateUrl(candidate.url, sourceUrl);
+  let score = 0;
+  if (candidate.url.includes(sourceUrl.hostname)) score += 20;
+  if (candidateUrl && isLikelyDirectDocumentUrl(candidateUrl)) score += 10;
+  for (const token of tokenizeDocumentTitle(documentTitleForSearch(documentName))) {
+    if (haystack.includes(token)) score += 2;
+  }
+  if (/\b(tender|procurement|rfp|bid|calendar)\b/.test(haystack)) score += 6;
+  return score;
+}
+
+function scoreDocumentLink(url: URL, titleTokens: Set<string>): number {
+  const value = decodeURIComponent(url.pathname).toLowerCase();
+  let score = 0;
+  for (const token of titleTokens) {
+    if (value.includes(token)) score += 3;
+  }
+  if (/\.(pdf|docx?|html?)$/i.test(url.pathname)) score += 5;
+  return score;
+}
+
+function safeCandidateUrl(rawUrl: string, baseUrl: URL): URL | undefined {
+  try {
+    const url = new URL(rawUrl, baseUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
+function isLikelyDirectDocumentUrl(url: URL): boolean {
+  return /\.(pdf|docx?|xlsx?|html?)$/i.test(url.pathname);
+}
+
+function isHtmlMimeType(mimeType: string): boolean {
+  return /^text\/html\b/i.test(mimeType) || /\bhtml\b/i.test(mimeType);
+}
+
+function looksLikeHtml(buffer: Buffer): boolean {
+  const prefix = buffer.toString("utf8", 0, Math.min(buffer.length, 512)).trimStart();
+  return /^<!doctype html\b/i.test(prefix) || /^<html[\s>]/i.test(prefix);
+}
+
+function documentTitleForSearch(documentName: string): string {
+  return basename(documentName)
+    .replace(/\.[^.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeDocumentTitle(value: string): string[] {
+  return value.toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4);
+}
+
+function slugifyDocumentTitle(value: string): string {
+  const tokens = tokenizeDocumentTitle(value);
+  while (tokens.length > 1 && /^20\d{2}$/.test(tokens[tokens.length - 1])) {
+    tokens.pop();
+  }
+  return tokens.join("-");
+}
+
+function replaceFileExtension(filename: string, extension: string): string {
+  const current = extname(filename);
+  if (!current) return `${filename}${extension}`;
+  return `${filename.slice(0, -current.length)}${extension}`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function assertSourceDocumentBufferSize(buffer: Buffer): void {
+  if (buffer.length > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    throw new Error(`File too large: ${(buffer.length / 1024 / 1024).toFixed(1)}MB (max ${MAX_FILE_SIZE_MB}MB)`);
   }
 }
 
@@ -1503,6 +1900,7 @@ function inferRfpParserFileType(
   mimeType?: string | null
 ): "pdf" | "docx" | "doc" | "html" | null {
   const extension = extname(filename).toLowerCase();
+  if (mimeType === "text/html") return "html";
   if (extension === ".pdf" || mimeType === "application/pdf") return "pdf";
   if (
     extension === ".docx" ||

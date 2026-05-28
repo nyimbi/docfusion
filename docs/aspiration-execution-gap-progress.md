@@ -8300,6 +8300,33 @@ Remaining after this slice:
 - Add a retry/fallback path for source URLs that return HTTP 403 to direct server fetch, using Firecrawl/browser-assisted resolution when source hosts require browser-like access or signed redirects.
 - Run the batch intake runner across additional discovered source documents after the 403 fallback is in place.
 
+### 2026-05-28 - Source Document 403 Recovery via Search and Firecrawl
+
+Status: implemented and verified.
+
+Purpose: keep discovered source-document intake moving when a direct PDF/media URL returns HTTP 403 or an HTML challenge page, by recovering a safe canonical source page and parsing that content instead of dropping the document.
+
+Changes in this slice:
+- Added guarded source-document recovery to `downloadDocument`: direct fetch remains first, but retryable failures now search for source-page candidates, scrape recovery candidates through Firecrawl, retry recovered same-host document links, and fall back to storing a Firecrawl-scraped HTML source-page surrogate when the binary remains blocked.
+- Added deterministic same-host CMS media recovery for URLs shaped like `/media/.../file/<document>.pdf`, including UNICEF-style `/supply/documents/<slug>` pages, before noisy metasearch results are trusted.
+- Filtered recovered document links to same-host links or strong title matches, and rejected HTML bodies served from direct document URLs so Cloudflare/challenge/privacy pages are not accepted as PDFs.
+- Added provenance fields for recovered downloads: `originalSourceUrl` and `downloadMethod`.
+- Cleared stale `lastError` when a source document moves back into downloading/downloaded states.
+- Added regression coverage for a blocked UNICEF-style media URL recovered through SearXNG + Firecrawl landing-page content.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts --run` passed with 17 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live proof against source document `c469ff5d-5cd1-41b5-ac4c-5674097ab3d5` recovered blocked URL `https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf` through `https://www.unicef.org/supply/documents/medicines-tender-calendar`, stored HTML at `s3://mansa/rfp/60a77e47-f425-4a08-babf-9350de39b390/c469ff5d-5cd1-41b5-ac4c-5674097ab3d5/Medicines-Tender-Calendar-2025-2026.html`, extracted 3,768 characters, created RFP document `ce5e243a-0608-485a-83c8-5cd3885e67cf`, and completed parse job `62f60c11-c1ea-40a8-a480-b901192a9813` with 1 requirement.
+- Live proof against source document `1618acdc-27b1-43d5-ba57-b26bd006aff0` remained failed because SearXNG returned no canonical nutrition bid-plan result and Firecrawl had no recoverable page, which is now correctly recorded as a failed recovery instead of a false success.
+- Repaired the earlier bad experimental completed row by marking RFP document `04a25861-193d-4e27-842e-088e0563f0c4` and parse job `72036867-6524-4ffc-a6db-5006c202abdd` as failed/superseded by the corrected recovery run.
+- `SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 SOURCE_DOCUMENT_INTAKE_LIMIT=1 npm run source-docs:intake` passed after the recovery changes, selecting a remaining discovered UNICEF PDF without mutation.
+- Current live DB counts after this slice: 2,723 opportunities, 1,611 RFP opportunities, 164 source documents, 8 downloaded source documents, 1 failed source document, 4 RFP documents, 3 completed RFP documents, 3 completed parse jobs, and 12 persisted RFP requirements.
+
+Remaining after this slice:
+- Add a stronger browser/Cloak path for challenged source documents that have no SearXNG-indexed or deterministic source-page recovery candidate, such as the UNICEF nutrition bid-plan PDF.
+- Continue batch intake across remaining discovered documents; failed items should now represent genuinely unrecovered sources rather than direct-fetch-only blind spots.
+
 ### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
 
 Status: implemented and verified.
