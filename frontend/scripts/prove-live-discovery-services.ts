@@ -287,74 +287,88 @@ async function proveFirecrawl(): Promise<NonNullable<LiveDiscoveryProof["firecra
 }
 
 async function proveBrowserFallback(): Promise<NonNullable<LiveDiscoveryProof["browserFallback"]>> {
-	const target = await resolveBrowserScrapeTarget();
-	const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, target.url, {
-		timeout: SCRAPE_TIMEOUT_MS,
-		humanScroll: true,
-		blockMedia: true,
-		formats: ["markdown", "html", "links"],
-	});
-	const markdown = result.data?.markdown?.trim() ?? "";
-	const markdownLength = markdown.length;
-	if (!result.success || markdownLength === 0) {
-		throw new Error(result.error ?? "Browser scraper returned no markdown content");
-	}
-	const procurementIndicators = procurementIndicatorsFor(markdown);
-	if (procurementIndicators.length === 0) {
-		throw new Error("Browser scraper returned content without procurement opportunity indicators");
-	}
-	const opportunityEvidence = buildScrapeOpportunityEvidence({
-		sourceUrl: target.url,
-		markdown,
-		html: result.data?.html,
-		links: result.data?.links,
-	});
-	if (opportunityEvidence.opportunitySnippetCount === 0) {
-		throw new Error("Browser scraper returned procurement indicators but no actionable opportunity snippets");
+	const targets = await resolveBrowserScrapeTargets();
+	const errors: string[] = [];
+	for (const target of targets) {
+		const result = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, target.url, {
+			timeout: SCRAPE_TIMEOUT_MS,
+			humanScroll: true,
+			blockMedia: true,
+			formats: ["markdown", "html", "links"],
+		});
+		const markdown = result.data?.markdown?.trim() ?? "";
+		const markdownLength = markdown.length;
+		if (!result.success || markdownLength === 0) {
+			errors.push(`${target.url}: ${result.error ?? "Browser scraper returned no markdown content"}`);
+			continue;
+		}
+		const procurementIndicators = procurementIndicatorsFor(markdown);
+		if (procurementIndicators.length === 0) {
+			errors.push(`${target.url}: Browser scraper returned content without procurement opportunity indicators`);
+			continue;
+		}
+		const opportunityEvidence = buildScrapeOpportunityEvidence({
+			sourceUrl: target.url,
+			markdown,
+			html: result.data?.html,
+			links: result.data?.links,
+		});
+		if (opportunityEvidence.opportunitySnippetCount === 0) {
+			errors.push(`${target.url}: Browser scraper returned procurement indicators but no actionable opportunity snippets`);
+			continue;
+		}
+
+		return {
+			url: target.url,
+			sourceUrl: target.sourceUrl,
+			searchUrl: target.searchUrl,
+			serviceUrl: BROWSER_SCRAPER_URL,
+			success: true,
+			title: result.data?.metadata?.title,
+			markdownLength,
+			procurementIndicators,
+			procurementIndicatorCount: procurementIndicators.length,
+			opportunityEvidence,
+			selectedOpportunity: target.selectedOpportunity,
+		};
 	}
 
-	return {
-		url: target.url,
-		sourceUrl: target.sourceUrl,
-		searchUrl: target.searchUrl,
-		serviceUrl: BROWSER_SCRAPER_URL,
-		success: true,
-		title: result.data?.metadata?.title,
-		markdownLength,
-		procurementIndicators,
-		procurementIndicatorCount: procurementIndicators.length,
-		opportunityEvidence,
-		selectedOpportunity: target.selectedOpportunity,
-	};
+	throw new Error(errors.join("; ") || "Browser scraper returned no usable procurement content");
 }
 
-async function resolveBrowserScrapeTarget(): Promise<ResolvedBrowserTarget> {
+async function resolveBrowserScrapeTargets(): Promise<ResolvedBrowserTarget[]> {
 	if (!isUngmSearchUrl(BROWSER_SCRAPE_URL)) {
-		return { url: BROWSER_SCRAPE_URL };
+		return [{ url: BROWSER_SCRAPE_URL }];
 	}
 
 	const result = await fetchUngmOpportunities(BROWSER_SCRAPE_URL, {
 		limit: 5,
 		timeoutMs: 20000,
 	});
-	const opportunity = result.opportunities.find((candidate) => candidate.portalUrl);
-	if (!opportunity?.portalUrl) {
+	const targets = result.opportunities
+		.filter((candidate) => candidate.portalUrl)
+		.slice(0, 3)
+		.map((opportunity) => ({
+			url: opportunity.portalUrl as string,
+			sourceUrl: BROWSER_SCRAPE_URL,
+			searchUrl: result.searchUrl,
+			selectedOpportunity: {
+				title: opportunity.title,
+				sourceId: opportunity.sourceId ?? undefined,
+				organization: opportunity.organization ?? undefined,
+				deadline: opportunity.deadline instanceof Date
+					? opportunity.deadline.toISOString()
+					: opportunity.deadline ?? undefined,
+			},
+		}));
+	if (targets.length === 0) {
 		throw new Error("UNGM browser target search returned no current opportunity portal URL");
 	}
 
-	return {
-		url: opportunity.portalUrl,
-		sourceUrl: BROWSER_SCRAPE_URL,
-		searchUrl: result.searchUrl,
-		selectedOpportunity: {
-			title: opportunity.title,
-			sourceId: opportunity.sourceId ?? undefined,
-			organization: opportunity.organization ?? undefined,
-			deadline: opportunity.deadline instanceof Date
-				? opportunity.deadline.toISOString()
-				: opportunity.deadline ?? undefined,
-		},
-	};
+	return [
+		...targets,
+		{ url: BROWSER_SCRAPE_URL, searchUrl: result.searchUrl },
+	];
 }
 
 function isUngmSearchUrl(url: string): boolean {

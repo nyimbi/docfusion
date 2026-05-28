@@ -290,6 +290,28 @@ Remaining after this slice:
 - Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
 - Continue moving live-safe proof evidence from service-level availability toward source-specific opportunity, document, and response artifacts.
 
+### 2026-05-28 - Live Discovery Browser Target Resilience
+
+Status: implemented and verified.
+
+Purpose: keep the live discovery-services proof focused on browser fallback capability when a single UNGM detail page intermittently returns 403.
+
+Changes in this slice:
+- Updated the live discovery-services proof to try multiple resolved UNGM opportunity targets before declaring browser fallback unavailable.
+- Kept the original UNGM search URL as a final browser target so the proof can still validate service rendering when one selected detail page is blocked.
+- Preserved source URL, search URL, selected opportunity metadata, procurement indicators, sample links, and sample snippets for the first successful browser target.
+
+Verification:
+- Initial `npm run platform:proof -- --run live-discovery-services --include-live-safe` failed with run `live_discovery_20260528T022305Z` because the selected browser target returned HTTP 403, while SearXNG and Firecrawl were healthy.
+- `npm run platform:proof -- --run live-discovery-services --include-live-safe` then passed with run `live_discovery_20260528T022506Z`.
+- The passing run used SearXNG at `https://search.lindela.io`, returned 9 opportunity-relevant results from 10 Bing results for `tenders.go.ke`, scraped 194607 Firecrawl markdown characters from UNDP procurement notices, and browser-scraped UNGM notice `300700` through `http://84.247.181.100:3003` with 223567 markdown characters, 5 procurement indicators, 3 sample links, and 5 opportunity snippets.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity before rerunning DB-backed persisted import-response proofs.
+- Continue treating live-browser target failures as source volatility unless every resolved browser target fails.
+
 ### 2026-05-27 - Wave 9 Revalidation After Procurement Discovery Proof
 
 Status: verified.
