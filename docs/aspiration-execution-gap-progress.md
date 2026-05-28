@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - SearXNG Can Fall Back Through Public Instance Discovery
+
+Status: implemented and verified with a forced-primary-failure live probe.
+
+Purpose: keep broad RFP search running when `search.lindela.io` is unavailable or fails to deliver the requested engine fanout.
+
+Changes in this slice:
+- Added SearXNG fallback search support after primary search failure or after a requested-engine degradation returns an empty result set.
+- Added `SEARXNG_FALLBACK_URLS` for a trusted static fallback pool.
+- Added public fallback discovery from `https://searx.space/data/instances.json`, filtering failed/non-normal instances and limiting attempts with `SEARXNG_PUBLIC_FALLBACK_LIMIT`.
+- Added fallback provenance on search responses so discovery warnings can show when a primary SearXNG request recovered through another instance.
+- Documented fallback configuration and the privacy-sensitive `SEARXNG_PUBLIC_FALLBACKS=0` disable switch in the opportunity-discovery runbook.
+
+Verification:
+- `npx vitest run __tests__/services/searxng-client-config.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 46 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Forced-primary-failure live probe with `SEARXNG_URL=http://127.0.0.1:9` and `SEARXNG_PUBLIC_FALLBACK_LIMIT=8` recovered through public instance `https://search.mdosch.de` and returned 10 results for `"request for proposals" procurement deadline`.
+- A narrower UNGM site-restricted live probe demonstrated the realistic degradation path: several public instances rejected JSON/API access or had engine degradation, so the fallback pool helps but does not replace our own reliable SearXNG host.
+
+Remaining after this slice:
+- Add a trusted operator-controlled `SEARXNG_FALLBACK_URLS` pool if we want higher reliability than opportunistic public instances.
+- Continue fixing browser/CloakBrowser recovery for protected source-document pages and HTML quality gating.
+
 ### 2026-05-28 - Broad RFP Search Runs Wider And In Parallel
 
 Status: implemented, live-run, parsed, and verified.

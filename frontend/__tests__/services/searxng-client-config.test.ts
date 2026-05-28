@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const originalSearxngUrl = process.env.SEARXNG_URL;
+const originalSearxngFallbackUrls = process.env.SEARXNG_FALLBACK_URLS;
+const originalSearxngPublicFallbacks = process.env.SEARXNG_PUBLIC_FALLBACKS;
+const originalSearxngPublicFallbackLimit = process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
+const originalSearxngSpaceInstancesUrl = process.env.SEARXNG_SPACE_INSTANCES_URL;
 const originalDoclingUrl = process.env.DOCLING_URL;
 
 beforeEach(() => {
 	vi.resetModules();
 	vi.unstubAllGlobals();
 	delete process.env.SEARXNG_URL;
+	delete process.env.SEARXNG_FALLBACK_URLS;
+	delete process.env.SEARXNG_PUBLIC_FALLBACKS;
+	delete process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
+	delete process.env.SEARXNG_SPACE_INSTANCES_URL;
 	delete process.env.DOCLING_URL;
 });
 
@@ -15,6 +23,26 @@ afterEach(() => {
 		delete process.env.SEARXNG_URL;
 	} else {
 		process.env.SEARXNG_URL = originalSearxngUrl;
+	}
+	if (originalSearxngFallbackUrls === undefined) {
+		delete process.env.SEARXNG_FALLBACK_URLS;
+	} else {
+		process.env.SEARXNG_FALLBACK_URLS = originalSearxngFallbackUrls;
+	}
+	if (originalSearxngPublicFallbacks === undefined) {
+		delete process.env.SEARXNG_PUBLIC_FALLBACKS;
+	} else {
+		process.env.SEARXNG_PUBLIC_FALLBACKS = originalSearxngPublicFallbacks;
+	}
+	if (originalSearxngPublicFallbackLimit === undefined) {
+		delete process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
+	} else {
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = originalSearxngPublicFallbackLimit;
+	}
+	if (originalSearxngSpaceInstancesUrl === undefined) {
+		delete process.env.SEARXNG_SPACE_INSTANCES_URL;
+	} else {
+		process.env.SEARXNG_SPACE_INSTANCES_URL = originalSearxngSpaceInstancesUrl;
 	}
 	if (originalDoclingUrl === undefined) {
 		delete process.env.DOCLING_URL;
@@ -104,6 +132,91 @@ describe("SearXNG client configuration", () => {
 		expect(requestInit).toEqual(expect.not.objectContaining({
 			headers: expect.anything(),
 		}));
+	});
+
+	it("falls back to configured SearXNG instances when the primary search fails", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_FALLBACK_URLS = "https://fallback.example";
+		process.env.SEARXNG_PUBLIC_FALLBACKS = "0";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response("bad gateway", { status: 502, statusText: "Bad Gateway" }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Fallback RFP",
+					url: "https://buyer.example/rfp",
+					content: "Request for proposals",
+					engine: "bing",
+					score: 1,
+				}],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["bing"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://fallback.example",
+			fallbackFrom: "https://primary.example",
+			results: [expect.objectContaining({ title: "Fallback RFP" })],
+		});
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://fallback.example");
+	});
+
+	it("uses healthy searx.space instances when the primary has degraded engine fanout", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://dead.example/": {
+						error: "certificate expired",
+						http: { status_code: null, error: "certificate expired" },
+					},
+					"https://healthy.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { all: { median: 0.2 } } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Recovered Google RFP",
+					url: "https://buyer.example/recovered",
+					content: "Request for proposals",
+					engine: "google",
+					score: 2,
+				}],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://healthy.example",
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("google"),
+			results: [expect.objectContaining({ title: "Recovered Google RFP" })],
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock.mock.calls[1][0]).toBe("https://searx.space/data/instances.json");
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://healthy.example");
 	});
 });
 

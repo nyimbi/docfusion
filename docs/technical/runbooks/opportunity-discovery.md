@@ -24,6 +24,8 @@ STEALTH_SCRAPER_URL="http://84.247.181.100:3003"
 
 `DISCOVERY_IMPORT_USER_ID` is the assignee for API-key and scheduled discovery runs. Scheduled preset runs only load presets owned by this user, so create or save live discovery presets while signed in as that account, or set the variable to the operator account that owns the presets.
 
+When `SEARXNG_URL` is unavailable or returns an empty result with a degraded requested engine, the search client can fall back to other SearXNG instances. Set `SEARXNG_FALLBACK_URLS` to a comma-separated trusted pool when available. If that is empty, public fallback discovery uses `https://searx.space/data/instances.json`, filters out failed/non-normal instances, and tries up to `SEARXNG_PUBLIC_FALLBACK_LIMIT` instances, defaulting to 4. Set `SEARXNG_PUBLIC_FALLBACKS=0` to disable public fallbacks for privacy-sensitive deployments.
+
 ## Manual Live Discovery
 
 Operators can run live discovery from the Opportunities page with the `Discover` control. Use one query per line, save frequently used query sets as presets, and keep enrichment limits low unless inspecting high-value sources.
@@ -93,4 +95,4 @@ Example cron entry:
 - Enable `downloadDiscoveredDocuments` for high-confidence presets; keep `downloadLimit` bounded so discovery can seed parser intake without turning broad search into an unbounded file-download run. The broad default profile currently uses 20, and the service hard-caps a single discovery run at 25 downloads.
 - Use `dryRun` after changing `DISCOVERY_IMPORT_USER_ID` to confirm the scheduler can see the expected presets.
 - Treat a response with `success: false` and `failedPresets > 0` as a partial failure; later presets may still have run and imported opportunities.
-- Review returned preset `warnings` after every scheduled run. SearXNG engine degradation, source scrape empties, Firecrawl failures, browser fallback use, and source document download failures are surfaced per preset so source coverage gaps are visible before they become missed RFPs.
+- Review returned preset `warnings` after every scheduled run. SearXNG engine degradation, primary-to-fallback search recovery, source scrape empties, Firecrawl failures, browser fallback use, and source document download failures are surfaced per preset so source coverage gaps are visible before they become missed RFPs.
