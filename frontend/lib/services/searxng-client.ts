@@ -75,6 +75,10 @@ type SearxngInstanceRecord = {
       };
     };
   };
+  engines?: Record<string, {
+    error_rate?: number | null;
+    errors?: unknown[];
+  } | undefined>;
 };
 
 type SearxngInstancesPayload = {
@@ -82,7 +86,7 @@ type SearxngInstancesPayload = {
 };
 
 let publicFallbackCache:
-  | { expiresAt: number; urls: string[] }
+  | { expiresAt: number; key: string; urls: string[] }
   | undefined;
 
 /**
@@ -100,7 +104,7 @@ export async function searchSearxng(
   const fallbackReason = primary.ok
     ? describeDegradedSearch(primary.response, options)
     : primary.error;
-  const fallbacks = await getSearxngFallbackUrls(SEARXNG_BASE_URL);
+  const fallbacks = await getSearxngFallbackUrls(SEARXNG_BASE_URL, options.engines ?? []);
   const fallbackResponses = await Promise.all(
     fallbacks.map(async (fallbackBaseUrl) => ({
       fallbackBaseUrl,
@@ -388,14 +392,14 @@ function normalizeSearchResultUrl(rawUrl: string): string | undefined {
   }
 }
 
-async function getSearxngFallbackUrls(primaryBaseUrl: string): Promise<string[]> {
+async function getSearxngFallbackUrls(primaryBaseUrl: string, requestedEngines: string[] = []): Promise<string[]> {
   const limit = searxngFallbackLimit();
   const configured = configuredSearxngFallbackUrls(primaryBaseUrl);
   if (configured.length >= limit) {
     return configured.slice(0, limit);
   }
 
-  const publicUrls = await publicSearxngFallbackUrls(primaryBaseUrl);
+  const publicUrls = await publicSearxngFallbackUrls(primaryBaseUrl, requestedEngines);
   const seen = new Set<string>();
   const urls: string[] = [];
   for (const url of [...configured, ...publicUrls]) {
@@ -416,9 +420,14 @@ function configuredSearxngFallbackUrls(primaryBaseUrl: string): string[] {
     .filter((url): url is string => Boolean(url && url !== primaryBaseUrl));
 }
 
-async function publicSearxngFallbackUrls(primaryBaseUrl: string): Promise<string[]> {
+async function publicSearxngFallbackUrls(primaryBaseUrl: string, requestedEngines: string[]): Promise<string[]> {
   if (process.env.SEARXNG_PUBLIC_FALLBACKS === "0") return [];
-  if (publicFallbackCache && publicFallbackCache.expiresAt > Date.now()) {
+  const cacheKey = requestedEngines
+    .map(normalizeEngineName)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  if (publicFallbackCache && publicFallbackCache.key === cacheKey && publicFallbackCache.expiresAt > Date.now()) {
     return publicFallbackCache.urls;
   }
 
@@ -435,8 +444,9 @@ async function publicSearxngFallbackUrls(primaryBaseUrl: string): Promise<string
 
     const payload = await response.json() as SearxngInstancesPayload;
     const urls = Object.entries(payload.instances ?? {})
-      .filter(([, instance]) => isUsablePublicSearxngInstance(instance))
+      .filter(([, instance]) => isUsablePublicSearxngInstance(instance, requestedEngines))
       .sort(([, a], [, b]) =>
+        requestedEngineHealthScore(b, requestedEngines) - requestedEngineHealthScore(a, requestedEngines) ||
         (instanceSearchSuccess(b) ?? 0) - (instanceSearchSuccess(a) ?? 0) ||
         instanceSearchMedian(a) - instanceSearchMedian(b)
       )
@@ -445,6 +455,7 @@ async function publicSearxngFallbackUrls(primaryBaseUrl: string): Promise<string
 
     publicFallbackCache = {
       expiresAt: Date.now() + SEARXNG_FALLBACK_CACHE_MS,
+      key: cacheKey,
       urls,
     };
     return urls;
@@ -455,20 +466,51 @@ async function publicSearxngFallbackUrls(primaryBaseUrl: string): Promise<string
     });
     publicFallbackCache = {
       expiresAt: Date.now() + 5 * 60 * 1000,
+      key: cacheKey,
       urls: [],
     };
     return [];
   }
 }
 
-function isUsablePublicSearxngInstance(instance: SearxngInstanceRecord): boolean {
+function isUsablePublicSearxngInstance(instance: SearxngInstanceRecord, requestedEngines: string[] = []): boolean {
   if (instance.error || instance.http?.error) return false;
   if (instance.http?.status_code !== 200) return false;
   if (instance.network_type && instance.network_type !== "normal") return false;
   if (instance.git_url && !instance.git_url.includes("searxng")) return false;
   const searchSuccess = instanceSearchSuccess(instance);
   if (searchSuccess !== undefined && searchSuccess <= 0) return false;
+  if (requestedEngineHealthScore(instance, requestedEngines) < 0) return false;
   return true;
+}
+
+function requestedEngineHealthScore(instance: SearxngInstanceRecord, requestedEngines: string[]): number {
+  const normalizedEngines = requestedEngines
+    .map(normalizeEngineName)
+    .filter((engine) => engine.length > 0);
+  if (!normalizedEngines.length) return 0;
+
+  const knownRates = normalizedEngines
+    .map((engine) => instanceEngineErrorRate(instance, engine))
+    .filter((rate): rate is number => rate !== undefined);
+  if (!knownRates.length) return 0;
+
+  if (knownRates.every((rate) => rate >= 90)) return -1;
+  const averageErrorRate = knownRates.reduce((sum, rate) => sum + rate, 0) / knownRates.length;
+  return 100 - averageErrorRate;
+}
+
+function instanceEngineErrorRate(instance: SearxngInstanceRecord, normalizedEngine: string): number | undefined {
+  for (const [engineName, engine] of Object.entries(instance.engines ?? {})) {
+    if (normalizeEngineName(engineName) !== normalizedEngine) continue;
+    const rate = Number(engine?.error_rate);
+    return Number.isFinite(rate) ? rate : undefined;
+  }
+  return undefined;
+}
+
+function normalizeEngineName(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function instanceSearchMedian(instance: SearxngInstanceRecord): number {

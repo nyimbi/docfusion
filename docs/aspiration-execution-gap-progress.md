@@ -16,6 +16,48 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Engine-Aware SearXNG Public Fallback Selection
+
+Status: implemented, unit-verified, and typechecked.
+
+Purpose: improve public `searx.space` fan-out quality when `search.lindela.io` is not delivering the requested engine coverage.
+
+Changes in this slice:
+- Kept the existing primary-failure and partial-degradation fallback path, but made public fallback selection aware of the requested engine.
+- Filtered out public instances whose `searx.space` metadata shows every requested engine is effectively broken.
+- Ranked public fallback instances by requested-engine health before general search success and median timing, so a slower Google-healthy instance beats a faster Google-broken instance for Google-specific RFP searches.
+- Updated the opportunity discovery runbook to document engine-aware public fallback selection.
+
+Verification:
+- Added regression coverage proving a fast `searx.space` instance with `google` error rate 100 is skipped in favor of a slower instance with healthy `google` metadata.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 13 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Public instances are still best-effort and can reject server-side traffic with 403/429; a trusted `SEARXNG_FALLBACK_URLS` pool remains the reliable fix for broad fallback capacity.
+- Continue live discovery/import runs and track whether public fallback warnings produce more recovered candidates after the healthier instance ranking.
+
+### 2026-05-29 - Remaining Fresh Backlog Adds Six Parsed RFPs
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: finish the current fresh source-document intake window and keep converting discovered RFP documents into extracted requirements.
+
+Changes in this slice:
+- Ran the remaining fresh source-document dry-run with failed retries disabled.
+- Ran a bounded live intake batch over the remaining fresh rows.
+- Drained all parser jobs created by that intake.
+
+Verification:
+- Dry-run `source_intake_remaining_fresh_dryrun_20260529` selected 8 fresh rows, including Kenya tender PDFs, Expertise France, timeline/data-system toolkit, SAM.gov HTML, and a DGMarket HTML page.
+- Live intake `source_intake_remaining_fresh_live_20260529` selected 8 rows, downloaded 7, failed 1, and queued 6 parser jobs. DGMarket failed with HTTP 403 after fallback/search/scrape attempts. SAM.gov HTML was downloaded but did not queue a parser job.
+- Queued parse drain `queued_parse_remaining_fresh_intake_20260529` selected 6 jobs, completed 6, failed 0, and extracted 36 requirements.
+- Post-run live database snapshot: 3,117 opportunities, 177 RFP documents, 175 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,169 requirements, 149 RFP documents with requirements, 435 selected source-document rows, 216 downloaded source-document rows, and 77 failed source-document rows.
+
+Remaining after this slice:
+- Inspect remaining source-document rows; the fresh backlog may now be exhausted or dominated by protected/retry sources.
+- Improve handling for downloaded HTML rows that do not queue parser jobs so they are explicit skips or recoverable parser inputs.
+
 ### 2026-05-29 - Fresh Tender Backlog Adds Twelve Parsed RFPs
 
 Status: live-run, downloaded, parsed, and verified.

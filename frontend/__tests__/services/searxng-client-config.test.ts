@@ -255,6 +255,60 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://healthy.example");
 	});
 
+	it("prefers searx.space instances with healthy requested-engine metadata", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://fast-broken.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.1 } } },
+						engines: { google: { error_rate: 100 } },
+					},
+					"https://slow-healthy.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.8 } } },
+						engines: { google: { error_rate: 0 } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Healthy Google RFP",
+					url: "https://buyer.example/google-rfp",
+					content: "Request for proposals",
+					engine: "google",
+					score: 2,
+				}],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://slow-healthy.example",
+			results: [expect.objectContaining({ title: "Healthy Google RFP" })],
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://slow-healthy.example");
+	});
+
 	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
