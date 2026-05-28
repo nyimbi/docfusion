@@ -13,6 +13,7 @@ const SEARXNG_SPACE_INSTANCES_URL = process.env.SEARXNG_SPACE_INSTANCES_URL || "
 const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
 const SEARXNG_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
 const DEFAULT_SEARXNG_FALLBACK_LIMIT = 8;
+const DUCKDUCKGO_HTML_BASE_URL = "https://html.duckduckgo.com";
 
 export function getSearxngBaseUrl(): string {
   return SEARXNG_BASE_URL;
@@ -165,6 +166,30 @@ export async function searchSearxng(
       sourceInstances,
       SEARXNG_BASE_URL,
       fallbackReason
+    );
+  }
+
+  const directDuckduckgo = await searchDirectDuckduckgoFallback(query, options);
+  if (directDuckduckgo.results.length > 0) {
+    const includePrimaryResults = primary.ok && primary.response.results.length > 0;
+    const mergedResponses = includePrimaryResults
+      ? [primary.response, directDuckduckgo]
+      : [directDuckduckgo];
+    const sourceInstances = includePrimaryResults
+      ? [SEARXNG_BASE_URL, DUCKDUCKGO_HTML_BASE_URL]
+      : [DUCKDUCKGO_HTML_BASE_URL];
+
+    logger.warn("[SearXNG] Used direct DuckDuckGo HTML fallback after SearXNG fallback fanout failed", {
+      query,
+      primaryBaseUrl: SEARXNG_BASE_URL,
+      fallbackReason,
+      resultCount: directDuckduckgo.results.length,
+    });
+    return withFallbackProvenance(
+      mergeSearxngResponses(query, mergedResponses),
+      sourceInstances,
+      SEARXNG_BASE_URL,
+      `${fallbackReason}; searx.space fallback fanout produced no usable results, recovered with DuckDuckGo HTML`
     );
   }
 
@@ -325,6 +350,118 @@ function parseSearxngHtmlBody(body: string, query: string, baseUrl: string): Sea
     query,
     number_of_results: results.length,
     results,
+  };
+}
+
+async function searchDirectDuckduckgoFallback(
+  query: string,
+  options: SearchOptions
+): Promise<SearxngSearchResponse> {
+  if (!shouldUseDirectDuckduckgoFallback(options)) {
+    return {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  }
+
+  const url = new URL(`${DUCKDUCKGO_HTML_BASE_URL}/html/`);
+  url.searchParams.set("q", query);
+  const duckduckgoTimeRange = duckduckgoTimeRangeParam(options.time_range);
+  if (duckduckgoTimeRange) {
+    url.searchParams.set("df", duckduckgoTimeRange);
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(30000),
+      headers: {
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
+        "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+      },
+    });
+    if (!response.ok) {
+      logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
+        query,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return {
+        query,
+        number_of_results: 0,
+        results: [],
+      };
+    }
+
+    const parsed = parseDuckduckgoHtmlBody(await response.text(), query);
+    return parsed ?? {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  } catch (error) {
+    logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
+      query,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  }
+}
+
+function shouldUseDirectDuckduckgoFallback(options: SearchOptions): boolean {
+  if (process.env.DUCKDUCKGO_DIRECT_FALLBACKS === "0") return false;
+  if (!options.engines?.length) return true;
+  return options.engines.some((engine) => normalizeEngineName(engine) === "duckduckgo");
+}
+
+function duckduckgoTimeRangeParam(timeRange: SearchOptions["time_range"]): string | undefined {
+  switch (timeRange) {
+    case "day":
+      return "d";
+    case "week":
+      return "w";
+    case "month":
+      return "m";
+    case "year":
+      return "y";
+    default:
+      return undefined;
+  }
+}
+
+function parseDuckduckgoHtmlBody(body: string, query: string): SearxngSearchResponse | undefined {
+  if (!/<html[\s>]/i.test(body) && !/\bresult__a\b/i.test(body)) return undefined;
+  const results: SearxngResult[] = [];
+  const seen = new Set<string>();
+  const resultPattern = /<div\b[^>]*class=["'][^"']*\bresult\b[^"']*["'][^>]*>([\s\S]*?)(?=<div\b[^>]*class=["'][^"']*\bresult\b|<div\b[^>]*class=["'][^"']*\bnav-link\b|<\/body>)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = resultPattern.exec(body)) && results.length < 30) {
+    const resultHtml = match[1] ?? "";
+    const linkMatch = /<a\b[^>]*class=["'][^"']*\bresult__a\b[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(resultHtml);
+    if (!linkMatch) continue;
+    const url = normalizeDuckduckgoResultUrl(decodeHtmlEntities(linkMatch[1] ?? ""));
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const content = extractHtmlClassText(resultHtml, "result__snippet") ?? "";
+    results.push({
+      title: stripHtml(linkMatch[2] ?? ""),
+      url,
+      content,
+      engine: "duckduckgo",
+      score: Math.max(0.1, 1 - results.length / 100),
+    });
+  }
+
+  return {
+    query,
+    number_of_results: results.length,
+    results,
+    sourceInstance: DUCKDUCKGO_HTML_BASE_URL,
   };
 }
 
@@ -586,6 +723,20 @@ function normalizeSearxngHtmlResultUrl(rawUrl: string, baseUrl: string): string 
   }
 }
 
+function normalizeDuckduckgoResultUrl(rawUrl: string): string | undefined {
+  try {
+    const url = new URL(rawUrl, DUCKDUCKGO_HTML_BASE_URL);
+    if (url.hostname.endsWith("duckduckgo.com") && url.pathname === "/l/" && url.searchParams.get("uddg")) {
+      return normalizeDuckduckgoResultUrl(url.searchParams.get("uddg") ?? "");
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
 function extractHtmlClassText(html: string, className: string): string | undefined {
   const pattern = new RegExp(
     `<[^>]*class=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/[^>]+>`,
@@ -604,6 +755,8 @@ function stripHtml(html: string): string {
 
 function decodeHtmlEntities(value: string): string {
   return value
+    .replace(/&#(\d+);/g, (_, codepoint: string) => String.fromCodePoint(Number(codepoint)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, codepoint: string) => String.fromCodePoint(Number.parseInt(codepoint, 16)))
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")

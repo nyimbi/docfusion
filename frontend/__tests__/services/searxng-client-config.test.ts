@@ -5,6 +5,7 @@ const originalSearxngFallbackUrls = process.env.SEARXNG_FALLBACK_URLS;
 const originalSearxngPublicFallbacks = process.env.SEARXNG_PUBLIC_FALLBACKS;
 const originalSearxngPublicFallbackLimit = process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
 const originalSearxngSpaceInstancesUrl = process.env.SEARXNG_SPACE_INSTANCES_URL;
+const originalDuckduckgoDirectFallbacks = process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
 const originalDoclingUrl = process.env.DOCLING_URL;
 
 beforeEach(() => {
@@ -15,6 +16,7 @@ beforeEach(() => {
 	delete process.env.SEARXNG_PUBLIC_FALLBACKS;
 	delete process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
 	delete process.env.SEARXNG_SPACE_INSTANCES_URL;
+	delete process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
 	delete process.env.DOCLING_URL;
 });
 
@@ -43,6 +45,11 @@ afterEach(() => {
 		delete process.env.SEARXNG_SPACE_INSTANCES_URL;
 	} else {
 		process.env.SEARXNG_SPACE_INSTANCES_URL = originalSearxngSpaceInstancesUrl;
+	}
+	if (originalDuckduckgoDirectFallbacks === undefined) {
+		delete process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
+	} else {
+		process.env.DUCKDUCKGO_DIRECT_FALLBACKS = originalDuckduckgoDirectFallbacks;
 	}
 	if (originalDoclingUrl === undefined) {
 		delete process.env.DOCLING_URL;
@@ -352,6 +359,74 @@ describe("SearXNG client configuration", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://throttled.example");
 		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://primary.example");
+	});
+
+	it("falls through to DuckDuckGo HTML when searx.space fanout has no usable results", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Primary Dictionary Result",
+					url: "https://dictionary.example/request",
+					content: "Definition of request",
+					engine: "bing",
+					score: 1,
+				}],
+				unresponsive_engines: [{ engine: "duckduckgo", error: "timeout" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://throttled.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.1 } } },
+						engines: { duckduckgo: { error_rate: 0 } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response("too many requests", { status: 429 }))
+			.mockResolvedValueOnce(new Response(`
+				<!doctype html>
+				<html>
+					<body>
+						<div class="result results_links results_links_deep web-result">
+							<h2 class="result__title">
+								<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Factive-rfp&amp;rut=abc">Active RFP &amp; Tender</a>
+							</h2>
+							<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Factive-rfp&amp;rut=abc">Request for proposals with submission deadline.</a>
+						</div>
+					</body>
+				</html>
+			`, { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["duckduckgo", "bing"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://primary.example",
+			sourceInstances: ["https://primary.example", "https://html.duckduckgo.com"],
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("recovered with DuckDuckGo HTML"),
+			number_of_results: 2,
+		});
+		expect(result.results.map((item) => item.url)).toEqual([
+			"https://dictionary.example/request",
+			"https://buyer.example/active-rfp",
+		]);
+		expect(result.results[1]).toMatchObject({
+			title: "Active RFP & Tender",
+			content: "Request for proposals with submission deadline.",
+			engine: "duckduckgo",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://html.duckduckgo.com");
 	});
 
 	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {

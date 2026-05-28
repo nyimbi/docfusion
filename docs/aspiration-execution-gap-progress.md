@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover DuckDuckGo Results When Public SearXNG Fanout Fails
+
+Status: implemented, unit-verified, typechecked, and live-probed.
+
+Purpose: keep broad RFP sourcing productive when `search.lindela.io` reports degraded engine fanout and public `searx.space` instances reject server-side fallback searches.
+
+Changes in this slice:
+- Preserved the existing primary `search.lindela.io` search path and public SearXNG fallback fanout from `https://searx.space/data/instances.json`.
+- Added a direct DuckDuckGo HTML fallback that runs only after SearXNG fallback fanout produces no usable results and DuckDuckGo is one of the requested engines.
+- Parsed lightweight DuckDuckGo HTML results, normalized DuckDuckGo redirect URLs, deduped them through the existing SearXNG response merge path, and recorded fallback provenance.
+- Documented the direct DuckDuckGo recovery path and `DUCKDUCKGO_DIRECT_FALLBACKS=0` disable switch in the opportunity discovery runbook.
+
+Verification:
+- Added regression coverage for a degraded primary response, a throttled public SearXNG fallback, and successful direct DuckDuckGo HTML recovery.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 15 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live probe for `"request for proposals" Africa deadline` with requested engines `google`, `duckduckgo`, `bing`, and `brave` showed `search.lindela.io` degraded for Brave, DuckDuckGo, and Google; eight public `searx.space` fallbacks rejected with 403, 418, or 429; direct DuckDuckGo HTML recovered 4 additional results and returned 14 merged results total.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Direct DuckDuckGo improves recall when public SearXNG is blocked, but a trusted `SEARXNG_FALLBACK_URLS` pool is still the reliable way to get multi-engine fallback breadth.
+- Continue source/query expansion and live reseeding; the previous broad reseed updated existing records but did not add new RFPs.
+
 ### 2026-05-29 - Suppress Failing Public SearXNG Fallbacks Per Run
 
 Status: implemented, unit-verified, typechecked, and live-run observed.
