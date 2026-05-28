@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Broad Reseed Adds Fresh RFP Documents And Requirements
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: turn the improved source intake selector into concrete RFP growth by reseeding fresh source documents, downloading a bounded high-signal batch, and draining parser jobs to requirements.
+
+Changes in this slice:
+- Ran a bounded broad live discovery import with default RFP queries and configured sources, downloads disabled, to seed fresh source-document rows without spending the import run on downloads.
+- Ran source-document intake with failed retries disabled so the new fresh source backlog, not old protected failures, was selected.
+- Drained all queued parser jobs created by that intake pass.
+
+Verification:
+- Live broad discovery import `live_broad_reseed_after_retry_backpressure_20260529` processed 229 records, imported 126 new opportunities, updated 103 existing opportunities, failed 0 imports, created 49 source-document rows, reused 79 existing source-document rows, and attempted 0 downloads by design.
+- Source health from that run: 20 healthy configured sources, 4 empty/degraded/no-yield sources, and 1 failed source (`https://www.ppra.go.tz/tenders`, where Firecrawl and browser fallback both failed).
+- Post-reseed dry-run `source_intake_after_broad_reseed_dryrun_20260529` selected 25 fresh direct PDF/DOCX source documents with 0 DGMarket rows.
+- Live source intake `source_intake_after_broad_reseed_live_20260529` selected 12 fresh source documents, downloaded 12, failed 0, and queued 12 parser jobs. Local `pdftotext` handled the PDF downloads, and scrape/search recovery converted blocked or missing source URLs for IUCN and African Climate Foundation into parseable HTML.
+- Queued parse drain `queued_parse_after_broad_reseed_intake_20260529` selected 12 jobs, completed 12, failed 0, and extracted 113 requirements.
+- Post-run live database snapshot: 3,117 opportunities, 149 RFP documents, 147 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 931 requirements, 121 RFP documents with requirements, 423 selected source-document rows, 187 downloaded source-document rows, and 74 failed source-document rows.
+
+Remaining after this slice:
+- Continue draining the fresh direct source-document backlog in bounded batches.
+- Improve query acceptance for broad SearXNG queries that returned no accepted opportunity candidates even when the search host responded.
+- Investigate PPRA Tanzania browser fallback mismatch: the deployed browser service returned `Cannot POST /v1/scrape` and `/scrape` failed, so that source remains failed.
+
 ### 2026-05-29 - Source Intake Stops Protected 403 Hosts From Crowding Retry Batches
 
 Status: implemented, dry-run verified, and typechecked.
