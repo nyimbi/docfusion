@@ -163,6 +163,45 @@ import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 
 const downloadedPdfHash = createHash("sha256").update(Buffer.from("downloaded-pdf")).digest("hex");
 
+async function buildXlsxWorkbook(rows: string[][]): Promise<Buffer> {
+	const zip = new JSZip();
+	const sharedStrings = rows.flat();
+	const cell = (rowIndex: number, columnIndex: number, sharedStringIndex: number) => {
+		const column = String.fromCharCode("A".charCodeAt(0) + columnIndex);
+		return `<c r="${column}${rowIndex + 1}" t="s"><v>${sharedStringIndex}</v></c>`;
+	};
+
+	zip.file("xl/workbook.xml", [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		'<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
+		'<sheets><sheet name="Procurement Plan" sheetId="1" r:id="rId1"/></sheets>',
+		"</workbook>",
+	].join(""));
+	zip.file("xl/_rels/workbook.xml.rels", [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		"<Relationships>",
+		'<Relationship Id="rId1" Target="worksheets/sheet1.xml"/>',
+		"</Relationships>",
+	].join(""));
+	zip.file("xl/sharedStrings.xml", [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		"<sst>",
+		...sharedStrings.map((value) => `<si><t>${value}</t></si>`),
+		"</sst>",
+	].join(""));
+	let sharedStringIndex = 0;
+	zip.file("xl/worksheets/sheet1.xml", [
+		'<?xml version="1.0" encoding="UTF-8"?>',
+		"<worksheet><sheetData>",
+		...rows.map((row, rowIndex) =>
+			`<row r="${rowIndex + 1}">${row.map((_, columnIndex) => cell(rowIndex, columnIndex, sharedStringIndex++)).join("")}</row>`
+		),
+		"</sheetData></worksheet>",
+	].join(""));
+
+	return zip.generateAsync({ type: "nodebuffer" });
+}
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	dnsLookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
@@ -594,6 +633,74 @@ describe("RFP document fetch storage", () => {
 		expect(text).toBe("Locally extracted DOCX RFP text with enough content.");
 		expect(mammothExtractRawTextMock).toHaveBeenCalledWith({ buffer: Buffer.from("downloaded-pdf") });
 		expect(dbMock.update).toHaveBeenCalled();
+	});
+
+	it("extracts and queues procurement-plan text from downloaded XLSX source documents", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const xlsxBuffer = await buildXlsxWorkbook([
+			["Package", "Method", "Deadline"],
+			["Consulting services for feasibility study", "Request for Bids", "June 16 2026"],
+		]);
+
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Procurement-Plan.xlsx",
+			sourceUrl: "https://buyer.example/rfp/Procurement-Plan.xlsx",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		doclingMock.processRfpDocument.mockRejectedValueOnce(new Error("DocLing unavailable"));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(new Blob([xlsxBuffer as unknown as BlobPart]), {
+			status: 200,
+			headers: {
+				"content-length": String(xlsxBuffer.length),
+				"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			},
+		}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			fileSize: xlsxBuffer.length,
+		});
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			extractedText: expect.stringContaining("Sheet: Procurement Plan"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "Procurement-Plan.xlsx",
+			fileType: "xlsx",
+			fileSize: xlsxBuffer.length,
+			extractedText: expect.stringContaining("Consulting services for feasibility study"),
+		});
+		expect(insertedValues[0].extractedText).toContain("Request for Bids");
+		expect(insertedValues[0].extractedText).toContain("June 16 2026");
+		expect(processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "00000000-0000-4000-8000-000000000501",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			tenantContext: {
+				userId: "capture-user",
+				organizationId: "org-1",
+			},
+		});
 	});
 
 	it("allows invalid TLS only for Kenya PPIP source document downloads", async () => {

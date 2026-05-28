@@ -18,6 +18,7 @@ import { join, basename, extname } from "path";
 import { createHash } from "crypto";
 import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-client";
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
+import { extractXlsxText } from "@/lib/documents/spreadsheet-text";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
@@ -136,7 +137,7 @@ type FetchedSourceDocument = {
 type ExtractedDocumentText = {
   text: string;
   pageCount?: number;
-  extractor: "docling" | "local_pdf_parse" | "local_docx_parse" | "local_html_text";
+  extractor: "docling" | "local_pdf_parse" | "local_docx_parse" | "local_html_text" | "local_xlsx_parse";
 };
 
 type SourceRecoveryScrape = {
@@ -1790,6 +1791,12 @@ async function extractDocumentTextLocally(
       );
       if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
       return { text, extractor: "local_html_text" };
+    }
+
+    if (extension === ".xlsx") {
+      const text = cleanExtractedText(await extractXlsxText(buffer));
+      if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+      return { text, extractor: "local_xlsx_parse" };
     }
   } catch (error) {
     logger.error(`[RFP Document Service] Local text extraction failed for ${filename}:`, error);

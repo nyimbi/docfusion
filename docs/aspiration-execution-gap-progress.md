@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - XLSX Procurement Plans Survive Docling Outages
+
+Status: implemented and verified.
+
+Purpose: close the spreadsheet source-document intake gap where procurement plans in XLSX format could only become parseable when Docling was healthy, leaving structured package data unavailable during parser-service outages.
+
+Changes in this slice:
+- Added a server-side XLSX text extractor that reads workbook sheets, shared strings, and worksheet rows from the XLSX package without a remote document service.
+- Wired the local XLSX extractor into source-document download fallback extraction.
+- Added XLSX re-extraction support in the RFP parser for stored spreadsheet documents that need later parsing from bytes.
+- Added regression coverage proving a downloaded procurement-plan XLSX is extracted, stored, linked to an RFP document, and queued for parsing when Docling is unavailable.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts --run` passed with 23 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Normal live XLSX intake selected AIIB `P000314_Publication_of_Procurement_Plan_May-12-2026.xlsx`, extracted 13,409 characters through Docling, stored 19,174 bytes in Linode E3, completed inline parsing job `a4cb66cd-55c6-4903-b50d-568a90e6a64b`, and extracted 8 requirements.
+- Forced-fallback live XLSX intake set `DOCLING_URL=http://127.0.0.1:9`, selected AIIB `PP-of-S000656-Urban-Sustainable-Water-Supply-Development-Project-Version-2.xlsx`, used `local_xlsx_parse` after Docling failed, extracted 1,882 characters, stored 17,068 bytes in Linode E3, completed inline parsing job `9b091d1c-bb7d-4d12-82b1-c0db5e6cbaa7`, and extracted 1 requirement.
+
+Remaining after this slice:
+- Legacy binary `.xls` files still depend on Docling or pre-extracted text; add XLS conversion only if live sources produce material `.xls` volume.
+- Procurement-plan parsing currently treats spreadsheet rows as general RFP text; improve package-level opportunity generation from procurement plan rows after broader source collection is stable.
+
 ### 2026-05-28 - ZIP Source Packages Become Parseable RFP Intake
 
 Status: implemented and verified.

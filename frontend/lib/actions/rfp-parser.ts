@@ -48,6 +48,7 @@ import {
 	downloadFromLinodeE3,
 	getLinodeE3ConfigFromEnv,
 } from "@/lib/storage/linode-e3";
+import { extractXlsxText } from "@/lib/documents/spreadsheet-text";
 import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
@@ -2405,6 +2406,15 @@ async function extractTextFromDocument(
 					.replace(/&quot;/g, '"') // Replace &quot;
 					.replace(/\s+/g, " ") // Normalize whitespace
 					.trim();
+			}
+
+			case "xlsx": {
+				return extractXlsxText(fileBuffer);
+			}
+
+			case "xls": {
+				logger.warn("[RFP Parser] Legacy XLS parsing requires pre-extracted text; skipping binary decode");
+				return "";
 			}
 
 			case "txt":
