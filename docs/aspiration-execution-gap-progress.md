@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Source Intake Stops Protected 403 Hosts From Crowding Retry Batches
+
+Status: implemented, dry-run verified, and typechecked.
+
+Purpose: keep RFP source-document intake focused on recoverable rows after live probes showed DGMarket 403 failures dominating retry-enabled batches.
+
+Changes in this slice:
+- Added retry backpressure for known protected 403 hosts, currently DGMarket, so routine retry mode suppresses those rows unless `SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=1` is set.
+- Added `SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST` so the second fill pass can relax host diversity without allowing one host to consume the entire batch.
+- Ordered source-document candidates by direct-document rank and lower download-attempt count before recency, so one-attempt retries are tried before rows that have already failed twice.
+- Recorded selected row status and last error in source-document intake proof output so future dry-runs show why a row was eligible.
+
+Verification:
+- Live database snapshot before the change: 2,991 opportunities, 137 RFP documents, 135 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 818 requirements, 110 RFP documents with requirements, 374 selected source-document rows, 175 downloaded source-document rows, and 74 failed source-document rows.
+- Pre-change dry-run `source_intake_current_selector_probe_20260529` selected 25 rows, including 18 DGMarket rows that had already failed with `HTTP 403: Forbidden`.
+- Fresh-only dry-run `source_intake_current_fresh_selector_probe_20260529` selected 0 rows after the non-solicitation filter, proving the remaining immediate queue is retry-focused rather than fresh source intake.
+- Post-change dry-run `source_intake_retry_backpressure_probe_20260529` selected 7 rows and 0 DGMarket rows with the default `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=2`, `SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST=6`, and `SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=false`.
+- Opt-in dry-run `source_intake_retry_protected_optin_probe_20260529` selected 13 rows and capped DGMarket at 6 rows, proving targeted protected-host recovery is still available without batch flooding.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Run a fresh broad discovery import to seed new non-duplicate source-document rows before another live source intake drain.
+- DGMarket still needs a portal-specific strategy if it is worth pursuing; routine retries now avoid spending most of the batch there.
+
 ### 2026-05-29 - SearXNG Public Fallback Fans Out Instead Of Stopping At First Instance
 
 Status: implemented, live-probed, and verified.

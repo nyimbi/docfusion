@@ -2,7 +2,7 @@ import "./load-env";
 
 import path from "node:path";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
 import { opportunityDocuments, rfpParsingJobs } from "@/lib/db/schema";
 import { forceLocalEnv } from "./env-utils";
@@ -20,6 +20,7 @@ const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
 const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|\bprocurement[-_\s]?report\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b|\bsenior[-_\s]?procurement[-_\s]?executive[-_\s]?message\b|\blapse[-_\s]?in[-_\s]?appropriations\b|\bjustification[-_\s]?and[-_\s]?approval\b|\bother[-_\s]?than[-_\s]?full[-_\s]?and[-_\s]?open[-_\s]?competition\b)/i;
+const PROTECTED_403_RETRY_HOSTS = new Set(["www.dgmarket.com", "dgmarket.com"]);
 
 type IntakeDisposition = "downloaded" | "failed" | "skipped";
 
@@ -68,6 +69,8 @@ type SourceDocumentIntakeProof = {
 		dryRun: boolean;
 		retryFailed: boolean;
 		maxPerHost: number;
+		fillMaxPerHost: number;
+		retryProtectedHosts: boolean;
 	};
 	selected: Array<{
 		id: string;
@@ -76,6 +79,8 @@ type SourceDocumentIntakeProof = {
 		documentName: string;
 		sourceUrl: string;
 		downloadAttempts: number;
+		status: string;
+		lastError: string | null;
 	}>;
 	results: IntakeResult[];
 	summary: {
@@ -93,6 +98,7 @@ type SourceDocumentIntakeProof = {
 async function main() {
 	forceLocalEnv(["DATABASE_URL"]);
 	const runtime = await loadRuntime();
+	const maxPerHost = boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST, 2, 1, 10);
 	const proof: SourceDocumentIntakeProof = {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
@@ -107,7 +113,14 @@ async function main() {
 			parseDrainMs: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_PARSE_DRAIN_MS, 2_000, 0, 30_000),
 			dryRun: process.env.SOURCE_DOCUMENT_INTAKE_DRY_RUN === "1",
 			retryFailed: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_FAILED === "0" ? false : true,
-			maxPerHost: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST, 2, 1, 10),
+			maxPerHost,
+			fillMaxPerHost: boundedNumber(
+				process.env.SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST,
+				Math.min(25, Math.max(maxPerHost * 3, maxPerHost)),
+				1,
+				25
+			),
+			retryProtectedHosts: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS === "1",
 		},
 		selected: [],
 		results: [],
@@ -215,24 +228,37 @@ async function selectDiscoveredDocuments(
 			documentName: opportunityDocuments.documentName,
 			sourceUrl: opportunityDocuments.sourceUrl,
 			downloadAttempts: opportunityDocuments.downloadAttempts,
+			status: opportunityDocuments.status,
+			lastError: opportunityDocuments.lastError,
 		})
 		.from(opportunityDocuments)
 		.innerJoin(schema.opportunities, eq(schema.opportunities.id, opportunityDocuments.opportunityId))
 		.where(and(...conditions))
-		.orderBy(directDocumentRank, desc(opportunityDocuments.discoveredAt), desc(opportunityDocuments.createdAt))
+		.orderBy(
+			directDocumentRank,
+			asc(opportunityDocuments.downloadAttempts),
+			desc(opportunityDocuments.discoveredAt),
+			desc(opportunityDocuments.createdAt)
+		)
 		.limit(candidateLimit);
 
+	const solicitationCandidates = candidates
+		.filter(isLikelySolicitationSource)
+		.filter((candidate) => config.retryProtectedHosts || isRetryableSourceCandidate(candidate));
+
 	return diversifyCandidates(
-		candidates.filter(isLikelySolicitationSource),
+		solicitationCandidates,
 		config.limit,
-		config.maxPerHost
+		config.maxPerHost,
+		config.fillMaxPerHost
 	);
 }
 
 function diversifyCandidates<T extends { sourceUrl: string }>(
 	candidates: T[],
 	limit: number,
-	maxPerHost: number
+	maxPerHost: number,
+	fillMaxPerHost: number
 ): T[] {
 	const selected: T[] = [];
 	const seenUrls = new Set<string>();
@@ -256,8 +282,13 @@ function diversifyCandidates<T extends { sourceUrl: string }>(
 		const normalizedUrl = normalizeSourceUrl(candidate.sourceUrl);
 		if (seenUrls.has(normalizedUrl)) continue;
 
+		const host = sourceHost(candidate.sourceUrl);
+		const hostCount = hostCounts.get(host) ?? 0;
+		if (hostCount >= fillMaxPerHost) continue;
+
 		selected.push(candidate);
 		seenUrls.add(normalizedUrl);
+		hostCounts.set(host, hostCount + 1);
 		if (selected.length >= limit) return selected;
 	}
 
@@ -285,6 +316,18 @@ function sourceHost(value: string): string {
 function isLikelySolicitationSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`;
 	return !NON_SOLICITATION_DOCUMENT_PATTERN.test(haystack);
+}
+
+function isRetryableSourceCandidate(value: {
+	sourceUrl: string;
+	status: string;
+	downloadAttempts: number;
+	lastError: string | null;
+}): boolean {
+	if (value.status !== "failed") return true;
+	if (value.downloadAttempts < 1) return true;
+	if (!/403|forbidden/i.test(value.lastError ?? "")) return true;
+	return !PROTECTED_403_RETRY_HOSTS.has(sourceHost(value.sourceUrl));
 }
 
 async function ingestDocument(

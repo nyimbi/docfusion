@@ -32,6 +32,12 @@ Operators can run live discovery from the Opportunities page with the `Discover`
 
 If the request body omits both `query`/`queries` and `sourceUrls`, the API runs the broad default collection profile. That profile combines curated procurement portals with procurement-intent SearXNG RFP queries, including submission-deadline RFPs, consultancy RFPs, ICT tender notices, software development tenders, grant-management systems, health information systems, monitoring and evaluation work, data platforms, ERP, cybersecurity, digital health, and regional consulting EOIs. Default search fans out through SearXNG across `google`, `duckduckgo`, `bing`, and `brave`; engine-specific denial or throttling is recorded as a warning while reachable engines continue importing candidates. To run source scraping only, pass an explicit `sourceUrls` array with no query fields.
 
+## Source Document Intake Backpressure
+
+`npm run source-docs:intake` is the bounded bridge from selected source-document rows into downloaded RFP documents and parser jobs. It prefers direct document URLs, then lower-attempt rows, then newer rows. The first selection pass keeps host diversity with `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST` defaulting to 2; the fill pass can relax that to `SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST`, defaulting to three times the host cap. This keeps high-yield hosts from underfilling a batch without allowing one problematic host to consume the whole run.
+
+Retry mode is still enabled by default for rows under `SOURCE_DOCUMENT_INTAKE_MAX_ATTEMPTS`, but known protected hosts that already returned 403 are suppressed from normal retries. Set `SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=1` only for a targeted protected-portal recovery run; routine intake should leave it unset so recoverable AFDB/EBRD/archive failures can be retried without DGMarket crowding out the batch.
+
 For API-key manual execution:
 
 ```bash
