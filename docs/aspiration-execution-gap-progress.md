@@ -34,9 +34,10 @@ Verification:
 - `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts` passed with 39 tests.
 - `npx tsc --noEmit --pretty false` passed.
 - Bounded live probe against `site:ungm.org/Public/Notice "Request for Proposal"` did not provide acceptance evidence because the primary SearXNG response produced no accepted results for that exact query, public fallbacks returned 403/429, and the local DB connection for the zero-record audit insert was refused at `88.80.188.224:5432`.
+- Corrected live script-path probe `live_search_acceptance_probe_20260529`, using forced local env against `db.lindela.io`, completed successfully in search-only mode: 12 records, 0 imported, 12 updated, 0 failed, 0 source-document downloads by design, and 175 warnings dominated by SearXNG engine degradation/public fallback 403/429 noise.
 
 Remaining after this slice:
-- Continue live broad discovery after database connectivity is available and compare `search_no_candidates` frequency against the prior runs.
+- Continue live broad discovery through the normal scripts, which force local DB env, and compare `search_no_candidates` frequency against the prior runs.
 - Add trusted `SEARXNG_FALLBACK_URLS` instances; public `searx.space` fallback remained rate-limited during the probe.
 
 ### 2026-05-29 - SearXNG Fallback Covers Partial Engine Degradation
