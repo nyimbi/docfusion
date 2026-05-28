@@ -38,7 +38,7 @@ describe("default discovery sources", () => {
 			"https://www.unicef.org/supply/tender-calendars",
 			"https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
 			"https://sam.gov/search/?index=opp&keywords=USAID",
-			"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/tenders",
+			"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal",
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 		]);

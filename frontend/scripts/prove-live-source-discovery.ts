@@ -31,7 +31,7 @@ interface LiveSourceDiscoveryProof {
 		markdownLength: number;
 		linkCount: number;
 		opportunityCount: number;
-		scrapeMethod: "firecrawl" | "browser_fallback";
+		scrapeMethod: "firecrawl" | "browser_fallback" | "source_api";
 		browserServiceUrl?: string;
 		fallbackReason?: string;
 		sampleOpportunities: Array<{
@@ -72,12 +72,23 @@ async function main() {
 }
 
 async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source"]> {
+	const parser = parserForSourceUrl(SOURCE_URL);
+	if (isSourceApiParser(parser)) {
+		const parsed = await parser.parse({ url: SOURCE_URL });
+		return sourceProofFromParsed({
+			parsed,
+			title: parser.name,
+			markdown: "",
+			links: [],
+			scrapeMethod: "source_api",
+		});
+	}
+
 	const client = new FirecrawlClient({ timeout: SCRAPE_TIMEOUT_MS });
 	const result = await client.scrape(SOURCE_URL, {
 		formats: ["markdown", "html", "links"],
 		timeout: SCRAPE_TIMEOUT_MS,
 	});
-	const parser = parserForSourceUrl(SOURCE_URL);
 	let markdown = result.data?.markdown ?? result.data?.html ?? "";
 	let html = result.data?.html ?? "";
 	let links = result.data?.links ?? [];
@@ -119,18 +130,38 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 			url: SOURCE_URL,
 		});
 	}
-	if (parsed.opportunities.length === 0) {
+	return sourceProofFromParsed({
+		parsed,
+		title,
+		markdown,
+		links,
+		scrapeMethod,
+		browserServiceUrl,
+		fallbackReason,
+	});
+}
+
+function sourceProofFromParsed(input: {
+	parsed: Awaited<ReturnType<ReturnType<typeof parserForSourceUrl>["parse"]>>;
+	title?: string;
+	markdown: string;
+	links: string[];
+	scrapeMethod: LiveSourceDiscoveryProof["source"]["scrapeMethod"];
+	browserServiceUrl?: string;
+	fallbackReason?: string;
+}): LiveSourceDiscoveryProof["source"] {
+	if (input.parsed.opportunities.length === 0) {
 		throw new Error("Configured tender parser returned no source opportunities");
 	}
 
-	const firstTitle = parsed.opportunities[0]?.title ?? "";
+	const firstTitle = input.parsed.opportunities[0]?.title ?? "";
 	if (firstTitle.trim().length === 0) {
 		throw new Error("Source opportunity title was empty after normalization");
 	}
 	if (/\b(Title|Ref No|Deadline|Posted)\b/i.test(firstTitle)) {
 		throw new Error(`Source opportunity title was not normalized: ${firstTitle}`);
 	}
-	const malformedCountry = parsed.opportunities
+	const malformedCountry = input.parsed.opportunities
 		.slice(0, 5)
 		.find((opportunity) => /<br|https?:\/\//i.test(String(opportunity.countryRegion ?? "")));
 	if (malformedCountry) {
@@ -139,14 +170,14 @@ async function proveConfiguredSource(): Promise<LiveSourceDiscoveryProof["source
 
 	return {
 		url: SOURCE_URL,
-		title,
-		markdownLength: markdown.trim().length,
-		linkCount: links.length,
-		opportunityCount: parsed.opportunities.length,
-		scrapeMethod,
-		browserServiceUrl,
-		fallbackReason,
-		sampleOpportunities: parsed.opportunities.slice(0, 5).map((opportunity) => ({
+		title: input.title,
+		markdownLength: input.markdown.trim().length,
+		linkCount: input.links.length,
+		opportunityCount: input.parsed.opportunities.length,
+		scrapeMethod: input.scrapeMethod,
+		browserServiceUrl: input.browserServiceUrl,
+		fallbackReason: input.fallbackReason,
+		sampleOpportunities: input.parsed.opportunities.slice(0, 5).map((opportunity) => ({
 			title: opportunity.title,
 			noticeId: opportunity.noticeId ?? undefined,
 			organization: opportunity.organization ?? undefined,
@@ -191,9 +222,14 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
 	if (host.includes("ebrd.com")) return getParser("ebrd") ?? genericParser;
 	if (host.includes("sam.gov")) return getParser("sam_gov") ?? genericParser;
+	if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) return getParser("eu_funding_tenders") ?? genericParser;
 	if (host.includes("dgmarket.com")) return getParser("dgmarket") ?? genericParser;
 	if (host.includes("giz.de") && new URL(sourceUrl).pathname.endsWith("/tenders")) return getParser("giz") ?? genericParser;
 	return genericParser;
+}
+
+function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boolean {
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders";
 }
 
 async function writeArtifacts(proof: LiveSourceDiscoveryProof, disposition: EvidenceRecord["disposition"]) {

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - EU Funding & Tenders Source API Added
+
+Status: implemented and verified.
+
+Purpose: replace the zero-yield EU Funding & Tenders Angular-page scrape with source-specific SEDIA API collection so current EU calls enter opportunity and source-document intake.
+
+Changes in this slice:
+- Added an `eu_funding_tenders` parser backed by the public SEDIA search API, with future-deadline filtering, canonical portal URLs, grant/tender classification, budget/sector metadata, and source identity preservation.
+- Updated the default EU source to the calls-for-proposals view with a `proposal` query, replacing the generic tenders Angular shell.
+- Routed EU Funding & Tenders URLs through the source-specific parser in discovery import and live source proof scripts.
+- Let API-backed configured sources (`sam_gov`, `eu_funding_tenders`) parse directly in the importer and source proof script instead of forcing Firecrawl/browser scraping first, eliminating misleading degraded source-health warnings when the API path succeeds.
+
+Verification:
+- `npm test -- eu-funding-tenders-parser.test.ts sam-gov-parser.test.ts ebrd-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 44 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `env LIVE_SOURCE_DISCOVERY_URL='https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_eu_funding_source_api npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_eu_funding_source_api_20260528T075838Z`; the source API returned 2 current EU opportunities without Firecrawl/browser dependency.
+- `env LIVE_DISCOVERY_IMPORT_RUN_ID=live_eu_funding_import_20260528T0757 LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed with 2 total candidates, 2 updates, 0 failures, 0 warnings, healthy source status, and 2 existing source-document rows.
+
+Remaining after this slice:
+- Expand EU search coverage beyond the first `proposal` query once dedupe behavior remains stable in scheduled broad imports.
+- Continue replacing empty generic sources with source-specific API or browser paths, especially ADB and AIIB/IsDB coverage.
+
 ### 2026-05-28 - SAM.gov RFP and USAID Source Collection Added
 
 Status: implemented and verified.

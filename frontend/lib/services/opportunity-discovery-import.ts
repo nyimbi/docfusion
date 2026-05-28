@@ -143,7 +143,7 @@ interface ConfiguredSourceParseResult {
 	parseResult: ParseResult;
 	scrapeResult: FirecrawlScrapeResult;
 	attempts: number;
-	method: "firecrawl" | "browser_fallback";
+	method: "firecrawl" | "browser_fallback" | "source_api";
 	fallbackReason?: string;
 	lastEmptyMessage?: string;
 }
@@ -284,11 +284,16 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("worldbank.org")) sourceId = "world_bank";
 	else if (host.includes("ebrd.com")) sourceId = "ebrd";
 	else if (host.includes("sam.gov")) sourceId = "sam_gov";
+	else if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) sourceId = "eu_funding_tenders";
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
+}
+
+function isSourceApiParser(parser: TenderParser): boolean {
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders";
 }
 
 function isLikelyOpportunity(result: SearxngResult): boolean {
@@ -546,6 +551,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "world_bank") return "World Bank";
 	if (opportunity?.source === "ebrd") return "EBRD";
 	if (opportunity?.source === "sam_gov") return "SAM.gov";
+	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
@@ -565,6 +571,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "world_bank" ? ["world-bank", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "ebrd" ? ["ebrd", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "sam_gov" ? ["sam-gov", "us-federal"] : []),
+		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
@@ -850,7 +857,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
@@ -1130,6 +1137,32 @@ async function scrapeAndParseConfiguredSource(
 	options: { browserFallback: boolean }
 ): Promise<ConfiguredSourceParseResult> {
 	const parser = parserForSourceUrl(sourceUrl);
+	if (isSourceApiParser(parser)) {
+		const parseResult = await parser.parse({ url: sourceUrl });
+		return {
+			parser,
+			parseResult,
+			scrapeResult: parseResult.opportunities.length > 0
+				? {
+					success: true,
+					data: {
+						markdown: "",
+						links: [],
+						metadata: {
+							title: parser.name,
+							description: `${parser.name} parsed from its public source API.`,
+						},
+					},
+				}
+				: {
+					success: false,
+					error: parseResult.error ?? `${parser.name} source API returned no opportunities`,
+				},
+			attempts: 1,
+			method: "source_api",
+			lastEmptyMessage: parseResult.error ?? `${parser.name} source API returned no opportunities.`,
+		};
+	}
 	const maxAttempts = configuredSourceScrapeAttempts();
 	let lastScrapeResult: FirecrawlScrapeResult | undefined;
 	let lastParseResult: ParseResult = { opportunities: [] };

@@ -1049,6 +1049,74 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports EU Funding & Tenders calls from the SEDIA search endpoint", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "EU Funding & Tenders Portal",
+				links: [],
+				metadata: { title: "EU Funding & Tenders Portal" },
+			},
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				totalResults: 1,
+				results: [{
+					reference: "HORIZON-EIC-2026-ACCELERATOR-01en",
+					url: "https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/HORIZON-EIC-2026-ACCELERATOR-01.json",
+					summary: "EIC Accelerator 2026 - Short proposal",
+					metadata: {
+						title: ["EIC Accelerator 2026 - Short proposal"],
+						identifier: ["HORIZON-EIC-2026-ACCELERATOR-01"],
+						callTitle: ["EIC Accelerator 2026"],
+						description: ["<p>Funding for innovative companies preparing a short proposal.</p>"],
+						type: ["1"],
+						status: ["31094502"],
+						sortStatus: ["1"],
+						deadlineDate: ["2099-12-17T00:00:00.000+0000"],
+						startDate: ["2099-01-01T00:00:00.000+0000"],
+						frameworkProgramme: ["Horizon Europe"],
+					},
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.tech.ec.europa.eu/search-api/prod/rest/search?apiKey=SEDIA&text=proposal&pageSize=25&pageNumber=1",
+			expect.objectContaining({ method: "POST" })
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "EIC Accelerator 2026 - Short proposal",
+			source: "eu_funding_tenders",
+			sourcePlatform: "EU Funding & Tenders",
+			sourceFile: "source:https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal",
+			opportunityType: "grant",
+			tags: ["external-discovery", "source-scrape", "eu-funding-tenders", "european-commission", "eu-grant"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal",
+				}),
+			}),
+		}));
+	});
+
 	it("uses browser fallback for configured source URLs when Firecrawl is blocked", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
