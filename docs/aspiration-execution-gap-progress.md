@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - EBRD Procurement Notices Recovered
+
+Status: implemented and verified.
+
+Purpose: replace the empty generic EBRD landing-page scrape with a source-specific path that reads the EBRD procurement-notice JSON endpoint and turns current EBRD notices into importable opportunities.
+
+Changes in this slice:
+- Added an `ebrd` parser that posts the EBRD procurement-notices page configuration to `/bin/ebrd_dxp/filterlistservlet` and converts the returned notice records into opportunity candidates.
+- Updated default discovery sources from the informational EBRD procurement landing page to the active EBRD procurement-notices page.
+- Routed EBRD source URLs through the EBRD parser in both discovery import and live source proof scripts.
+- Preserved EBRD source identity, platform name, and source tags through the import path so imported rows are not collapsed into generic `source-scrape` records.
+
+Verification:
+- `npm test -- ebrd-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 34 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `env LIVE_SOURCE_DISCOVERY_URL=https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_ebrd_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_ebrd_source_20260528T072619Z`; Firecrawl captured the page and the EBRD parser returned 7 current procurement notices.
+- `env LIVE_DISCOVERY_IMPORT_RUN_ID=live_ebrd_import_20260528T0727 LIVE_DISCOVERY_IMPORT_SOURCE_URLS=https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed with 7 total candidates, 7 created opportunities, 0 failures, 0 warnings, and 7 source-document rows seeded.
+
+Remaining after this slice:
+- EBRD ECEPP remains protected behind a separate portal and returned HTTP 403 to direct curl; broader EBRD coverage may need browser or authenticated ECEPP handling later.
+- Continue replacing empty generic sources, especially SAM.gov, EU Funding & Tenders, ADB, and USAID.
+
 ### 2026-05-28 - DB-Backed Kenya PPIP Import-to-Response Restored
 
 Status: implemented and verified.

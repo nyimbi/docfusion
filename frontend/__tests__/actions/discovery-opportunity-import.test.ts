@@ -917,6 +917,71 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports EBRD procurement notices from the source-specific filter endpoint", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				html: `<section data-cardType="procurement-notices" data-filterPath="/content/ebrd_dxp/uk/en/home/work-with-us/project-procurement/procurement-notices"></section>`,
+				markdown: "Procurement Notices",
+				links: [],
+				metadata: { title: "EBRD Procurement Notices" },
+			},
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				resultCount: [{ resultCount: 1, cardType: "procurement-notices" }],
+				searchResult: [{
+					pagePath: "/content/ebrd_dxp/uk/en/home/work-with-us/project-procurement/procurement-notices/syunik-customs-and-logistics-centre-9730-oth-54703.html",
+					title: "Syunik Customs and Logistics Centre 9730-OTH-54703",
+					projectUrl: "https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices/syunik-customs-and-logistics-centre-9730-oth-54703.html",
+					projectCountry: "Armenia",
+					projectSector: "Municipal Infrastructure",
+					projectContractType: "Other Notices",
+					projectNoticeType: "Invitation for expressions of interest",
+					projectIssueDate: "18 May 2026",
+					projectCloseDate: "18 Mar 2027",
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.ebrd.com/bin/ebrd_dxp/filterlistservlet",
+			expect.objectContaining({ method: "POST" })
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Syunik Customs and Logistics Centre 9730-OTH-54703",
+			source: "ebrd",
+			sourceId: "ebrd-9730-OTH-54703",
+			sourcePlatform: "EBRD",
+			sourceFile: "source:https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html",
+			countryRegion: "Armenia",
+			opportunityType: "eoi",
+			tags: ["external-discovery", "source-scrape", "ebrd", "development-bank", "global-procurement"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html",
+				}),
+			}),
+		}));
+	});
+
 	it("uses browser fallback for configured source URLs when Firecrawl is blocked", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

@@ -282,6 +282,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("procurement-notices.undp.org")) sourceId = "undp";
 	else if (host === "ungm.org") sourceId = "ungm";
 	else if (host.includes("worldbank.org")) sourceId = "world_bank";
+	else if (host.includes("ebrd.com")) sourceId = "ebrd";
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
@@ -542,6 +543,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "undp") return "UNDP";
 	if (opportunity?.source === "ungm") return "UNGM";
 	if (opportunity?.source === "world_bank") return "World Bank";
+	if (opportunity?.source === "ebrd") return "EBRD";
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
@@ -559,6 +561,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "undp" ? ["undp", "un-procurement"] : []),
 		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
 		...(opportunity?.source === "world_bank" ? ["world-bank", "development-bank", "global-procurement"] : []),
+		...(opportunity?.source === "ebrd" ? ["ebrd", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
@@ -844,7 +847,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
