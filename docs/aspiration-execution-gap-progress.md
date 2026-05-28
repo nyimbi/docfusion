@@ -137,7 +137,7 @@ Remaining after this slice:
 
 ### 2026-05-27 - Persisted Kenya PPIP Proof Still DB Blocked After World Bank Slice
 
-Status: externally blocked.
+Status: superseded by later `db.lindela.io` verification and Kenya PPIP extraction fallback.
 
 Purpose: recheck whether the DB-backed Kenya PPIP persisted import-to-response path became reachable after the live-safe source/readiness expansions.
 
@@ -8627,11 +8627,33 @@ Verification:
 
 Follow-up:
 - The first unsourced proof attempt still used a stale ambient `DATABASE_URL` for `88.80.188.224/lnd`; keep live proof commands explicitly sourced from `frontend/.env.local` or clean the ambient shell environment.
-- `live-kenya-ppip-persisted-import-response` now reaches `db.lindela.io:5432/docfusion` but fails later because Docling extracted 0 source-text characters from the selected Kenya PPIP document; this is now a document extraction/source selection issue, not a database creation or connectivity issue.
+- `live-kenya-ppip-persisted-import-response` now reaches `db.lindela.io:5432/docfusion`; subsequent work made its source extraction resilient when Docling is unavailable or returns empty text.
+
+### 2026-05-28 - Kenya PPIP Persisted Proof Extraction Fallback
+
+Status: implemented and verified.
+
+Purpose: keep the Kenya PPIP persisted import-to-response path working when the first selected tender document is scanned, empty under non-OCR Docling extraction, or Docling itself is temporarily unavailable.
+
+Changes in this slice:
+- Ranked all direct-document response-ready source candidates instead of aborting after the first matching Kenya PPIP opportunity.
+- Continued to the next candidate when document extraction or response package readiness fails.
+- Escalated Docling retries from fast non-OCR extraction to OCR/table extraction.
+- Added a local `pdf-parse` fallback for PDF source documents when Docling health or conversion fails.
+- Validated extracted source text for minimum length and procurement-response indicators before building the response package.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-persisted-import-response --include-live-safe` passed with `frontend/.env.local` sourced.
+- Passing proof run `live_kenya_ppip_persisted_import_response_20260528T034945Z` used source `https://tenders.go.ke/tenders`, saw 834 total Kenya PPIP opportunities, selected `PROVISION OF COMPANY SECRETARIAL SERVICES`, extracted 78,876 characters from the PDF with `doclingStatus: local_pdf_parse`, built a ready-for-review response package, persisted one opportunity, one source document, one RFP document, 24 requirements, six proposal documents, six response documents, and 14 win themes, then restored all proof rows to zero remaining cleanup rows.
+
+Remaining after this slice:
+- Recheck Docling service health on `84.247.181.100:3600`; the proof is now resilient to that outage, but Docling should still be restored for richer extraction/OCR coverage.
+- Promote the same local PDF fallback into the user-facing RFP document ingestion path if live operators hit the same Docling outage outside proof runs.
 
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
-Status: externally blocked.
+Status: superseded by later `db.lindela.io` verification and Kenya PPIP extraction fallback.
 
 Purpose: recheck the DB-backed persisted import-to-response path after the latest live handoff and operator-index work, now that broader verification is allowed again.
 

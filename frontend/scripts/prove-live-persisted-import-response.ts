@@ -3,6 +3,7 @@ import "./load-env";
 import crypto from "node:crypto";
 import path from "node:path";
 import { Pool } from "pg";
+import { PDFParse } from "pdf-parse";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -48,6 +49,36 @@ const SOURCE_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_LI
 const SOURCE_DETAIL_LIMIT = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DETAIL_LIMIT ?? 5);
 const DOCLING_CONVERSION_ATTEMPTS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DOCLING_ATTEMPTS ?? 3);
 const DB_CONNECTION_TIMEOUT_MS = Number(process.env.LIVE_PERSISTED_IMPORT_RESPONSE_DB_TIMEOUT_MS ?? 5000);
+const RESPONSE_READY_TERM_PATTERNS = [
+	{ pattern: /\bsoftware\b/iu, weight: 12 },
+	{ pattern: /\bsystems?\b/iu, weight: 11 },
+	{ pattern: /\bapi\b/iu, weight: 10 },
+	{ pattern: /\bsecurity\b/iu, weight: 10 },
+	{ pattern: /\bdigital\b/iu, weight: 10 },
+	{ pattern: /\bdata\b/iu, weight: 9 },
+	{ pattern: /\bapplications?\b/iu, weight: 9 },
+	{ pattern: /\bmobile\b/iu, weight: 9 },
+	{ pattern: /\bplatforms?\b/iu, weight: 9 },
+	{ pattern: /\bsolutions?\b/iu, weight: 8 },
+	{ pattern: /\baudit\b/iu, weight: 7 },
+	{ pattern: /\bict\b/iu, weight: 7 },
+	{ pattern: /\bcapacity\s+building\b/iu, weight: 6 },
+	{ pattern: /\bimplementation\b/iu, weight: 6 },
+	{ pattern: /\bconsultants?\b/iu, weight: 4 },
+	{ pattern: /\bconsulting\b/iu, weight: 4 },
+	{ pattern: /\bconsultancy\b/iu, weight: 4 },
+	{ pattern: /\bservices?\b/iu, weight: 3 },
+	{ pattern: /\bsurvey\b/iu, weight: 2 },
+] as const;
+const PROCUREMENT_INDICATORS = [
+	"request for expression of interest",
+	"request for proposal",
+	"eoi",
+	"proposal",
+	"tender",
+	"procurement",
+	"submission",
+];
 
 interface PersistedProofIds {
 	organizationId: string;
@@ -208,66 +239,80 @@ async function proveLivePersistedImportResponse(
 ): Promise<Partial<LivePersistedImportResponseProof>> {
 	const schema = await assertPersistedProofSchemaReady();
 	const source = await fetchSourceOpportunities();
-	const opportunity = selectResponseReadyOpportunity(source.opportunities);
-	const documentUrl = opportunity?.rfpLink ?? opportunity?.documentUrl;
-	if (!opportunity || !documentUrl) {
+	const candidates = selectResponseReadyOpportunities(source.opportunities);
+	if (candidates.length === 0) {
 		throw new Error(`${source.kind} source returned no response-ready opportunity with a direct source document`);
 	}
 
-	const extracted = await fetchAndExtractSourceDocument(documentUrl);
-	const responsePackage = buildLiveResponsePackage({
-		opportunity,
-		sourceText: extracted.sourceText,
-	});
-	if (responsePackage.readiness.status !== "ready_for_review") {
-		throw new Error(`Response package was not ready for review: ${responsePackage.readiness.blockers.join("; ")}`);
-	}
-	const persisted = await persistProofRecords(opportunity, extracted, responsePackage, cleanup);
+	let lastCandidateError: Error | undefined;
+	for (const opportunity of candidates) {
+		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl;
+		if (!documentUrl) continue;
 
-	return {
-		source: {
-			kind: source.kind,
-			url: SOURCE_URL,
-			searchUrl: source.searchUrl,
-			apiUrl: source.apiUrl,
-			total: source.total,
-			opportunityCount: source.opportunities.length,
-		},
-		opportunity: {
-			title: opportunity.title,
-			organization: opportunity.organization,
-			sourceId: opportunity.sourceId,
-			portalUrl: opportunity.portalUrl,
-			documentUrl,
-		},
-		document: {
-			url: extracted.url,
-			status: extracted.status,
-			contentType: extracted.contentType,
-			byteLength: extracted.bytes.length,
-			extractedTextLength: extracted.sourceText.length,
-			doclingStatus: extracted.doclingStatus,
-			fileHash: extracted.fileHash,
-		},
-		responseReadiness: {
-			sourceRequirementCount: responsePackage.requirements.length,
-			evaluationCriteriaCount: responsePackage.evaluationCriteria.length,
-			responseDocumentCount: responsePackage.documents.length,
-			responseDocumentTypes: responsePackage.documents.map((document) => document.documentType),
-			totalDraftWordCount: responsePackage.totalWordCount,
-			winThemeSeedCount: responsePackage.winThemeSeeds.length,
-			readinessStatus: responsePackage.readiness.status,
-			readinessWarnings: responsePackage.readiness.warnings,
-			missingDraftEvaluationCriteriaIds: responsePackage.readiness.missingDraftEvaluationCriteriaIds,
-			missingWinThemeEvaluationCriteriaIds: responsePackage.readiness.missingWinThemeEvaluationCriteriaIds,
-		},
-		schema,
-		database: {
-			...databaseTargetFromEnv(),
-			schemaPreflight: "passed",
-		},
-		persisted,
-	};
+		try {
+			const extracted = await fetchAndExtractSourceDocument(documentUrl);
+			const responsePackage = buildLiveResponsePackage({
+				opportunity,
+				sourceText: extracted.sourceText,
+			});
+			if (responsePackage.readiness.status !== "ready_for_review") {
+				throw new Error(`Response package was not ready for review: ${responsePackage.readiness.blockers.join("; ")}`);
+			}
+			const persisted = await persistProofRecords(opportunity, extracted, responsePackage, cleanup);
+
+			return {
+				source: {
+					kind: source.kind,
+					url: SOURCE_URL,
+					searchUrl: source.searchUrl,
+					apiUrl: source.apiUrl,
+					total: source.total,
+					opportunityCount: source.opportunities.length,
+				},
+				opportunity: {
+					title: opportunity.title,
+					organization: opportunity.organization,
+					sourceId: opportunity.sourceId,
+					portalUrl: opportunity.portalUrl,
+					documentUrl,
+				},
+				document: {
+					url: extracted.url,
+					status: extracted.status,
+					contentType: extracted.contentType,
+					byteLength: extracted.bytes.length,
+					extractedTextLength: extracted.sourceText.length,
+					doclingStatus: extracted.doclingStatus,
+					fileHash: extracted.fileHash,
+				},
+				responseReadiness: {
+					sourceRequirementCount: responsePackage.requirements.length,
+					evaluationCriteriaCount: responsePackage.evaluationCriteria.length,
+					responseDocumentCount: responsePackage.documents.length,
+					responseDocumentTypes: responsePackage.documents.map((document) => document.documentType),
+					totalDraftWordCount: responsePackage.totalWordCount,
+					winThemeSeedCount: responsePackage.winThemeSeeds.length,
+					readinessStatus: responsePackage.readiness.status,
+					readinessWarnings: responsePackage.readiness.warnings,
+					missingDraftEvaluationCriteriaIds: responsePackage.readiness.missingDraftEvaluationCriteriaIds,
+					missingWinThemeEvaluationCriteriaIds: responsePackage.readiness.missingWinThemeEvaluationCriteriaIds,
+				},
+				schema,
+				database: {
+					...databaseTargetFromEnv(),
+					schemaPreflight: "passed",
+				},
+				persisted,
+			};
+		} catch (error) {
+			lastCandidateError = error instanceof Error ? error : new Error(String(error));
+		}
+	}
+
+	throw new Error([
+		`${source.kind} source returned ${candidates.length} response-ready direct document candidate(s), but none produced a persisted response package.`,
+		lastCandidateError ? `Last candidate error: ${lastCandidateError.message}` : undefined,
+	].filter(Boolean).join(" "));
 }
 
 const REQUIRED_DB_COLUMNS = [
@@ -366,32 +411,31 @@ async function fetchSourceOpportunities(): Promise<LivePersistedSourceResult> {
 	};
 }
 
-function selectResponseReadyOpportunity(opportunities: OpportunityData[]): OpportunityData | undefined {
-	return opportunities.find((opportunity) => {
-		const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
-		const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${documentUrl}`.toLowerCase();
-		return /\.(pdf|docx?)(?:[?#]|$)/i.test(documentUrl)
-			&& [
-				"software",
-				"system",
-				"api",
-				"security",
-				"digital",
-				"data",
-				"consultancy",
-				"services",
-				"survey",
-				"ict",
-			].some((term) => haystack.includes(term));
-	});
+function selectResponseReadyOpportunities(opportunities: OpportunityData[]): OpportunityData[] {
+	return opportunities
+		.map((opportunity, index) => {
+			const documentUrl = opportunity.rfpLink ?? opportunity.documentUrl ?? "";
+			return {
+				opportunity,
+				index,
+				score: scoreResponseReadyTerms(opportunity, documentUrl),
+				hasDirectDocument: /\.(pdf|docx?)(?:[?#]|$)/i.test(documentUrl),
+			};
+		})
+		.filter((candidate) => candidate.hasDirectDocument && candidate.score > 0)
+		.sort((left, right) => right.score - left.score || left.index - right.index)
+		.map((candidate) => candidate.opportunity);
+}
+
+function scoreResponseReadyTerms(opportunity: OpportunityData, documentUrl: string): number {
+	const haystack = `${opportunity.title} ${opportunity.projectSummary ?? ""} ${opportunity.category ?? ""} ${documentUrl}`.toLowerCase();
+	return RESPONSE_READY_TERM_PATTERNS.reduce(
+		(score, { pattern, weight }) => score + (pattern.test(haystack) ? weight : 0),
+		0
+	);
 }
 
 async function fetchAndExtractSourceDocument(documentUrl: string): Promise<ExtractedSourceDocument> {
-	const doclingHealthy = await checkDoclingHealth();
-	if (!doclingHealthy) {
-		throw new Error("Docling health check failed before live persisted source extraction");
-	}
-
 	const response = await fetchPublicHttpUrl(documentUrl, {
 		headers: {
 			"User-Agent": "DocFusion/1.0 live-persisted-import-response-proof",
@@ -409,7 +453,8 @@ async function fetchAndExtractSourceDocument(documentUrl: string): Promise<Extra
 		throw new Error(`Live persisted source document exceeded ${MAX_DOCUMENT_BYTES} bytes`);
 	}
 
-	const { converted, sourceText } = await convertSourceDocumentWithRetries(bytes, filenameFromUrl(documentUrl));
+	const filename = filenameFromUrl(documentUrl);
+	const { converted, sourceText } = await convertSourceDocumentWithRetries(bytes, filename);
 
 	return {
 		url: documentUrl,
@@ -426,13 +471,19 @@ async function convertSourceDocumentWithRetries(
 	bytes: Buffer,
 	filename: string
 ): Promise<SourceDocumentConversion> {
+	const doclingHealthy = await checkDoclingHealth();
+	if (!doclingHealthy) {
+		return convertSourceDocumentLocally(bytes, filename, "Docling health check failed before live persisted source extraction");
+	}
+
 	let lastError: Error | undefined;
 	for (let attempt = 1; attempt <= DOCLING_CONVERSION_ATTEMPTS; attempt += 1) {
 		try {
+			const conversionOptions = conversionOptionsForAttempt(attempt);
 			const converted = await convertDocument(bytes, filename, {
 				outputFormat: "text",
-				ocr: false,
-				extractTables: false,
+				ocr: conversionOptions.ocr,
+				extractTables: conversionOptions.extractTables,
 				extractImages: false,
 				pageRange: [1, SOURCE_PAGE_LIMIT],
 				documentTimeoutSeconds: 90,
@@ -441,9 +492,7 @@ async function convertSourceDocumentWithRetries(
 				throw new Error(`Docling conversion did not succeed: ${converted.status}`);
 			}
 			const sourceText = cleanExtractedText(converted.text ?? converted.markdown ?? "");
-			if (sourceText.length < 1000) {
-				throw new Error(`Docling extracted too little source text: ${sourceText.length} characters`);
-			}
+			validateExtractedSourceText(sourceText, converted);
 			return { converted, sourceText };
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error));
@@ -453,7 +502,68 @@ async function convertSourceDocumentWithRetries(
 		}
 	}
 
+	if (/\.pdf$/i.test(filename)) {
+		return convertSourceDocumentLocally(bytes, filename, lastError?.message ?? "Docling conversion failed without an error detail");
+	}
+
 	throw lastError ?? new Error("Docling conversion failed without an error detail");
+}
+
+async function convertSourceDocumentLocally(
+	bytes: Buffer,
+	filename: string,
+	reason: string
+): Promise<SourceDocumentConversion> {
+	if (!/\.pdf$/i.test(filename)) {
+		throw new Error(reason);
+	}
+
+	const parser = new PDFParse({ data: bytes });
+	try {
+		const result = await parser.getText({
+			first: SOURCE_PAGE_LIMIT,
+			pageJoiner: "\n\n",
+		});
+		const sourceText = cleanExtractedText(result.text ?? "");
+		validateExtractedSourceText(sourceText, { status: "local_pdf_parse" });
+		return {
+			converted: { status: "local_pdf_parse" },
+			sourceText,
+		};
+	} catch (error) {
+		const fallbackError = error instanceof Error ? error.message : String(error);
+		throw new Error(`${reason}; local PDF extraction failed: ${fallbackError}`);
+	} finally {
+		await parser.destroy();
+	}
+}
+
+function conversionOptionsForAttempt(attempt: number) {
+	if (attempt === 1) {
+		return { ocr: false, extractTables: false };
+	}
+	return { ocr: true, extractTables: true };
+}
+
+function conversionErrorDetail(converted: DoclingConvertResponse): string | undefined {
+	return converted.errors
+		?.map((error) => error.error_message ?? error.module_name ?? error.component_type)
+		.filter((value): value is string => Boolean(value))
+		.join("; ");
+}
+
+function validateExtractedSourceText(sourceText: string, converted: DoclingConvertResponse): void {
+	if (sourceText.length < 1000) {
+		const detail = conversionErrorDetail(converted);
+		throw new Error([
+			`Docling extracted too little source text: ${sourceText.length} characters`,
+			detail ? `Docling errors: ${detail}` : undefined,
+		].filter(Boolean).join("; "));
+	}
+	const lower = sourceText.toLowerCase();
+	if (!PROCUREMENT_INDICATORS.some((indicator) => lower.includes(indicator))) {
+		throw new Error("Docling source text did not contain procurement response language");
+	}
 }
 
 async function persistProofRecords(
