@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Ready Response Packages Publish Stored Final Artifacts
+
+Status: implemented and verified.
+
+Purpose: turn response packages that have passed readiness into approved, stored final DOCX artifacts with object-storage readback receipts instead of leaving them as draft documents.
+
+Changes in this slice:
+- Added `scripts/run-final-artifact-publish.ts`, a bounded live-DB publisher for response packages whose `proposal_response_package` readiness is `ready_for_review`.
+- The publisher renders each eligible proposal document to DOCX, uploads the artifact to Linode E3, downloads it back, verifies hash and byte size, and stores the artifact manifest on the document metadata.
+- It records final artifact render/signoff workflow transitions, marks documents and proposal documents `final`, records final submission signoff metadata, and locks the compliance matrix as final only after artifact readback succeeds.
+- It supports targeted runs by opportunity ID and is idempotent after final artifacts already exist.
+
+Verification:
+- Dry run `live_final_artifact_publish_20260528T113316Z` found 1 ready response package and 6 eligible proposal documents without mutating live rows.
+- Live apply run `live_final_artifact_publish_20260528T113346Z` published 6 DOCX final artifacts for opportunity `aa8f3263-3222-4757-b68d-d4b373eb0adb` and locked the compliance matrix.
+- Each artifact was uploaded to Linode E3 and read back with a matching SHA-256 hash; readback sizes ranged from 10,913 to 12,043 bytes.
+- Direct database verification showed all 6 proposal documents and linked documents are `final`, each has `finalArtifact` metadata, matching artifact/readback hashes, nonzero readback sizes, and `finalSubmissionSignoff` by `system`.
+- Direct database verification showed compliance matrix `4cab1fd7-8da0-41c7-94df-927c9cfee53b` is `final`, approved, has 0 not-addressed requirements, 0 non-compliant requirements, mandatory compliance score 100, and records run id `live_final_artifact_publish_20260528T113346Z`.
+- Follow-up targeted apply run `live_final_artifact_publish_20260528T113542Z` found 0 eligible candidates, confirming the selector does not republish finalized documents.
+
+Remaining after this slice:
+- Submission dispatch/portal receipt recording remains the next material step after final artifacts are available.
+- Replace the service-script `system` approval/signoff actor with an operator-authenticated approval path when running this through the production UI.
+
 ### 2026-05-28 - Persisted Response Packages Reach Standard Readiness
 
 Status: implemented and verified.
