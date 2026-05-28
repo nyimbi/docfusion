@@ -104,8 +104,20 @@ function buildSteps(): CycleStep[] {
 				SOURCE_DOCUMENT_INTAKE_DRY_RUN: APPLY ? "0" : "1",
 				SOURCE_DOCUMENT_INTAKE_RETRY_FAILED: envFlag("RFP_CYCLE_RETRY_FAILED_SOURCES", "0"),
 				SOURCE_DOCUMENT_INTAKE_ORGANIZATION_ID: ORGANIZATION_ID,
+				SOURCE_DOCUMENT_INTAKE_WAIT_FOR_PARSE: "0",
 				SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS: envNumber("RFP_CYCLE_PARSE_TIMEOUT_MS", "180000"),
 				SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST: envNumber("RFP_CYCLE_SOURCE_MAX_PER_HOST", "2"),
+			},
+		},
+		{
+			name: "queued-parse-processing",
+			script: "scripts/process-queued-rfp-parses.ts",
+			required: false,
+			env: {
+				RFP_PARSE_QUEUE_RUN_ID: `${RUN_ID}_queued_parse_processing`,
+				RFP_PARSE_QUEUE_DRY_RUN: APPLY ? "0" : "1",
+				RFP_PARSE_QUEUE_ORGANIZATION_ID: ORGANIZATION_ID,
+				RFP_PARSE_QUEUE_LIMIT: envNumber("RFP_CYCLE_PARSE_QUEUE_LIMIT", "10"),
 			},
 		},
 		{
