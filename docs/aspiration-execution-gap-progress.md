@@ -32,9 +32,13 @@ Changes in this slice:
 Verification:
 - `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 30 tests.
 - `npx tsc --noEmit --pretty false` passed.
+- Live source-document intake run `source_intake_html_gate_live_20260528T2042` selected 10 discovered source documents, downloaded 9, failed 1 DGMarket 403, and queued 7 parse jobs. The run proved lightweight extraction paths in production data: 2 XLSX documents used local spreadsheet extraction, 3 PDFs used `pdftotext`, 2 substantive HTML pages queued, and 2 sparse World Bank HTML pages were stored without parser jobs after yielding only 84 characters.
+- Live queued-parse drain `queued_parse_after_html_gate_live_20260528T2044` processed 7 queued parse jobs, completed 7, failed 0, and extracted 35 requirements.
+- Post-run live database snapshot: 2,991 opportunities, 107 RFP documents, 105 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 650 requirements, 83 RFP documents with requirements, 186 selected discovered source documents, 138 downloaded source documents, and 50 failed source documents.
 
 Remaining after this slice:
 - Continue fixing browser/CloakBrowser recovery for protected source-document pages that still block direct retrieval.
+- Distinguish substantive procurement notice pages from full requirement-bearing RFP/RFQ documents; two live HTML pages had enough content to parse but still produced zero requirements.
 - Continue bounded source-document intake against the remaining discovered source documents, then feed high-fit completed parses into response-package backfill.
 
 ### 2026-05-28 - SearXNG Can Fall Back Through Public Instance Discovery
