@@ -8327,6 +8327,35 @@ Remaining after this slice:
 - Add a stronger browser/Cloak path for challenged source documents that have no SearXNG-indexed or deterministic source-page recovery candidate, such as the UNICEF nutrition bid-plan PDF.
 - Continue batch intake across remaining discovered documents; failed items should now represent genuinely unrecovered sources rather than direct-fetch-only blind spots.
 
+### 2026-05-28 - Source Intake Browser/Cloak Recovery and Retry Drain
+
+Status: implemented and verified, with live UNICEF hard-blockers still requiring a configured CloakBrowser CDP endpoint or another source-specific acquisition route.
+
+Purpose: keep source-document intake progressing across blocked media URLs, previously failed source documents, and browser-only pages without letting one hard-blocked PDF strand the rest of the RFP collection queue.
+
+Changes in this slice:
+- Extended source-document recovery from Firecrawl-only scraping to Firecrawl -> deployed browser scraper -> optional CloakBrowser CDP, recording `browser_*` and `cloakbrowser_*` provenance methods when those paths supply recovered links or HTML source-page surrogates.
+- Rejected Cloudflare/challenge/error pages from recovery scrapes before accepting a recovered HTML surrogate, so browser fallbacks do not convert anti-bot pages into fake RFP content.
+- Expanded deterministic UNICEF-style media recovery slugs to preserve short procurement tokens such as `bid` and quarter tokens such as `4q`, and to try year/quarter-stripped and `unicef`-stripped variants.
+- Included recovered `originalSourceUrl` and `downloadMethod` in persisted RFP metadata, not just the return value.
+- Made later text re-extraction respect `text/html` MIME type for recovered HTML source-page surrogates even when the original discovered filename ends in `.pdf`.
+- Updated `source-docs:intake` to retry previously failed source documents while `downloadAttempts < SOURCE_DOCUMENT_INTAKE_MAX_ATTEMPTS`; `SOURCE_DOCUMENT_INTAKE_RETRY_FAILED=0` disables this.
+- Added `SOURCE_DOCUMENT_INTAKE_PARSE_DRAIN_MS` so live intake waits briefly after terminal parse status before closing the DB pool, avoiding races with parser side-effect workflow writes.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts browser-scraper-client.test.ts cloakbrowser-scraper-client.test.ts --run` passed with 23 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 SOURCE_DOCUMENT_INTAKE_LIMIT=3 npm run source-docs:intake` passed with run `source_document_intake_20260528T055340Z`, selecting previously failed source document `1618acdc-27b1-43d5-ba57-b26bd006aff0`, proving failed-under-attempt-cap items are no longer stranded.
+- `SOURCE_DOCUMENT_INTAKE_LIMIT=2 SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS=240000 npm run source-docs:intake` passed with run `source_document_intake_20260528T055402Z`; both selected UNICEF media URLs remained blocked, and logs showed Firecrawl, browser scraper, and optional CloakBrowser recovery attempts before the failures were recorded.
+- `SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 SOURCE_DOCUMENT_INTAKE_LIMIT=5 npm run source-docs:intake` passed with run `source_document_intake_20260528T055703Z`, showing the queue can continue past failed UNICEF docs to later discovered UNICEF, COMESA HTML, and COMESA DOCX source documents.
+- `SOURCE_DOCUMENT_INTAKE_LIMIT=5 SOURCE_DOCUMENT_INTAKE_MAX_ATTEMPTS=1 SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS=240000 npm run source-docs:intake` passed with run `source_document_intake_20260528T055725Z`; it downloaded and parsed 3 of 5 selected source documents: UNICEF education calendar RFP document `6ac25f56-5eb4-4456-adb4-bda40cb6f314` / parse job `72185f3b-be7c-4bba-a7f9-45a6479eab17` with 2 requirements, COMESA RASIP HTML RFP document `c2a81bbc-845a-4dc2-b0b5-b7307ebcbf1d` / parse job `b0fcc87f-d572-4378-b5a3-aeb923f258ed` with 3 requirements, and COMESA medical scheme DOCX RFP document `764e7022-ae5d-4eaf-b8fd-696f5357132a` / parse job `fc9deec7-16f7-44c9-a425-a08c93dddc3d` with 0 requirements but completed parse status.
+- Current live DB counts after this slice: 2,723 opportunities, 1,611 RFP opportunities, 164 source documents, 11 downloaded source documents, 4 failed source documents, 7 RFP documents, 6 completed RFP documents, 6 completed parse jobs, and 17 persisted RFP requirements.
+
+Remaining after this slice:
+- Configure a real CloakBrowser CDP endpoint or a source-specific UNICEF media acquisition route for PDFs that return 403/time out and have no scrapeable canonical source page through Firecrawl or the deployed browser service.
+- Add source-specific recovery for UNICEF tender calendar media URLs if they keep rotating between direct 403, Firecrawl challenge content, and browser-service 403/404.
+- Investigate low-confidence/zero-requirement completed parses such as `fc9deec7-16f7-44c9-a425-a08c93dddc3d`; completion is mechanically successful but not yet a winning-response-quality extraction.
+
 ### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
 
 Status: implemented and verified.

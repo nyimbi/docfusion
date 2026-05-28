@@ -88,6 +88,8 @@ const dnsLookupMock = vi.hoisted(() =>
 );
 const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 const firecrawlScrapeMock = vi.hoisted(() => vi.fn());
+const browserScrapeMock = vi.hoisted(() => vi.fn());
+const cloakScrapeMock = vi.hoisted(() => vi.fn());
 const searchSearxngMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:dns/promises", () => ({
@@ -107,6 +109,12 @@ vi.mock("@/lib/scrapers/firecrawl", () => ({
 	FirecrawlClient: vi.fn(() => ({
 		scrape: firecrawlScrapeMock,
 	})),
+}));
+vi.mock("@/lib/services/browser-scraper-client", () => ({
+	scrapeWithBrowserService: browserScrapeMock,
+}));
+vi.mock("@/lib/services/cloakbrowser-scraper-client", () => ({
+	scrapeWithCloakBrowser: cloakScrapeMock,
 }));
 vi.mock("@/lib/services/searxng-client", () => ({
 	searchSearxng: searchSearxngMock,
@@ -168,6 +176,8 @@ beforeEach(() => {
 	dbMock.update.mockImplementation(() => createChain());
 	dbMock.delete.mockImplementation(() => createChain());
 	firecrawlScrapeMock.mockResolvedValue({ success: false, error: "not mocked" });
+	browserScrapeMock.mockResolvedValue({ success: false, error: "not mocked" });
+	cloakScrapeMock.mockResolvedValue({ success: false, error: "not configured" });
 	searchSearxngMock.mockResolvedValue({ results: [] });
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue(storageConfig);
 	storageMock.uploadToLinodeE3.mockResolvedValue({
@@ -641,6 +651,133 @@ describe("RFP document fetch storage", () => {
 				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
 			}),
 		});
+	});
+
+	it("uses the browser scraper when Firecrawl recovery returns a challenge page", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Medicines-Tender-Calendar-2025-2026.pdf",
+			sourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000411", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000511" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "<title>Just a moment...</title> checking your browser before accessing unicef.org",
+				html: "<html><title>Just a moment...</title></html>",
+				links: [],
+			},
+		});
+		browserScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Medicines Tender Calendar",
+					"2025-2026 calendar for medicines procurement bidding.",
+					"Suppliers should monitor tender launch timing through UNICEF Supply Division.",
+					"The recovered procurement page includes bid-plan context, expected tender windows, supplier registration guidance, and links back to the blocked source document.",
+					"This content is long enough to be stored as the source-page surrogate when the original PDF remains unavailable to server-side fetch.",
+				].join("\n\n"),
+				html: "<html><body><h1>Medicines Tender Calendar</h1></body></html>",
+				links: ["https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf"],
+			},
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				originalSourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+				downloadMethod: "browser_landing_page_html",
+			}),
+		});
+		expect(browserScrapeMock).toHaveBeenCalledWith(
+			"http://84.247.181.100:3003",
+			"https://www.unicef.org/supply/documents/medicines-tender-calendar",
+			expect.objectContaining({
+				formats: ["markdown", "html", "links"],
+				humanScroll: true,
+				blockMedia: true,
+			})
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("Medicines Tender Calendar"),
+			metadata: expect.objectContaining({
+				downloadMethod: "browser_landing_page_html",
+			}),
+		});
+	});
+
+	it("uses CloakBrowser recovery when Firecrawl and the browser service cannot scrape a candidate", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "UNICEF-Nutrition-Bid-Plan-4Q-2024-2025.pdf",
+			sourceUrl: "https://www.unicef.org/supply/media/22861/file/UNICEF-Nutrition-Bid-Plan-4Q-2024-2025.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000421", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000521" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		firecrawlScrapeMock.mockResolvedValue({ success: false, error: "blocked by challenge" });
+		browserScrapeMock.mockResolvedValue({ success: false, error: "browser service returned challenge page" });
+		cloakScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# UNICEF Nutrition Bid Plan",
+					"4Q 2024-2025 plan for nutrition procurement bidding.",
+					"The CloakBrowser-rendered procurement page includes bid-plan context, expected tender windows, supplier registration guidance, and links back to the blocked source document.",
+					"This rendered page is long enough to be stored as a source-page surrogate when direct PDF fetches and hosted scraping services both fail.",
+				].join("\n\n"),
+				html: "<html><body><h1>UNICEF Nutrition Bid Plan</h1></body></html>",
+				links: [],
+			},
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				downloadMethod: "cloakbrowser_landing_page_html",
+			}),
+		});
+		expect(cloakScrapeMock).toHaveBeenCalledWith(
+			"https://www.unicef.org/supply/documents/unicef-nutrition-bid-plan-4q",
+			expect.objectContaining({
+				humanScroll: true,
+				blockMedia: true,
+			})
+		);
 	});
 
 	it("rejects oversized downloads even when content-length is absent", async () => {

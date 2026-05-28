@@ -20,6 +20,8 @@ import { processRfpDocument, isSupportedFileType } from "@/lib/services/docling-
 import { processRfpParsingJob } from "@/lib/actions/rfp-parser";
 import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { assertPublicHttpUrl, fetchPublicHttpUrl } from "@/lib/security/public-url";
+import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
+import { scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { searchSearxng } from "@/lib/services/searxng-client";
 import {
   buildRfpObjectKey,
@@ -41,6 +43,7 @@ const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
 const MIN_EXTRACTED_TEXT_LENGTH = 10;
 const SOURCE_DOCUMENT_FETCH_TIMEOUT_MS = 60_000;
 const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
+const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
 
 // ============================================================================
 // Types
@@ -105,7 +108,11 @@ type SourceDocumentFetchMethod =
   | "direct"
   | "searxng_direct"
   | "firecrawl_link"
-  | "firecrawl_landing_page_html";
+  | "firecrawl_landing_page_html"
+  | "browser_link"
+  | "browser_landing_page_html"
+  | "cloakbrowser_link"
+  | "cloakbrowser_landing_page_html";
 
 type FetchedSourceDocument = {
   buffer: Buffer;
@@ -121,6 +128,13 @@ type ExtractedDocumentText = {
   text: string;
   pageCount?: number;
   extractor: "docling" | "local_pdf_parse" | "local_docx_parse" | "local_html_text";
+};
+
+type SourceRecoveryScrape = {
+  markdown?: string;
+  html?: string;
+  links?: string[];
+  method: "firecrawl" | "browser" | "cloakbrowser";
 };
 
 interface QueuedRfpParsing {
@@ -1026,12 +1040,13 @@ export async function extractDocumentText(documentId: string): Promise<string | 
     // Read file from Linode E3 or legacy local storage and process with DocLing.
     const buffer = await readDocumentBuffer(doc.localPath, doc.fileHash ?? undefined);
     
-    if (!isSupportedFileType(doc.documentName)) {
-      logger.debug(`[DocLing] File type not supported for extraction: ${doc.documentName}`);
+    const extractionFilename = filenameForExtraction(doc.documentName, doc.mimeType);
+    if (!isSupportedFileType(extractionFilename)) {
+      logger.debug(`[DocLing] File type not supported for extraction: ${extractionFilename}`);
       return null;
     }
 
-    const processed = await extractSupportedDocumentText(buffer, doc.documentName);
+    const processed = await extractSupportedDocumentText(buffer, extractionFilename);
     if (!processed) {
       return null;
     }
@@ -1156,7 +1171,8 @@ async function recoverSourceDocumentViaSearchAndScrape(
     for (const link of extractDocumentLinksFromScrape(scraped, candidateUrl, sourceUrl, documentName)) {
       if (attemptedUrls.has(link.toString())) continue;
       attemptedUrls.add(link.toString());
-      const linked = await tryFetchSourceDocumentUrl(link, documentName, "firecrawl_link");
+      const linkMethod = sourceDocumentLinkMethod(scraped.method);
+      const linked = await tryFetchSourceDocumentUrl(link, documentName, linkMethod);
       if (linked.ok) return linked.document;
     }
 
@@ -1215,19 +1231,21 @@ function deterministicRecoveryCandidates(
   sourceUrl: URL,
   documentName: string
 ): Array<{ url: string; title?: string; content?: string }> {
-  const slug = slugifyDocumentTitle(documentTitleForSearch(documentName));
+  const slugs = slugifyDocumentTitleVariants(documentTitleForSearch(documentName));
   const candidates: Array<{ url: string; title?: string; content?: string }> = [];
 
-  if (/\/media\/.+\/file\/[^/]+$/i.test(sourceUrl.pathname) && slug) {
-    const documentPage = new URL(sourceUrl.toString());
-    documentPage.pathname = documentPage.pathname.replace(/\/media\/.+\/file\/[^/]+$/i, `/documents/${slug}`);
-    documentPage.search = "";
-    documentPage.hash = "";
-    candidates.push({
-      url: documentPage.toString(),
-      title: documentTitleForSearch(documentName),
-      content: "same-host media-file document landing page",
-    });
+  if (/\/media\/.+\/file\/[^/]+$/i.test(sourceUrl.pathname)) {
+    for (const slug of slugs) {
+      const documentPage = new URL(sourceUrl.toString());
+      documentPage.pathname = documentPage.pathname.replace(/\/media\/.+\/file\/[^/]+$/i, `/documents/${slug}`);
+      documentPage.search = "";
+      documentPage.hash = "";
+      candidates.push({
+        url: documentPage.toString(),
+        title: documentTitleForSearch(documentName),
+        content: "same-host media-file document landing page",
+      });
+    }
   }
 
   return candidates;
@@ -1255,28 +1273,87 @@ function buildSourceRecoveryQueries(sourceUrl: URL, documentName: string): strin
   ];
 }
 
-async function scrapeRecoveryCandidate(candidateUrl: URL): Promise<{
-  markdown?: string;
-  html?: string;
-  links?: string[];
-} | undefined> {
+async function scrapeRecoveryCandidate(candidateUrl: URL): Promise<SourceRecoveryScrape | undefined> {
   const firecrawl = new FirecrawlClient({ timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS });
   const result = await firecrawl.scrape(candidateUrl.toString(), {
     formats: ["markdown", "html", "links"],
     timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS,
   });
-  if (!result.success) {
+  if (result.success) {
+    const scrape = {
+      markdown: result.data?.markdown,
+      html: result.data?.html ?? result.data?.rawHtml,
+      links: result.data?.links,
+      method: "firecrawl" as const,
+    };
+    if (isUsableRecoveryScrape(scrape)) {
+      return scrape;
+    }
+    logger.warn("[RFP Document Service] Firecrawl recovery scrape returned unusable source content", {
+      candidateUrl: candidateUrl.toString(),
+    });
+  } else {
     logger.warn("[RFP Document Service] Firecrawl recovery scrape failed", {
       candidateUrl: candidateUrl.toString(),
       error: result.error,
     });
+  }
+
+  const browser = await scrapeWithBrowserService(BROWSER_SCRAPER_URL, candidateUrl.toString(), {
+    formats: ["markdown", "html", "links"],
+    humanScroll: true,
+    blockMedia: true,
+    timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS,
+  });
+  if (!browser.success) {
+    logger.warn("[RFP Document Service] Browser recovery scrape failed", {
+      candidateUrl: candidateUrl.toString(),
+      browserServiceUrl: BROWSER_SCRAPER_URL,
+      error: browser.error,
+    });
+  } else {
+    const scrape = {
+      markdown: browser.data?.markdown,
+      html: browser.data?.html,
+      links: browser.data?.links,
+      method: "browser" as const,
+    };
+    if (!isUsableRecoveryScrape(scrape)) {
+      logger.warn("[RFP Document Service] Browser recovery scrape returned unusable source content", {
+        candidateUrl: candidateUrl.toString(),
+        browserServiceUrl: BROWSER_SCRAPER_URL,
+      });
+    } else {
+      return scrape;
+    }
+  }
+
+  const cloak = await scrapeWithCloakBrowser(candidateUrl.toString(), {
+    humanScroll: true,
+    blockMedia: true,
+    timeout: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS,
+  });
+  if (!cloak.success) {
+    logger.warn("[RFP Document Service] CloakBrowser recovery scrape failed", {
+      candidateUrl: candidateUrl.toString(),
+      error: cloak.error,
+    });
     return undefined;
   }
-  return {
-    markdown: result.data?.markdown,
-    html: result.data?.html ?? result.data?.rawHtml,
-    links: result.data?.links,
+
+  const cloakScrape = {
+    markdown: cloak.data?.markdown,
+    html: cloak.data?.html,
+    links: cloak.data?.links,
+    method: "cloakbrowser" as const,
   };
+  if (!isUsableRecoveryScrape(cloakScrape)) {
+    logger.warn("[RFP Document Service] CloakBrowser recovery scrape returned unusable source content", {
+      candidateUrl: candidateUrl.toString(),
+    });
+    return undefined;
+  }
+  return cloakScrape;
 }
 
 function extractDocumentLinksFromScrape(
@@ -1317,10 +1394,14 @@ function isAllowedRecoveredDocumentLink(
 function buildScrapedSourceDocument(
   pageUrl: URL,
   documentName: string,
-  scraped: { markdown?: string; html?: string }
+  scraped: SourceRecoveryScrape
 ): FetchedSourceDocument | undefined {
   const content = cleanExtractedText(scraped.markdown || scraped.html || "");
-  if (content.length < 250 || !/\b(tender|rfp|bid|procurement|calendar|proposal|solicitation)\b/i.test(content)) {
+  if (
+    content.length < 250 ||
+    isChallengeOrErrorPage(content) ||
+    !/\b(tender|rfp|bid|procurement|calendar|proposal|solicitation)\b/i.test(content)
+  ) {
     return undefined;
   }
 
@@ -1343,7 +1424,7 @@ function buildScrapedSourceDocument(
     originalUrl: pageUrl.toString(),
     filename: replaceFileExtension(documentName, ".html"),
     extractionFilename: replaceFileExtension(documentName, ".html"),
-    method: "firecrawl_landing_page_html",
+    method: sourceDocumentLandingPageMethod(scraped.method),
   };
 }
 
@@ -1358,6 +1439,18 @@ function browserLikeDocumentHeaders(url: URL): Record<string, string> {
 
 function shouldTrySourceRecovery(status: number | undefined): boolean {
   return status === 401 || status === 403 || status === 404 || status === 429 || status === 503;
+}
+
+function sourceDocumentLinkMethod(method: SourceRecoveryScrape["method"]): SourceDocumentFetchMethod {
+  if (method === "browser") return "browser_link";
+  if (method === "cloakbrowser") return "cloakbrowser_link";
+  return "firecrawl_link";
+}
+
+function sourceDocumentLandingPageMethod(method: SourceRecoveryScrape["method"]): SourceDocumentFetchMethod {
+  if (method === "browser") return "browser_landing_page_html";
+  if (method === "cloakbrowser") return "cloakbrowser_landing_page_html";
+  return "firecrawl_landing_page_html";
 }
 
 function scoreRecoveryCandidate(
@@ -1410,6 +1503,26 @@ function looksLikeHtml(buffer: Buffer): boolean {
   return /^<!doctype html\b/i.test(prefix) || /^<html[\s>]/i.test(prefix);
 }
 
+function isUsableRecoveryScrape(scraped: { markdown?: string; html?: string; links?: string[] }): boolean {
+  const content = cleanExtractedText(scraped.markdown || scraped.html || "");
+  if (isChallengeOrErrorPage(content)) return false;
+  if ((scraped.links?.length ?? 0) > 0) return true;
+  return content.length >= 80;
+}
+
+function isChallengeOrErrorPage(content: string): boolean {
+  const value = content.toLowerCase();
+  return (
+    value.includes("just a moment") ||
+    value.includes("checking your browser") ||
+    value.includes("challenge-platform") ||
+    value.includes("cloudflare") ||
+    value.includes("page not found") ||
+    value.includes("access denied") ||
+    value.includes("forbidden")
+  );
+}
+
 function documentTitleForSearch(documentName: string): string {
   return basename(documentName)
     .replace(/\.[^.]+$/, "")
@@ -1424,18 +1537,51 @@ function tokenizeDocumentTitle(value: string): string[] {
     .filter((token) => token.length >= 4);
 }
 
-function slugifyDocumentTitle(value: string): string {
-  const tokens = tokenizeDocumentTitle(value);
-  while (tokens.length > 1 && /^20\d{2}$/.test(tokens[tokens.length - 1])) {
-    tokens.pop();
+function slugifyDocumentTitleVariants(value: string): string[] {
+  const fullTokens = value.toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 3 || /^q[1-4]$/.test(token) || /^[1-4]q$/.test(token));
+  const variants: string[][] = [];
+
+  const withoutTrailingYears = [...fullTokens];
+  while (withoutTrailingYears.length > 1 && /^20\d{2}$/.test(withoutTrailingYears[withoutTrailingYears.length - 1])) {
+    withoutTrailingYears.pop();
   }
-  return tokens.join("-");
+  const withoutTrailingYearsAndQuarter = [...withoutTrailingYears];
+  if (/^(q[1-4]|[1-4]q)$/.test(withoutTrailingYearsAndQuarter[withoutTrailingYearsAndQuarter.length - 1] ?? "")) {
+    withoutTrailingYearsAndQuarter.pop();
+  }
+  variants.push(withoutTrailingYears, withoutTrailingYearsAndQuarter, fullTokens);
+
+  if (withoutTrailingYears[0] === "unicef") {
+    variants.push(withoutTrailingYears.slice(1));
+  }
+  if (withoutTrailingYearsAndQuarter[0] === "unicef") {
+    variants.push(withoutTrailingYearsAndQuarter.slice(1));
+  }
+  if (fullTokens[0] === "unicef") {
+    variants.push(fullTokens.slice(1));
+  }
+
+  const seen = new Set<string>();
+  return variants
+    .map((tokens) => tokens.join("-"))
+    .filter((slug) => {
+      if (!slug || seen.has(slug)) return false;
+      seen.add(slug);
+      return true;
+    });
 }
 
 function replaceFileExtension(filename: string, extension: string): string {
   const current = extname(filename);
   if (!current) return `${filename}${extension}`;
   return `${filename.slice(0, -current.length)}${extension}`;
+}
+
+function filenameForExtraction(filename: string, mimeType: string | null | undefined): string {
+  if (mimeType && isHtmlMimeType(mimeType)) return replaceFileExtension(filename, ".html");
+  return filename;
 }
 
 function escapeHtml(value: string): string {
@@ -1733,10 +1879,14 @@ async function queueRfpParsingFromDownloadedDocument(params: {
         source: params.provenance.source,
         sourceOpportunityDocumentId: params.provenance.sourceOpportunityDocumentId,
         sourceUrl: params.provenance.sourceUrl,
+        originalSourceUrl: params.provenance.originalSourceUrl,
+        downloadMethod: params.provenance.downloadMethod,
         ingestWorkflow: {
           state: "queued_for_parse",
           source: params.provenance.source,
           sourceOpportunityDocumentId: params.provenance.sourceOpportunityDocumentId,
+          originalSourceUrl: params.provenance.originalSourceUrl,
+          downloadMethod: params.provenance.downloadMethod,
           downloadedBy: params.provenance.downloadedBy,
           downloadedAt: params.provenance.downloadedAt,
         },

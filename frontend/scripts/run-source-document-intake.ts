@@ -2,7 +2,7 @@ import "./load-env";
 
 import path from "node:path";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
 import { opportunityDocuments, rfpParsingJobs } from "@/lib/db/schema";
 import { forceLocalEnv } from "./env-utils";
@@ -63,7 +63,9 @@ type SourceDocumentIntakeProof = {
 		waitForParse: boolean;
 		parseTimeoutMs: number;
 		pollMs: number;
+		parseDrainMs: number;
 		dryRun: boolean;
+		retryFailed: boolean;
 	};
 	selected: Array<{
 		id: string;
@@ -100,7 +102,9 @@ async function main() {
 			waitForParse: process.env.SOURCE_DOCUMENT_INTAKE_WAIT_FOR_PARSE === "0" ? false : true,
 			parseTimeoutMs: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_PARSE_TIMEOUT_MS, 180_000, 5_000, 600_000),
 			pollMs: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_POLL_MS, 2_500, 500, 30_000),
+			parseDrainMs: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_PARSE_DRAIN_MS, 2_000, 0, 30_000),
 			dryRun: process.env.SOURCE_DOCUMENT_INTAKE_DRY_RUN === "1",
+			retryFailed: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_FAILED === "0" ? false : true,
 		},
 		selected: [],
 		results: [],
@@ -172,7 +176,9 @@ async function selectDiscoveredDocuments(
 		])
 	);
 	const conditions = [
-		eq(opportunityDocuments.status, "discovered"),
+		config.retryFailed
+			? inArray(opportunityDocuments.status, ["discovered", "failed"])
+			: eq(opportunityDocuments.status, "discovered"),
 		eq(opportunityDocuments.isSelected, true),
 		lt(opportunityDocuments.downloadAttempts, config.maxAttempts),
 		sql`${opportunityDocuments.sourceUrl} is not null`,
@@ -277,6 +283,9 @@ async function waitForParseCompletion(
 		};
 
 		if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+			if (config.parseDrainMs > 0) {
+				await sleep(config.parseDrainMs);
+			}
 			return latest;
 		}
 
