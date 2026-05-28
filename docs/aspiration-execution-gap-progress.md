@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - JavaScript Sources Use Browser as Primary Collection
+
+Status: implemented and verified.
+
+Purpose: remove false degradation and wasted Firecrawl attempts for configured sources that are known to require JavaScript rendering, starting with UN Procurement.
+
+Changes in this slice:
+- Honored parser `requiresJavascript` in configured-source imports by using the browser service as the primary source collection path when browser collection is enabled.
+- Added `browser_source` scrape metadata so intentional browser-primary collection is distinguishable from emergency browser fallback.
+- Kept browser fallback warnings for true fallback cases while avoiding degradation warnings for sources whose expected path is browser rendering.
+- Updated UN Procurement regression coverage to prove Firecrawl is skipped and no warning is emitted when browser-primary collection succeeds.
+
+Verification:
+- `npm test -- discovery-opportunity-import.test.ts un-procurement-parser.test.ts --run` passed with 34 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- A source-only broad live import before this change, run `live_source_health_20260528T0940`, produced 152 candidates and 37 source-document rows but marked UN Procurement as degraded because it used browser fallback after Firecrawl found no opportunities.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_un_procurement_browser_source_20260528T0949 LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://www.un.org/procurement/solicitations-opportunities' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=5 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed; UN Procurement used the browser source path, returned 1 candidate, updated 1 opportunity, reused 1 source document, and produced 0 warnings with healthy source status.
+
+Remaining after this slice:
+- Re-run a full source-health import after the next sourcing slice to confirm all configured sources remain healthy together and the duplicate World Bank source does not distort health reporting.
+- Add source-specific browser-primary routing for any future parser that genuinely requires JavaScript instead of treating browser rendering as an exceptional fallback.
+
 ### 2026-05-28 - World Bank Collection Uses Public Notice API
 
 Status: implemented and verified.

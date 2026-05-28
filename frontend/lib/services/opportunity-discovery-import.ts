@@ -71,7 +71,7 @@ interface DiscoveryCandidate {
 		links?: string[];
 		success: boolean;
 		error?: string;
-		method: "firecrawl" | "browser_fallback" | "source_api";
+		method: "firecrawl" | "browser_fallback" | "browser_source" | "source_api";
 		fallbackReason?: string;
 	};
 }
@@ -154,7 +154,7 @@ interface ConfiguredSourceParseResult {
 	parseResult: ParseResult;
 	scrapeResult: FirecrawlScrapeResult;
 	attempts: number;
-	method: "firecrawl" | "browser_fallback" | "source_api";
+	method: "firecrawl" | "browser_fallback" | "browser_source" | "source_api";
 	fallbackReason?: string;
 	lastEmptyMessage?: string;
 }
@@ -921,6 +921,7 @@ function buildOpportunityFromDiscovery(
 				sourceTotal: candidate.sourceTotal,
 				scrapedWithFirecrawl: candidate.scrape?.success && candidate.scrape.method === "firecrawl",
 				scrapedWithBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "browser_fallback",
+				scrapedWithBrowserSource: candidate.scrape?.success && candidate.scrape.method === "browser_source",
 				scrapeMethod: candidate.scrape?.method,
 				browserFallbackReason: candidate.scrape?.fallbackReason,
 				scrapeError: candidate.scrape?.error,
@@ -1089,7 +1090,7 @@ async function discoverConfiguredSourceCandidates(
 				title: "Configured source scrape found no opportunities",
 				url: sourceUrl,
 				message: sourceResult.lastEmptyMessage
-					?? `${sourceResult.method === "browser_fallback" ? "Browser fallback" : "Firecrawl"} returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
+					?? `${configuredSourceMethodLabel(sourceResult.method)} returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
 			});
 			continue;
 		}
@@ -1155,6 +1156,19 @@ async function discoverConfiguredSourceCandidates(
 	return candidates;
 }
 
+function configuredSourceMethodLabel(method: ConfiguredSourceParseResult["method"]): string {
+	switch (method) {
+		case "browser_fallback":
+			return "Browser fallback";
+		case "browser_source":
+			return "Browser source";
+		case "source_api":
+			return "Source API";
+		case "firecrawl":
+			return "Firecrawl";
+	}
+}
+
 async function scrapeAndParseConfiguredSource(
 	firecrawl: FirecrawlClient,
 	sourceUrl: string,
@@ -1185,6 +1199,12 @@ async function scrapeAndParseConfiguredSource(
 			attempts: 1,
 			method: "source_api",
 			lastEmptyMessage: parseResult.error ?? `${parser.name} source API returned no opportunities.`,
+		};
+	}
+	if (parser.requiresJavascript && options.browserFallback) {
+		return {
+			parser,
+			...await parseConfiguredSourceWithBrowserSource(parser, sourceUrl),
 		};
 	}
 	const maxAttempts = configuredSourceScrapeAttempts();
@@ -1265,6 +1285,50 @@ async function scrapeAndParseConfiguredSource(
 			maxAttempts,
 			lastEmptyMessage
 		),
+	};
+}
+
+async function parseConfiguredSourceWithBrowserSource(
+	parser: TenderParser,
+	sourceUrl: string
+): Promise<Omit<ConfiguredSourceParseResult, "parser">> {
+	const browserResult = await scrapeWithBrowserSource(sourceUrl);
+	if (!isUsefulBrowserFallback(browserResult)) {
+		return {
+			parseResult: { opportunities: [] },
+			scrapeResult: {
+				success: false,
+				error: browserResult.error ?? "Browser source scrape returned no usable content",
+			},
+			attempts: 1,
+			method: "browser_source",
+			lastEmptyMessage: browserResult.error ?? "Browser source scrape returned no usable content",
+		};
+	}
+
+	const parseResult = await parser.parse({
+		markdown: browserResult.markdown ?? "",
+		links: browserResult.links ?? [],
+		url: sourceUrl,
+	});
+	return {
+		parseResult,
+		scrapeResult: {
+			success: true,
+			data: {
+				markdown: browserResult.markdown,
+				links: browserResult.links,
+				metadata: {
+					title: browserResult.title,
+					description: browserResult.description,
+				},
+			},
+		},
+		attempts: 1,
+		method: "browser_source",
+		lastEmptyMessage: parseResult.opportunities.length > 0
+			? undefined
+			: `Browser source scrape returned content but ${parser.name} found no tender-like records.`,
 	};
 }
 
@@ -1744,6 +1808,20 @@ async function scrapeWithBrowserFallback(
 	url: string,
 	fallbackReason: string
 ): Promise<NonNullable<DiscoveryCandidate["scrape"]>> {
+	return scrapeWithBrowser(url, "browser_fallback", fallbackReason);
+}
+
+async function scrapeWithBrowserSource(
+	url: string
+): Promise<NonNullable<DiscoveryCandidate["scrape"]>> {
+	return scrapeWithBrowser(url, "browser_source");
+}
+
+async function scrapeWithBrowser(
+	url: string,
+	method: "browser_fallback" | "browser_source",
+	fallbackReason?: string
+): Promise<NonNullable<DiscoveryCandidate["scrape"]>> {
 	const stealthUrl = (process.env.STEALTH_SCRAPER_URL || DEFAULT_STEALTH_SCRAPER_URL).replace(/\/$/, "");
 
 	try {
@@ -1761,14 +1839,14 @@ async function scrapeWithBrowserFallback(
 			markdown: result.data?.markdown,
 			links: result.data?.links,
 			error: result.error,
-			method: "browser_fallback",
+			method,
 			fallbackReason,
 		};
 	} catch (error) {
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : String(error),
-			method: "browser_fallback",
+			method,
 			fallbackReason,
 		};
 	}

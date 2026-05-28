@@ -1387,10 +1387,6 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports UN Procurement configured sources from browser-rendered listing cards", async () => {
-		firecrawlScrapeMock.mockResolvedValue({
-			success: false,
-			error: "Firecrawl DNS safety check failed",
-		});
 		fetchMock.mockResolvedValue({
 			ok: true,
 			status: 200,
@@ -1419,6 +1415,7 @@ describe("discoverAndImportOpportunities", () => {
 			browserFallback: true,
 		});
 
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
 		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Provision of Cisco Core, Distribution and Datacenter Solutions",
@@ -1436,19 +1433,12 @@ describe("discoverAndImportOpportunities", () => {
 					commodityGroup: "Communications Equipment",
 				}),
 				discovery: expect.objectContaining({
-					scrapedWithBrowserFallback: true,
-					scrapeMethod: "browser_fallback",
-					browserFallbackReason: "Firecrawl DNS safety check failed",
+					scrapedWithBrowserSource: true,
+					scrapeMethod: "browser_source",
 				}),
 			}),
 		}));
-		expect(result.warnings).toEqual([
-			expect.objectContaining({
-				type: "browser_fallback_used",
-				query: "source:https://www.un.org/procurement/solicitations-opportunities",
-				message: "Firecrawl DNS safety check failed",
-			}),
-		]);
+		expect(result.warnings).toEqual([]);
 	});
 
 	it("persists service-run discoveries under the explicit import tenant", async () => {
