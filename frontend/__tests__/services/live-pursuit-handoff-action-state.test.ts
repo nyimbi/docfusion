@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	readLatestLivePursuitHandoffActionAuditEvents,
 	readLatestLivePursuitHandoffActionStates,
 	updateLatestLivePursuitHandoffTaskActionState,
 } from "@/lib/services/live-pursuit-handoff-action-state";
@@ -49,7 +50,7 @@ describe("live pursuit handoff action state", () => {
 			taskId: "LPH-001",
 			status: "completed",
 			assigneeName: " Amina ",
-			evidenceNote: " Receipt captured ",
+			evidenceNote: " Receipt | captured ",
 			receiptUrl: " https://example.test/receipt ",
 			updatedByUserId: "user-1",
 		});
@@ -58,7 +59,7 @@ describe("live pursuit handoff action state", () => {
 			taskId: "LPH-001",
 			status: "completed",
 			assigneeName: "Amina",
-			evidenceNote: "Receipt captured",
+			evidenceNote: "Receipt | captured",
 			receiptUrl: "https://example.test/receipt",
 			updatedByUserId: "user-1",
 		});
@@ -85,7 +86,22 @@ describe("live pursuit handoff action state", () => {
 		expect(auditLog).toContain("# Latest Live Pursuit Handoff Action Events");
 		expect(auditLog).toContain("`LPH-001`");
 		expect(auditLog).toContain("completed");
-		expect(auditLog).toContain("Receipt captured");
+		expect(auditLog).toContain("Receipt \\| captured");
+		const auditEvents = await readLatestLivePursuitHandoffActionAuditEvents({
+			workspaceRoot,
+			runId: latestIndex.runId,
+		});
+		expect(auditEvents).toHaveLength(1);
+		expect(auditEvents[0]).toMatchObject({
+			eventId: update.auditEvent.eventId,
+			taskId: "LPH-001",
+			taskTitle: "Activate same-day submission control.",
+			status: "completed",
+			assigneeName: "Amina",
+			evidenceNote: "Receipt | captured",
+			receiptUrl: "https://example.test/receipt",
+			auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+		});
 	});
 
 	it("rejects unknown tasks instead of creating loose action state", async () => {

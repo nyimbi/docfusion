@@ -5,6 +5,7 @@ import {
 	resolveLatestHandoffWorkspaceRoot,
 } from "@/lib/services/latest-live-pursuit-handoff";
 import type {
+	LatestLivePursuitHandoffTaskActionAuditEvent,
 	LatestLivePursuitHandoffTaskActionState,
 	LatestLivePursuitHandoffTaskActionStatus,
 	LatestLivePursuitHandoffTaskActionUpdate,
@@ -37,6 +38,28 @@ export async function readLatestLivePursuitHandoffActionStates(options: {
 		return parsed.tasks ?? {};
 	} catch (error) {
 		if (isMissingPathError(error)) return {};
+		throw error;
+	}
+}
+
+export async function readLatestLivePursuitHandoffActionAuditEvents(options: {
+	workspaceRoot?: string;
+	runId?: string;
+	limit?: number;
+} = {}): Promise<LatestLivePursuitHandoffTaskActionAuditEvent[]> {
+	const workspaceRoot = options.workspaceRoot ?? resolveLatestHandoffWorkspaceRoot();
+	const auditPath = path.resolve(workspaceRoot, ACTION_AUDIT_RELATIVE_PATH);
+	try {
+		const rawAudit = await fs.readFile(auditPath, "utf8");
+		const events = rawAudit
+			.split(/\r?\n/)
+			.map((line) => parseActionAuditEventLine(line, workspaceRoot, auditPath))
+			.filter((event): event is LatestLivePursuitHandoffTaskActionAuditEvent => Boolean(event))
+			.filter((event) => !options.runId || event.runId === options.runId)
+			.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+		return typeof options.limit === "number" ? events.slice(0, Math.max(0, options.limit)) : events;
+	} catch (error) {
+		if (isMissingPathError(error)) return [];
 		throw error;
 	}
 }
@@ -165,6 +188,9 @@ async function appendActionAuditEvent(
 		taskId: event.taskId,
 		taskTitle: event.taskTitle,
 		status: event.status,
+		assigneeName: event.assigneeName,
+		evidenceNote: event.evidenceNote,
+		receiptUrl: event.receiptUrl,
 		updatedAt: event.updatedAt,
 		updatedByUserId: event.updatedByUserId,
 		auditPath: path.relative(workspaceRoot, auditPath),
@@ -193,6 +219,58 @@ async function ensureActionAuditHeader(auditPath: string): Promise<void> {
 
 function escapeMarkdownCell(value: string): string {
 	return value.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+}
+
+function parseActionAuditEventLine(
+	line: string,
+	workspaceRoot: string,
+	auditPath: string,
+): LatestLivePursuitHandoffTaskActionAuditEvent | null {
+	const cells = parseMarkdownTableRow(line);
+	if (cells.length !== 10) return null;
+	if (cells[0] === "updated_at" || cells[0].startsWith("---")) return null;
+	const status = cells[4] as LatestLivePursuitHandoffTaskActionStatus;
+	if (!VALID_STATUSES.has(status)) return null;
+	return {
+		updatedAt: cells[0],
+		runId: unwrapCodeCell(cells[1]),
+		taskId: unwrapCodeCell(cells[2]),
+		taskTitle: cells[3],
+		status,
+		assigneeName: optionalTrimmed(cells[5]),
+		evidenceNote: optionalTrimmed(cells[6]),
+		receiptUrl: optionalTrimmed(cells[7]),
+		updatedByUserId: unwrapCodeCell(cells[8]),
+		eventId: unwrapCodeCell(cells[9]),
+		auditPath: path.relative(workspaceRoot, auditPath),
+	};
+}
+
+function parseMarkdownTableRow(line: string): string[] {
+	const trimmed = line.trim();
+	if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return [];
+	const cells: string[] = [];
+	let cell = "";
+	const body = trimmed.slice(1, -1);
+	for (let index = 0; index < body.length; index += 1) {
+		const character = body[index];
+		if (character === "|" && body[index - 1] !== "\\") {
+			cells.push(unescapeMarkdownCell(cell));
+			cell = "";
+		} else {
+			cell += character;
+		}
+	}
+	cells.push(unescapeMarkdownCell(cell));
+	return cells;
+}
+
+function unescapeMarkdownCell(value: string): string {
+	return value.replace(/\\\|/g, "|").replace(/\s+/g, " ").trim();
+}
+
+function unwrapCodeCell(value: string): string {
+	return value.replace(/^`/, "").replace(/`$/, "");
 }
 
 function optionalTrimmed(value: string | undefined): string | undefined {

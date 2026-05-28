@@ -33,6 +33,7 @@ export async function readLatestLivePursuitHandoff(options: {
 			index,
 			operatorBriefMarkdown,
 			actionStates: {},
+			actionEvents: [],
 			paths: {
 				indexPath: path.relative(workspaceRoot, indexPath),
 				briefPath: path.relative(workspaceRoot, briefPath),

@@ -9,6 +9,7 @@ const latestHandoffMock = vi.hoisted(() => ({
 	readLatestLivePursuitHandoff: vi.fn(),
 }));
 const actionStateMock = vi.hoisted(() => ({
+	readLatestLivePursuitHandoffActionAuditEvents: vi.fn(),
 	readLatestLivePursuitHandoffActionStates: vi.fn(),
 	updateLatestLivePursuitHandoffTaskActionState: vi.fn(),
 }));
@@ -68,6 +69,18 @@ beforeEach(() => {
 			updatedByUserId: "user-1",
 		},
 	});
+	actionStateMock.readLatestLivePursuitHandoffActionAuditEvents.mockResolvedValue([{
+		eventId: "lhp_20260528_013000000Z_LPH-001",
+		runId: "live_pursuit_handoff_20260528T012604Z",
+		taskId: "LPH-001",
+		taskTitle: "Open package",
+		status: "in_progress",
+		assigneeName: "Amina",
+		evidenceNote: "Started portal work",
+		updatedAt: "2026-05-28T01:30:00.000Z",
+		updatedByUserId: "user-1",
+		auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+	}]);
 	actionStateMock.updateLatestLivePursuitHandoffTaskActionState.mockResolvedValue({
 		taskState: {
 			taskId: "LPH-001",
@@ -84,6 +97,9 @@ beforeEach(() => {
 			taskId: "LPH-001",
 			taskTitle: "Open package",
 			status: "completed",
+			assigneeName: "Amina",
+			evidenceNote: "Receipt captured",
+			receiptUrl: "https://example.test/receipt",
 			updatedAt: "2026-05-28T01:35:00.000Z",
 			updatedByUserId: "user-1",
 			auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
@@ -121,11 +137,27 @@ describe("latest live pursuit handoff route", () => {
 						updatedByUserId: "user-1",
 					},
 				},
+				actionEvents: [{
+					eventId: "lhp_20260528_013000000Z_LPH-001",
+					runId: "live_pursuit_handoff_20260528T012604Z",
+					taskId: "LPH-001",
+					taskTitle: "Open package",
+					status: "in_progress",
+					assigneeName: "Amina",
+					evidenceNote: "Started portal work",
+					updatedAt: "2026-05-28T01:30:00.000Z",
+					updatedByUserId: "user-1",
+					auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",
+				}],
 			},
 		});
 		expect(latestHandoffMock.readLatestLivePursuitHandoff).toHaveBeenCalledOnce();
 		expect(actionStateMock.readLatestLivePursuitHandoffActionStates).toHaveBeenCalledWith({
 			runId: "live_pursuit_handoff_20260528T012604Z",
+		});
+		expect(actionStateMock.readLatestLivePursuitHandoffActionAuditEvents).toHaveBeenCalledWith({
+			runId: "live_pursuit_handoff_20260528T012604Z",
+			limit: 25,
 		});
 	});
 
@@ -181,6 +213,9 @@ describe("latest live pursuit handoff route", () => {
 				taskId: "LPH-001",
 				taskTitle: "Open package",
 				status: "completed",
+				assigneeName: "Amina",
+				evidenceNote: "Receipt captured",
+				receiptUrl: "https://example.test/receipt",
 				updatedAt: "2026-05-28T01:35:00.000Z",
 				updatedByUserId: "user-1",
 				auditPath: ".omx/state/latest-live-pursuit-handoff-action-events.md",

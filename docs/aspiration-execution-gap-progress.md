@@ -8443,6 +8443,29 @@ Remaining after this slice:
 - Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Handoff Activity Timeline
+
+Status: implemented and verified.
+
+Purpose: make the append-only handoff task audit ledger visible to operators inside the live handoff surface instead of leaving the history only in proof files.
+
+Changes in this slice:
+- Added structured parsing for `.omx/state/latest-live-pursuit-handoff-action-events.md`, including run filtering, newest-first ordering, optional limits, and escaped Markdown cell handling.
+- Returned the latest 25 task audit events from `GET /api/opportunities/live-handoff/latest` alongside current task action state.
+- Included assignee, evidence note, receipt URL, and audit path metadata in task-update audit event responses.
+- Added a Recent Activity section to `/opportunities/live-handoff` so operators can see status transitions, evidence notes, assignees, receipts, actor IDs, and timestamps after updates.
+- Extended route and service tests to verify structured audit-event readback and latest-handoff API projection.
+
+Verification:
+- `npm test -- live-pursuit-handoff-action-state.test.ts live-handoff-latest-route.test.ts --run` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 38 tests across response package, qualification workflow, pursuit handoff, latest-handoff reader, action-state store, audit event projection, and latest-handoff routes.
+- `npm run build` passed; Next.js build output includes `/api/opportunities/live-handoff/latest`, `/api/opportunities/live-handoff/latest/tasks/[taskId]`, and `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Move the action-state and audit-event ledger into DB-backed runtime tables once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

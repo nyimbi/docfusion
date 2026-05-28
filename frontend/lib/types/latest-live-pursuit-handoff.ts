@@ -51,6 +51,7 @@ export interface LatestLivePursuitHandoffPayload {
 	index: LatestLivePursuitHandoffIndex;
 	operatorBriefMarkdown: string;
 	actionStates: Record<string, LatestLivePursuitHandoffTaskActionState>;
+	actionEvents: LatestLivePursuitHandoffTaskActionAuditEvent[];
 	paths: {
 		indexPath: string;
 		briefPath: string;
@@ -73,16 +74,21 @@ export interface LatestLivePursuitHandoffTaskActionState {
 	updatedByUserId: string;
 }
 
+export interface LatestLivePursuitHandoffTaskActionAuditEvent {
+	eventId: string;
+	runId: string;
+	taskId: string;
+	taskTitle: string;
+	status: LatestLivePursuitHandoffTaskActionStatus;
+	assigneeName?: string;
+	evidenceNote?: string;
+	receiptUrl?: string;
+	updatedAt: string;
+	updatedByUserId: string;
+	auditPath: string;
+}
+
 export interface LatestLivePursuitHandoffTaskActionUpdate {
 	taskState: LatestLivePursuitHandoffTaskActionState;
-	auditEvent: {
-		eventId: string;
-		runId: string;
-		taskId: string;
-		taskTitle: string;
-		status: LatestLivePursuitHandoffTaskActionStatus;
-		updatedAt: string;
-		updatedByUserId: string;
-		auditPath: string;
-	};
+	auditEvent: LatestLivePursuitHandoffTaskActionAuditEvent;
 }

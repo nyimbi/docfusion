@@ -10,13 +10,18 @@ import {
 	ClipboardCheck,
 	ExternalLink,
 	FileText,
+	History,
 	RefreshCw,
 	UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { LatestLivePursuitHandoffPayload, LatestLivePursuitHandoffTask } from "@/lib/types/latest-live-pursuit-handoff";
-import type { LatestLivePursuitHandoffTaskActionState, LatestLivePursuitHandoffTaskActionStatus } from "@/lib/types/latest-live-pursuit-handoff";
+import type {
+	LatestLivePursuitHandoffTaskActionAuditEvent,
+	LatestLivePursuitHandoffTaskActionState,
+	LatestLivePursuitHandoffTaskActionStatus,
+} from "@/lib/types/latest-live-pursuit-handoff";
 
 type LatestHandoffResponse =
 	| { success: true; handoff: LatestLivePursuitHandoffPayload }
@@ -78,7 +83,11 @@ export default function LatestLiveHandoffPage() {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({ status, ...draft }),
 			});
-			const body = await response.json() as { success: true; taskState: LatestLivePursuitHandoffTaskActionState } | { success: false; error: string };
+			const body = await response.json() as {
+				success: true;
+				taskState: LatestLivePursuitHandoffTaskActionState;
+				auditEvent: LatestLivePursuitHandoffTaskActionAuditEvent;
+			} | { success: false; error: string };
 			if (!response.ok || !body.success) {
 				setError(body.success ? "Task update failed" : body.error);
 				return;
@@ -90,6 +99,10 @@ export default function LatestLiveHandoffPage() {
 						...current.actionStates,
 						[task.id]: body.taskState,
 					},
+					actionEvents: [
+						body.auditEvent,
+						...current.actionEvents.filter((event) => event.eventId !== body.auditEvent.eventId),
+					],
 				}
 				: current);
 			setDrafts((current) => ({
@@ -176,6 +189,7 @@ export default function LatestLiveHandoffPage() {
 						}}
 						onUpdateTask={updateTask}
 					/>
+					<RecentActivity events={handoff.actionEvents} />
 					<ArtifactPaths handoff={handoff} />
 				</div>
 			)}
@@ -380,6 +394,53 @@ function TaskCard({
 	);
 }
 
+function RecentActivity({ events }: { events: LatestLivePursuitHandoffTaskActionAuditEvent[] }) {
+	return (
+		<section className="rounded-lg border bg-card p-5">
+			<div className="mb-3 flex items-center gap-2">
+				<History className="h-5 w-5 text-foreground" />
+				<h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
+			</div>
+			{events.length === 0 ? (
+				<p className="text-sm text-muted-foreground">No task activity has been recorded for this handoff.</p>
+			) : (
+				<div className="divide-y">
+					{events.slice(0, 10).map((event) => (
+						<div key={event.eventId} className="grid gap-2 py-3 md:grid-cols-[minmax(0,1fr)_auto]">
+							<div className="min-w-0">
+								<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+									<span className="rounded-full border px-2 py-0.5 text-foreground">{event.status}</span>
+									<span>{event.taskId}</span>
+									<span>{formatDateTime(event.updatedAt)}</span>
+									<span>{event.updatedByUserId}</span>
+								</div>
+								<p className="mt-1 text-sm font-medium text-foreground">{event.taskTitle}</p>
+								{event.evidenceNote && (
+									<p className="mt-1 text-sm text-muted-foreground">{event.evidenceNote}</p>
+								)}
+							</div>
+							<div className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground md:items-end">
+								{event.assigneeName && <span>Assignee: {event.assigneeName}</span>}
+								{event.receiptUrl && (
+									<a
+										href={event.receiptUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex max-w-full items-center gap-1 text-primary hover:underline"
+									>
+										<ExternalLink className="h-3.5 w-3.5 shrink-0" />
+										<span className="truncate">Receipt</span>
+									</a>
+								)}
+							</div>
+						</div>
+					))}
+				</div>
+			)}
+		</section>
+	);
+}
+
 function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }) {
 	return (
 		<section className="rounded-lg border bg-card p-5">
@@ -394,6 +455,17 @@ function ArtifactPaths({ handoff }: { handoff: LatestLivePursuitHandoffPayload }
 			</div>
 		</section>
 	);
+}
+
+function formatDateTime(value: string): string {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return value;
+	return date.toLocaleString(undefined, {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
 }
 
 function draftsFromActionStates(
