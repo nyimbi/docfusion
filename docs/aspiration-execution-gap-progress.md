@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - AIIB Project Procurement Source Recovered
+
+Status: implemented and verified.
+
+Purpose: replace the AIIB business landing-page scrape, which returned no opportunities, with a source-specific parser for AIIB's official project procurement data feed so current AIIB notices enter broad opportunity collection.
+
+Changes in this slice:
+- Added an `aiib` parser that reads AIIB's `ppo-data-all.js` project procurement dataset directly, resolves official document links, skips contract awards, filters out stale closed notices, and preserves AIIB source identity.
+- Updated the default AIIB source from the redirecting business index page to the project procurement opportunity list.
+- Routed AIIB project procurement URLs through the source-specific parser in discovery import and live source proof scripts.
+- Treated AIIB as a direct source API path so collection does not depend on Firecrawl or browser fallback for the JavaScript-rendered list page.
+
+Verification:
+- `npm test -- aiib-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 37 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `LIVE_SOURCE_DISCOVERY_URL='https://www.aiib.org/en/opportunities/business/project-procurement/list.html' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_aiib_project_procurement_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_aiib_project_procurement_source_20260528T085936Z`; the source API path returned 34 current AIIB project procurement opportunities.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_aiib_import_20260528T0900 LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://www.aiib.org/en/opportunities/business/project-procurement/list.html' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed; 10 AIIB candidates were created, 10 source-document rows were seeded, source health was healthy, and there were 0 failures or warnings.
+
+Remaining after this slice:
+- IsDB's currently visible tender rows are stale/closed as of 2026-05-28; do not add an IsDB parser unless a current/future endpoint is found.
+- Continue improving source-document download and parsing coverage for newly restored sources, especially package formats such as ZIP/XLSX.
+
 ### 2026-05-28 - Live Import Proof Awaits RFP Parsing
 
 Status: implemented and verified.

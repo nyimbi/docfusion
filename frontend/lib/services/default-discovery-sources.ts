@@ -24,7 +24,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://tenders.worldbank.org/procurement-notices",
 	"https://www.afdb.org/en/projects-and-operations/procurement",
 	"https://www.adb.org/business/institutional-procurement/notices",
-	"https://www.aiib.org/en/opportunities/business/index.html",
+	"https://www.aiib.org/en/opportunities/business/project-procurement/list.html",
 	"https://www.isdb.org/project-procurement/tenders",
 	"https://www.ebrd.com/home/work-with-us/project-procurement/procurement-notices.html",
 	"https://www.dgmarket.com",

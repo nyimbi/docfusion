@@ -289,6 +289,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	let sourceId: string | undefined;
 	if (host.includes("afdb.org")) sourceId = "afdb";
 	else if (host.includes("adb.org")) sourceId = "adb";
+	else if (host.includes("aiib.org") && safeUrlPathname(sourceUrl).includes("/project-procurement/")) sourceId = "aiib";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
 	else if (host === "un.org" && safeUrlPathname(sourceUrl).startsWith("/procurement/")) sourceId = "un_procurement";
 	else if (host.includes("procurement-notices.undp.org")) sourceId = "undp";
@@ -305,7 +306,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 }
 
 function isSourceApiParser(parser: TenderParser): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb";
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib";
 }
 
 function isLikelyOpportunity(result: SearxngResult): boolean {
@@ -558,6 +559,7 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
 	if (opportunity?.source === "afdb") return "African Development Bank";
 	if (opportunity?.source === "adb") return "Asian Development Bank";
+	if (opportunity?.source === "aiib") return "Asian Infrastructure Investment Bank";
 	if (opportunity?.source === "kenya_ppip") return "Kenya PPIP";
 	if (opportunity?.source === "undp") return "UNDP";
 	if (opportunity?.source === "ungm") return "UNGM";
@@ -579,6 +581,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		"source-scrape",
 		...(opportunity?.source === "afdb" ? ["afdb", "development-bank", "regional-procurement"] : []),
 		...(opportunity?.source === "adb" ? ["adb", "development-bank", "institutional-procurement"] : []),
+		...(opportunity?.source === "aiib" ? ["aiib", "development-bank", "project-procurement"] : []),
 		...(opportunity?.source === "kenya_ppip" ? ["kenya-ppip"] : []),
 		...(opportunity?.source === "undp" ? ["undp", "un-procurement"] : []),
 		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
@@ -878,7 +881,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

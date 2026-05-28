@@ -214,6 +214,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	const host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
 	if (host.includes("afdb.org")) return getParser("afdb") ?? genericParser;
 	if (host.includes("adb.org")) return getParser("adb") ?? genericParser;
+	if (host.includes("aiib.org") && new URL(sourceUrl).pathname.includes("/project-procurement/")) return getParser("aiib") ?? genericParser;
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
 	if (host === "un.org" && new URL(sourceUrl).pathname.startsWith("/procurement/")) return getParser("un_procurement") ?? genericParser;
@@ -230,7 +231,7 @@ function parserForSourceUrl(sourceUrl: string) {
 }
 
 function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb";
+	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib";
 }
 
 async function writeArtifacts(proof: LiveSourceDiscoveryProof, disposition: EvidenceRecord["disposition"]) {

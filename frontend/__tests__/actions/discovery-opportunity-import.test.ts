@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCurrentUserIdMock = vi.hoisted(() => vi.fn());
 const getUserContextMock = vi.hoisted(() => vi.fn());
@@ -142,6 +142,10 @@ beforeEach(() => {
 		text: async () => "browser unavailable",
 		json: async () => ({ success: false, error: "browser unavailable" }),
 	});
+});
+
+afterEach(() => {
+	vi.useRealTimers();
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -548,6 +552,63 @@ describe("discoverAndImportOpportunities", () => {
 			sourcePlatform: "Asian Development Bank",
 			opportunityType: "tender",
 			documentUrl: "https://www.adb.org/sites/default/files/page/559266/itb-adb-unified-ai-big-data.zip",
+		}));
+	});
+
+	it("imports AIIB project procurement opportunities from the official data script", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 4, 28));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		fetchMock
+			.mockResolvedValueOnce({
+				ok: true,
+				text: async () => "<script src=\"/en/opportunities/business/project-procurement/_common/ppo-data-all.js?t=1775103189438\"></script>",
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				text: async () => [
+					"var ppoData = [",
+					"{id:\"May 27, 2026\",cd:\"\",mb:\"Azerbaijan\",pj:\"Baku Metro Expansion Project - Phase II (Green Line)\",ds:\"\",cr:\"\",sd:\"\",pc:\"\",st:\"Transport\",ct:\"Notices\",tp:\"General Procurement Notice\",dc:\"/en/projects/details/2026/_download/Azerbaijan/BMEP_P2-General-Procurement-Notice-GPN-rev01-EN-1.pdf\"},",
+					"{id:\"May 12, 2026\",cd:\"June 10,2026\",mb:\"Pakistan\",pj:\"Reconstruction of National Highway N-5 under Pakistan&#8217;s Resilient Recovery, Rehabilitation and Reconstruction Framework Project\",ds:\"\",cr:\"\",sd:\"\",pc:\"\",st:\"Transport\",ct:\"Notices\",tp:\"Extension of Tender Submission\",dc:\"/en/projects/details/2026/_download/Pakistan/Corrigendum-No-01-1.pdf\"},",
+					"{id:\"April 21, 2026\",cd:\"April 30, 2026\",mb:\"Tajikistan\",pj:\"Rogun Hydropower Development Project - Phase 1\",ds:\"\",cr:\"\",sd:\"\",pc:\"\",st:\"Energy\",ct:\"Notices\",tp:\"Specific Procurement Notice\",dc:\"/en/projects/details/2026/_download/Tajikistan/SPN_final.pdf\"}",
+					"];",
+				].join("\n"),
+			});
+		selectResultsQueue.push([], [], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.aiib.org/en/opportunities/business/project-procurement/list.html"],
+			sourceScrapeLimit: 10,
+		});
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(2);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"https://www.aiib.org/en/opportunities/business/project-procurement/list.html",
+			expect.objectContaining({ headers: expect.any(Object) })
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://www.aiib.org/en/opportunities/business/project-procurement/_common/ppo-data-all.js?t=1775103189438",
+			expect.objectContaining({ headers: expect.any(Object) })
+		);
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+			title: "Baku Metro Expansion Project - Phase II (Green Line)",
+			source: "aiib",
+			sourceId: "aiib-bmep-p2-general-procurement-notice-gpn-rev01",
+			sourcePlatform: "Asian Infrastructure Investment Bank",
+			opportunityType: "tender",
+			documentUrl: "https://www.aiib.org/en/projects/details/2026/_download/Azerbaijan/BMEP_P2-General-Procurement-Notice-GPN-rev01-EN-1.pdf",
+			tags: expect.arrayContaining(["aiib", "development-bank", "project-procurement"]),
+		}));
+		expect(createOpportunityMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+			countryRegion: "Pakistan",
+			source: "aiib",
+			sourcePlatform: "Asian Infrastructure Investment Bank",
+			deadline: new Date(2026, 5, 10),
+			documentUrl: "https://www.aiib.org/en/projects/details/2026/_download/Pakistan/Corrigendum-No-01-1.pdf",
 		}));
 	});
 
