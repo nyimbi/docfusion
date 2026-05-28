@@ -8160,3 +8160,26 @@ Verification:
 Remaining after this slice:
 - Consider adding source-type semantics for prequalification/supplier-registration opportunities so they can be routed to a dedicated qualification workflow rather than ordinary response pursuit.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
+### 2026-05-28 - Qualification Route Semantics for Live Pursuits
+
+Status: implemented and verified.
+
+Purpose: route supplier-registration and prequalification opportunities as qualification workflows instead of ordinary proposal pursuits, while still preserving response package evidence when a draft can be generated.
+
+Changes in this slice:
+- Added `pursuitRoute` to live pursuit-fit assessments with `proposal_response`, `supplier_registration`, and `prequalification` routes.
+- Detect supplier-registration and prequalification language from opportunity/source text and force those routes to `review_required`.
+- Surface the pursuit route in portfolio ranking reasons and operator briefs.
+- Preserve backward compatibility for older live response proof artifacts by defaulting missing `pursuitRoute` values to `proposal_response` during portfolio triage import.
+
+Verification:
+- `npm test -- live-response-package.test.ts live-response-portfolio-triage.test.ts platform-proof-scenarios.test.ts --run` passed with 29 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260528T001150Z`, producing `pursuitRoute:supplier_registration`, `review_required`, and `review_before_pursuit`.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T001315Z`, showing `pursuit-route:supplier_registration`/`top-route:proposal_response` evidence plus the supplier-registration route in ranking reasons, while keeping AFDB/UNGM as pursue-now priorities.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 18 tests.
+
+Remaining after this slice:
+- Build a dedicated persisted qualification/registration workflow once DB connectivity is restored or a non-DB proof harness exists for that lane.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.

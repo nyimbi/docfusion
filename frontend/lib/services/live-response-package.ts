@@ -105,6 +105,19 @@ const FIT_RISK_TERMS = [
 	"vehicle",
 ];
 
+const SUPPLIER_REGISTRATION_PATTERNS = [
+	/\bregistration\s+of\s+suppliers?\b/iu,
+	/\bsupplier\s+registration\b/iu,
+	/\bregister(?:ed|ing)?\s+(?:as\s+)?(?:a\s+)?suppliers?\b/iu,
+	/\bregistration\s+for\s+goods,\s+services\s+and\s+works\b/iu,
+];
+
+const PREQUALIFICATION_PATTERNS = [
+	/\bpre[-\s]?qualification\b/iu,
+	/\binvitation\s+for\s+pre[-\s]?qualification\b/iu,
+	/\bprequalif(?:y|ied|ication)\b/iu,
+];
+
 export interface LiveResponseRequirementSignal {
 	id: string;
 	text: string;
@@ -160,6 +173,7 @@ export interface LiveResponseDraftArtifact {
 export interface LiveResponsePursuitFitAssessment {
 	status: "strong_fit" | "review_required" | "weak_fit";
 	score: number;
+	pursuitRoute: "proposal_response" | "supplier_registration" | "prequalification";
 	matchedCapabilities: string[];
 	riskFactors: string[];
 	recommendation: "pursue" | "review_before_pursuit" | "no_bid_unless_partnered";
@@ -730,6 +744,7 @@ export function assessLiveResponsePursuitFit(input: {
 	const matchedContext = matchedTerms(haystack, OPPORTUNITY_CONTEXT_TERMS);
 	const matchedRisks = matchedTerms(haystack, FIT_RISK_TERMS)
 		.filter((term) => matchedStrategic.length === 0 || term !== "medical supplies");
+	const pursuitRoute = inferPursuitRoute(haystack);
 	const matchedCapabilities = uniqueStrings([...matchedStrategic, ...matchedDelivery, ...matchedContext]);
 	const riskFactors = matchedRisks.map((term) => `${term} domain may require specialist partner or no-bid review`);
 	const strategicScore = Math.min(45, matchedStrategic.length * 7);
@@ -739,7 +754,9 @@ export function assessLiveResponsePursuitFit(input: {
 	const riskPenalty = Math.min(35, matchedRisks.length * 12);
 	const score = clampScore(20 + strategicScore + deliveryScore + contextScore + evidenceScore - riskPenalty);
 	let status: LiveResponsePursuitFitAssessment["status"];
-	if (matchedRisks.length >= 2 && score >= 50) {
+	if (pursuitRoute !== "proposal_response" && score >= 50) {
+		status = "review_required";
+	} else if (matchedRisks.length >= 2 && score >= 50) {
 		status = "review_required";
 	} else if (score >= 75 && matchedStrategic.length >= 2) {
 		status = "strong_fit";
@@ -756,6 +773,7 @@ export function assessLiveResponsePursuitFit(input: {
 	const rationale = buildPursuitFitRationale({
 		status,
 		score,
+		pursuitRoute,
 		matchedCapabilities,
 		riskFactors,
 	});
@@ -763,6 +781,7 @@ export function assessLiveResponsePursuitFit(input: {
 	return {
 		status,
 		score,
+		pursuitRoute,
 		matchedCapabilities,
 		riskFactors,
 		recommendation,
@@ -779,6 +798,16 @@ function termPattern(term: string): RegExp {
 	return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, "iu");
 }
 
+function inferPursuitRoute(haystack: string): LiveResponsePursuitFitAssessment["pursuitRoute"] {
+	if (SUPPLIER_REGISTRATION_PATTERNS.some((pattern) => pattern.test(haystack))) {
+		return "supplier_registration";
+	}
+	if (PREQUALIFICATION_PATTERNS.some((pattern) => pattern.test(haystack))) {
+		return "prequalification";
+	}
+	return "proposal_response";
+}
+
 function clampScore(value: number): number {
 	return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -786,16 +815,22 @@ function clampScore(value: number): number {
 function buildPursuitFitRationale(input: {
 	status: LiveResponsePursuitFitAssessment["status"];
 	score: number;
+	pursuitRoute: LiveResponsePursuitFitAssessment["pursuitRoute"];
 	matchedCapabilities: string[];
 	riskFactors: string[];
 }): string {
 	const capabilities = input.matchedCapabilities.slice(0, 6).join(", ") || "no clear Datacraft capability match";
 	const risks = input.riskFactors.slice(0, 3).join("; ");
+	const routePrefix = input.pursuitRoute === "supplier_registration"
+		? "Supplier-registration workflow required; "
+		: input.pursuitRoute === "prequalification"
+			? "Prequalification workflow required; "
+			: "";
 	const base = input.status === "strong_fit"
-		? `Strong Datacraft fit based on ${capabilities}.`
+		? `${routePrefix}Strong Datacraft fit based on ${capabilities}.`
 		: input.status === "review_required"
-			? `Bid/no-bid review required; fit signals include ${capabilities}.`
-			: `Weak Datacraft fit; ${capabilities}.`;
+			? `${routePrefix}Bid/no-bid review required; fit signals include ${capabilities}.`
+			: `${routePrefix}Weak Datacraft fit; ${capabilities}.`;
 	return risks ? `${base} Risk factors: ${risks}.` : base;
 }
 

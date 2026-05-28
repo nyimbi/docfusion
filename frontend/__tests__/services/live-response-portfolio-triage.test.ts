@@ -64,6 +64,7 @@ function candidate(overrides: Partial<LiveResponsePortfolioCandidate>): LiveResp
 			pursuitFit: overrides.response?.pursuitFit ?? {
 				status: "strong_fit",
 				score: 90,
+				pursuitRoute: "proposal_response",
 				matchedCapabilities: ["security", "api", "software"],
 				riskFactors: [],
 				recommendation: "pursue",
@@ -93,6 +94,7 @@ describe("live response portfolio triage", () => {
 					pursuitFit: {
 						status: "review_required",
 						score: 72,
+						pursuitRoute: "proposal_response",
 						matchedCapabilities: ["compliance", "data"],
 						riskFactors: ["insurance domain may require specialist partner or no-bid review"],
 						recommendation: "review_before_pursuit",
@@ -145,6 +147,7 @@ describe("live response portfolio triage", () => {
 					pursuitFit: {
 						status: "review_required",
 						score: 65,
+						pursuitRoute: "proposal_response",
 						matchedCapabilities: ["security"],
 						riskFactors: [],
 						recommendation: "review_before_pursuit",
@@ -218,6 +221,7 @@ describe("live response portfolio triage", () => {
 					pursuitFit: {
 						status: "weak_fit",
 						score: 32,
+						pursuitRoute: "proposal_response",
 						matchedCapabilities: [],
 						riskFactors: ["domain fit is weak"],
 						recommendation: "no_bid_unless_partnered",
@@ -236,5 +240,51 @@ describe("live response portfolio triage", () => {
 		expect(triage.ranked[0]).toMatchObject({
 			portfolioRecommendation: "hold_or_partner",
 		});
+	});
+
+	it("surfaces supplier-registration routing in operator reasons and brief", () => {
+		const triage = triageLiveResponsePortfolio([
+			candidate({
+				runId: "supplier-registration",
+				sourceKind: "kenya_ppip",
+				opportunity: {
+					title: "Registration of suppliers for goods, services and works",
+					sourceId: "registration",
+				},
+				response: {
+					sourceRequirementCount: 24,
+					evaluatorCriteriaCount: 13,
+					winThemeSeedCount: 13,
+					totalDraftWordCount: 11000,
+					relevantSnippetCount: 24,
+					readiness: {
+						...baseReadiness,
+						warnings: ["Pursuit fit requires review before bid decision"],
+					},
+					pursuitFit: {
+						status: "review_required",
+						score: 82,
+						pursuitRoute: "supplier_registration",
+						matchedCapabilities: ["software", "platform", "security"],
+						riskFactors: ["construction domain may require specialist partner or no-bid review"],
+						recommendation: "review_before_pursuit",
+						rationale: "Supplier-registration workflow required.",
+					},
+				},
+			}),
+			candidate({ runId: "strong-fit" }),
+		]);
+
+		const registration = triage.ranked.find((item) => item.runId === "supplier-registration");
+		expect(registration).toMatchObject({
+			portfolioRecommendation: "review_before_pursuit",
+			response: {
+				pursuitFit: {
+					pursuitRoute: "supplier_registration",
+				},
+			},
+		});
+		expect(registration?.rankingReasons.join("\n")).toContain("Pursuit route: supplier_registration");
+		expect(formatLiveResponsePortfolioBrief(triage)).toContain("- Pursuit route: supplier_registration");
 	});
 });

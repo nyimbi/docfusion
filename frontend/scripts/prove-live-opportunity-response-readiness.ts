@@ -945,6 +945,7 @@ async function writeArtifacts(
 			`response-doc-types:${proof.responseReadiness?.documentTypes.length ?? 0}`,
 			`pursuit-fit:${proof.responseReadiness?.pursuitFit.status ?? "not-run"}`,
 			`pursuit-fit-score:${proof.responseReadiness?.pursuitFit.score ?? 0}`,
+			`pursuit-route:${proof.responseReadiness?.pursuitFit.pursuitRoute ?? "not-run"}`,
 			`pursuit-recommendation:${proof.responseReadiness?.pursuitFit.recommendation ?? "not-run"}`,
 			`source-requirements:${proof.responseReadiness?.sourceRequirementCount ?? 0}`,
 			`evaluator-criteria:${proof.responseReadiness?.readiness.evaluationCriteriaIds.length ?? 0}`,

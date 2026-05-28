@@ -105,6 +105,7 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		expect(strongFit).toMatchObject({
 			status: "strong_fit",
 			recommendation: "pursue",
+			pursuitRoute: "proposal_response",
 		});
 		expect(strongFit.score).toBeGreaterThanOrEqual(75);
 		expect(strongFit.matchedCapabilities).toEqual(expect.arrayContaining(["software", "security", "apis"]));
@@ -135,6 +136,7 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		expect(fit).toMatchObject({
 			status: "review_required",
 			recommendation: "review_before_pursuit",
+			pursuitRoute: "supplier_registration",
 		});
 		expect(fit.score).toBeGreaterThanOrEqual(75);
 		expect(fit.riskFactors).toEqual(expect.arrayContaining([
@@ -143,6 +145,29 @@ The procuring entity invites eligible consultants to submit a technical and fina
 			"furniture domain may require specialist partner or no-bid review",
 			"vehicle domain may require specialist partner or no-bid review",
 		]));
+		expect(fit.rationale).toContain("Supplier-registration workflow required");
+	});
+
+	it("routes prequalification notices to bid review instead of ordinary proposal pursuit", () => {
+		const fit = assessLiveResponsePursuitFit({
+			opportunity: {
+				title: "Invitation for Prequalification for National Single Window System",
+				organization: "Development Bank",
+				source: "world_bank",
+				sourceId: "prequalification",
+				projectSummary: "Design, development, supply, installation, deployment and implementation of a national digital platform.",
+			},
+			sourceText: "Invitation for Prequalification. Applicants shall show software, data platform, API integration, security, implementation, project management, and training experience.",
+			relevantSnippetCount: 20,
+		});
+
+		expect(fit).toMatchObject({
+			status: "review_required",
+			recommendation: "review_before_pursuit",
+			pursuitRoute: "prequalification",
+		});
+		expect(fit.score).toBeGreaterThanOrEqual(75);
+		expect(fit.rationale).toContain("Prequalification workflow required");
 	});
 
 	it("extracts evaluator criteria signals from scoring sections", () => {

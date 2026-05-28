@@ -15,6 +15,7 @@ import {
 	type LiveResponsePortfolioCandidate,
 	type LiveResponsePortfolioTriage,
 } from "@/lib/services/live-response-portfolio-triage";
+import type { LiveResponsePursuitFitAssessment } from "@/lib/services/live-response-package";
 
 const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.LIVE_OPPORTUNITY_PORTFOLIO_TRIAGE_RUN_ID
@@ -186,8 +187,17 @@ function responseProofToCandidate(proof: LiveResponseReadinessProofJson): LiveRe
 			totalDraftWordCount: proof.responseReadiness.totalDraftWordCount ?? 0,
 			relevantSnippetCount: proof.responseReadiness.relevantSnippetCount ?? 0,
 			readiness: proof.responseReadiness.readiness,
-			pursuitFit: proof.responseReadiness.pursuitFit,
+			pursuitFit: normalizePursuitFit(proof.responseReadiness.pursuitFit),
 		},
+	};
+}
+
+function normalizePursuitFit(
+	pursuitFit: LiveResponsePortfolioCandidate["response"]["pursuitFit"]
+): LiveResponsePursuitFitAssessment {
+	return {
+		...pursuitFit,
+		pursuitRoute: pursuitFit.pursuitRoute ?? "proposal_response",
 	};
 }
 
@@ -241,6 +251,7 @@ async function writeArtifacts(
 			`top-run:${top?.runId ?? "none"}`,
 			`top-source:${top?.sourceKind ?? "none"}`,
 			`top-fit:${top?.response.pursuitFit.status ?? "none"}:${top?.response.pursuitFit.score ?? 0}`,
+			`top-route:${top?.response.pursuitFit.pursuitRoute ?? "none"}`,
 			`top-readiness:${top?.response.readiness.status ?? "none"}`,
 			`top-score:${top?.portfolioScore ?? 0}`,
 		],
