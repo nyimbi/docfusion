@@ -190,6 +190,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
 	if (host.includes("ebrd.com")) return getParser("ebrd") ?? genericParser;
+	if (host.includes("sam.gov")) return getParser("sam_gov") ?? genericParser;
 	if (host.includes("dgmarket.com")) return getParser("dgmarket") ?? genericParser;
 	if (host.includes("giz.de") && new URL(sourceUrl).pathname.endsWith("/tenders")) return getParser("giz") ?? genericParser;
 	return genericParser;

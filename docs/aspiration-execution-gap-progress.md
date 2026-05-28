@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - SAM.gov RFP and USAID Source Collection Added
+
+Status: implemented and verified.
+
+Purpose: replace the dead USAID funding page and generic SAM.gov scrape with source-specific collection from SAM.gov's public search endpoint, increasing broad RFP coverage and restoring a live USAID-related source path.
+
+Changes in this slice:
+- Added a `sam_gov` parser that converts configured SAM.gov search pages into public search endpoint requests, filters active non-canceled notices, and maps contract opportunities into importable source opportunities.
+- Updated default discovery sources from a dead USAID page and generic SAM.gov search to two live SAM.gov searches: broad `"request for proposal"` and `USAID`.
+- Routed SAM.gov URLs through the source-specific parser in discovery import and live source proof scripts.
+- Preserved SAM.gov source identity, platform name, and `sam-gov`/`us-federal` tags through opportunity import instead of collapsing results into generic source-scrape records.
+
+Verification:
+- `npm test -- sam-gov-parser.test.ts ebrd-parser.test.ts default-discovery-sources.test.ts discovery-opportunity-import.test.ts --run` passed with 39 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `env LIVE_SOURCE_DISCOVERY_URL='https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_sam_gov_rfp_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_sam_gov_rfp_source_20260528T074007Z`; Firecrawl captured the page and the SAM.gov parser returned 10 current RFP-like opportunities.
+- `env LIVE_SOURCE_DISCOVERY_URL='https://sam.gov/search/?index=opp&keywords=USAID' LIVE_SOURCE_DISCOVERY_PROOF_PREFIX=live_sam_gov_usaid_source npx tsx scripts/prove-live-source-discovery.ts` passed with run `live_sam_gov_usaid_source_20260528T074021Z`; the SAM.gov parser returned 5 active USAID-related opportunities.
+- `env LIVE_DISCOVERY_IMPORT_RUN_ID=live_sam_gov_import_20260528T0740 LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22,https://sam.gov/search/?index=opp&keywords=USAID' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed with 15 total candidates, 15 created opportunities, 0 failures, 0 warnings, and 15 source-document rows seeded.
+
+Remaining after this slice:
+- Continue replacing empty generic sources with source-specific API or browser paths, especially EU Funding & Tenders, ADB, and remaining USAID/workwithusaid routes that are not represented in SAM.gov.
+- Consider paginating SAM.gov after the first-page path has repeatable dedupe and freshness behavior under scheduled imports.
+
 ### 2026-05-28 - EBRD Procurement Notices Recovered
 
 Status: implemented and verified.

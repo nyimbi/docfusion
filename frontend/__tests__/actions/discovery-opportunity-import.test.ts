@@ -982,6 +982,73 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports SAM.gov RFP notices from the public search endpoint", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "SAM.gov Contract Opportunities",
+				links: [],
+				metadata: { title: "SAM.gov Contract Opportunities" },
+			},
+		});
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				page: { totalElements: 1 },
+				_embedded: {
+					results: [{
+						_id: "sam-result-1",
+						solicitationNumber: "FA0000-26-R-0001",
+						title: "Request for Proposal: Case Management Platform",
+						type: { code: "o", value: "Solicitation" },
+						isActive: true,
+						isCanceled: false,
+						publishDate: "2026-05-20T12:00:00+00:00",
+						responseDate: "2026-06-30T20:00:00+00:00",
+						descriptions: [{ content: "<p>Implementation and support of a case management platform.</p>" }],
+						organizationHierarchy: [{ level: 1, name: "JUSTICE, DEPARTMENT OF" }],
+						placeOfPerformance: [{ country: "USA", state: "DC", city: "Washington" }],
+						naics: [{ code: "541511", value: "Custom Computer Programming Services" }],
+						pointOfContacts: [{ type: "primary", email: "buyer@example.gov" }],
+					}],
+				},
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://sam.gov/api/prod/sgs/v1/search/?index=opp&size=10&page=0&sort=-relevance&q=%22request+for+proposal%22&is_active=true"
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Request for Proposal: Case Management Platform",
+			source: "sam_gov",
+			sourcePlatform: "SAM.gov",
+			sourceFile: "source:https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
+			opportunityType: "rfp",
+			tags: ["external-discovery", "source-scrape", "sam-gov", "us-federal"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
+				}),
+			}),
+		}));
+	});
+
 	it("uses browser fallback for configured source URLs when Firecrawl is blocked", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
