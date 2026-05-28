@@ -422,7 +422,7 @@ function extractDocumentLinks(
 			});
 		}
 
-		const bareUrlPattern = /https?:\/\/[^\s<>"')]+/g;
+		const bareUrlPattern = /https?:\/\/[^\s<>"'()[\]]+/g;
 		for (const match of markdown.matchAll(bareUrlPattern)) {
 			const url = normalizeCandidateDocumentUrl(match[0] ?? "", baseUrl);
 			if (!url || !isDocumentUrl(url)) continue;

@@ -328,6 +328,51 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("does not create malformed source document URLs from markdown links whose labels are URLs", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Archive-hosted procurement document",
+					url: "https://commons.wikimedia.org/wiki/File:RL32229_(IA_RL32229-crs).pdf",
+					content: "Request for proposal document mirrored from archive.org.",
+					engine: "bing",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Archive procurement document",
+					"[https://archive.org/download/RL32229-crs/RL32229.pdf](https://archive.org/download/RL32229-crs/RL32229.pdf)",
+				].join("\n\n"),
+				metadata: {
+					title: "Archive procurement document",
+					description: "Mirrored procurement PDF.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "archive procurement rfp",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		const insertedSourceUrls = vi.mocked(db.insert).mock.results.map((result) => {
+			const insertBuilder = result.value as { values: ReturnType<typeof vi.fn> };
+			return insertBuilder.values.mock.calls[0][0].sourceUrl;
+		});
+		expect(insertedSourceUrls).toEqual([
+			"https://archive.org/download/RL32229-crs/RL32229.pdf",
+		]);
+		expect(insertedSourceUrls.join("\n")).not.toContain("](");
+	});
+
 	it("preserves and seeds multiple high-signal Firecrawl document links", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

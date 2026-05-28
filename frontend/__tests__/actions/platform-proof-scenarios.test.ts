@@ -51,6 +51,7 @@ describe("platform proof scenarios", () => {
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-kenya-ppip-persisted-import-response");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-source-discovery");
+		expect(withLive.map((scenario) => scenario.id)).toContain("live-broad-discovery-import");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-undp-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-world-bank-source");
 		expect(withLive.map((scenario) => scenario.id)).toContain("live-afdb-source");
@@ -402,6 +403,23 @@ describe("platform proof scenarios", () => {
 				]),
 			}),
 		]);
+		expect(listProofScenarios({ ids: ["live-broad-discovery-import"], includeLiveSafe: true })).toEqual([
+			expect.objectContaining({
+				id: "live-broad-discovery-import",
+				kind: "live-safe",
+				proofTargets: expect.arrayContaining(["F-001", "F-005"]),
+				command: expect.objectContaining({
+					env: expect.objectContaining({
+						LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY: "10",
+						LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT: "15",
+						LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT: "5",
+					}),
+				}),
+				expectedArtifacts: expect.arrayContaining([
+					".omx/state/platform-live-discovery-import-evidence.md",
+				]),
+			}),
+		]);
 		expect(listProofScenarios({ ids: ["live-undp-source"], includeLiveSafe: true })).toEqual([
 			expect.objectContaining({
 				id: "live-undp-source",
@@ -526,6 +544,10 @@ describe("platform proof scenarios", () => {
 		const [kenyaPersistedResponseScenario] = listProofScenarios({ ids: ["live-kenya-ppip-persisted-import-response"], includeLiveSafe: true });
 		expect(formatProofCommand(kenyaPersistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_SOURCE_KIND=kenya_ppip");
 		expect(formatProofCommand(kenyaPersistedResponseScenario)).toContain("LIVE_PERSISTED_IMPORT_RESPONSE_PAGE_LIMIT=25");
+
+		const [broadDiscoveryImportScenario] = listProofScenarios({ ids: ["live-broad-discovery-import"], includeLiveSafe: true });
+		expect(formatProofCommand(broadDiscoveryImportScenario)).toContain("LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY=10");
+		expect(formatProofCommand(broadDiscoveryImportScenario)).toContain("npx tsx scripts/run-live-discovery-import.ts");
 	});
 
 	it("keeps continue-on-failure sweeps failed when any scenario fails", async () => {

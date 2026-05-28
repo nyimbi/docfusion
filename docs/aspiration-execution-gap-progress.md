@@ -35,6 +35,31 @@ Verification:
 Remaining after this slice:
 - Use the restored DB-backed proof path to harden broad recurring imports and product UI handoff from persisted opportunity history.
 
+### 2026-05-28 - Broad Live Discovery Import Registered and Repaired
+
+Status: implemented and verified.
+
+Purpose: make broad RFP/opportunity collection a first-class platform proof and use the live run to improve source-document intake quality.
+
+Changes in this slice:
+- Registered `live-broad-discovery-import` in the Wave 9 platform proof manifest so the default broad discovery profile can be run through the standard proof harness.
+- Added manifest coverage for the broad import limits and expected evidence artifacts.
+- Tightened discovery document-link extraction so a markdown link whose label is itself a URL cannot leak `](` delimiters into a persisted source-document URL.
+- Added a regression test for the malformed `archive.org` URL shape found in the live import run.
+- Removed the single malformed duplicate `opportunity_documents` row left by the live run after verifying the same opportunity already had the correct downloaded PDF row.
+
+Verification:
+- `npm run platform:proof -- --run live-broad-discovery-import --include-live-safe` passed with run `live_discovery_import_20260528T064006Z`.
+- The broad import processed 131 candidates, created 20 opportunities, updated 111 opportunities, created 24 source-document rows, reused 140 existing source documents, attempted 5 bounded downloads, and downloaded 1 source document.
+- Source health covered 19 configured sources; 12 returned candidates or browser-fallback evidence, while 7 were recorded as empty/degraded with source-level warning evidence.
+- `npm test -- discovery-opportunity-import.test.ts platform-proof-scenarios.test.ts --run` passed with 31 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB verification after cleanup: 2,743 opportunities, 1,611 `rfp` opportunities, 187 source-document rows, 12 downloaded source documents, 8 RFP documents, 18 RFP requirements, and 0 source-document URLs containing malformed markdown delimiters.
+
+Remaining after this slice:
+- Improve low-yield configured sources such as SAM.gov, EU Funding & Tenders, ADB, EBRD, USAID, and GIZ with source-specific API or browser parsers instead of relying on the generic scraper.
+- Investigate why the imported 446,783-character `RL32229.pdf` parse produced zero requirements despite successful text extraction.
+
 ### 2026-05-27 - Live Portfolio Expansion Recheck
 
 Status: verified with live-source failures.

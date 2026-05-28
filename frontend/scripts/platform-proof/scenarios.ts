@@ -672,6 +672,30 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		],
 	},
 	{
+		id: "live-broad-discovery-import",
+		wave: 9,
+		title: "Live broad discovery import proof",
+		kind: "live-safe",
+		proofTargets: ["F-001", "F-005"],
+		requiresLiveServices: true,
+		description: "Runs the broad default discovery profile against SearXNG, configured procurement sources, Firecrawl/browser fallback, and PostgreSQL persistence.",
+		command: {
+			command: "npx",
+			args: ["tsx", "scripts/run-live-discovery-import.ts"],
+			env: {
+				LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY: "10",
+				LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT: "15",
+				LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT: "5",
+				LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT: "5",
+				LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT: "5",
+			},
+		},
+		expectedArtifacts: [
+			".omx/state/platform-live-discovery-import-evidence.md",
+			".omx/logs/platform-completion/live-discovery-import-<run_id>/live-discovery-import.json",
+		],
+	},
+	{
 		id: "live-undp-source",
 		wave: 9,
 		title: "Live UNDP source discovery proof",
