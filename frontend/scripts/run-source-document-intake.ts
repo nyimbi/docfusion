@@ -282,7 +282,9 @@ async function ingestDocument(
 	config: SourceDocumentIntakeProof["config"]
 ): Promise<IntakeResult> {
 	try {
-		const result = await runtime.downloadDocument(document.id, config.userId, document.opportunityId);
+		const result = await runtime.downloadDocument(document.id, config.userId, document.opportunityId, {
+			parseMode: config.waitForParse ? "background" : "queued",
+		});
 		const parseWait = result.parsingJobId && config.waitForParse
 			? await waitForParseCompletion(runtime.db, result.parsingJobId, config)
 			: undefined;

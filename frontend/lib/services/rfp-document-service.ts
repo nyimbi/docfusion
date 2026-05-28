@@ -86,7 +86,7 @@ export interface DownloadResult {
   error?: string;
 }
 
-export type DownloadParseMode = "background" | "inline";
+export type DownloadParseMode = "background" | "inline" | "queued";
 export type DownloadParseStatus = "queued" | "completed" | "failed" | "duplicate" | "not_queued";
 
 export interface DownloadDocumentOptions {
@@ -2105,6 +2105,14 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       rfpDocumentId: rfpDocument.id,
       parsingJobId: parsingJob.id,
     });
+
+    if (params.parseMode === "queued") {
+      return {
+        rfpDocumentId: rfpDocument.id,
+        parsingJobId: parsingJob.id,
+        parsingStatus: "queued",
+      };
+    }
 
     const parseJob = processRfpParsingJob({
       jobId: parsingJob.id,

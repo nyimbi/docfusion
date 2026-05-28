@@ -476,6 +476,32 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("can queue a downloaded RFP without starting an in-process parser", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+			}));
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			parsingStatus: "queued",
+		});
+		expect(processRfpParsingJob).not.toHaveBeenCalled();
+	});
+
 	it("extracts and queues a supported RFP document from a downloaded ZIP package", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];
