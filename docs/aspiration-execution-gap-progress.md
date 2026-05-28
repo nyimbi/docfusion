@@ -38,6 +38,27 @@ Remaining after this slice:
 - Configure a real CloakBrowser CDP endpoint, then rerun the AFDB configured-source proof/import.
 - Keep direct document intake draining while protected source pages are handled through this stronger fallback path.
 
+### 2026-05-28 - Direct Source Document Intake Drained Another Bounded Batch
+
+Status: live batch completed and verified.
+
+Purpose: convert already discovered direct RFP artifacts into parsed RFP documents and requirements using the lightweight PDF extraction path before continuing broader sourcing.
+
+Changes in this slice:
+- Ran dry-run source document intake `source_document_intake_dryrun_20260528T1230` to confirm the selector prioritized direct Kenya PPIP and AIIB artifacts.
+- Ran live intake `source_document_intake_direct_batch_20260528T1231` against 10 direct artifacts: 9 PDFs and 1 XLSX.
+- The PDF files used `local_pdftotext`; the XLSX used the existing document parsing path.
+
+Verification:
+- Live intake downloaded 10/10 selected source documents.
+- Live intake completed 10/10 parse jobs, with 0 failed parses and 0 parse timeouts.
+- The run extracted 60 requirements directly from the selected batch.
+- Post-run database snapshot: opportunity documents moved to 51 downloaded and 240 discovered; RFP documents increased to 44; RFP requirements increased to 232; parsing jobs showed 40 completed, 3 processing, and 2 failed.
+
+Remaining after this slice:
+- Continue bounded direct-artifact intake batches.
+- Use the parsed RFP backlog to feed the governed response-package backfill and readiness workflow.
+
 ### 2026-05-28 - PDF RFP Intake Uses Lightweight Extraction Before Docling
 
 Status: implemented and verified.
