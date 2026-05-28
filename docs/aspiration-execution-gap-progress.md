@@ -8625,6 +8625,12 @@ Verification:
 - `psql` against `docfusion` confirmed `current_database = docfusion`, `current_user = docfusion`, `to_regclass('public.opportunities') = opportunities`, and `to_regclass('public.rfp_documents') = rfp_documents`.
 - `npm run platform:proof -- --run live-persisted-import-response --include-live-safe` passed when run with `frontend/.env.local` sourced.
 
+Revalidation:
+- `psql` against `frontend/.env.local` confirmed the app URL targets `db.lindela.io:5432/docfusion` as user `docfusion`; PostgreSQL reports server address `62.84.181.55:5432`.
+- `psql` against the maintenance database confirmed `docfusion` exists with UTF8 encoding.
+- `psql` against `docfusion` counted 158 public tables and confirmed app-user `connect`, public-schema `usage`, and `select,insert,update,delete` privileges on `opportunities`.
+- Current persisted counts remain 2,602 total opportunities, including 1,596 `rfp` opportunities, and 0 long-lived `rfp_documents` rows after proof cleanup.
+
 Follow-up:
 - The first unsourced proof attempt still used a stale ambient `DATABASE_URL` for `88.80.188.224/lnd`; keep live proof commands explicitly sourced from `frontend/.env.local` or clean the ambient shell environment.
 - `live-kenya-ppip-persisted-import-response` now reaches `db.lindela.io:5432/docfusion`; subsequent work made its source extraction resilient when Docling is unavailable or returns empty text.
