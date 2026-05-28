@@ -1,6 +1,7 @@
 import "./load-env";
 
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
@@ -244,7 +245,7 @@ async function selectDiscoveredDocuments(
 
 	const solicitationCandidates = candidates
 		.filter(isLikelySolicitationSource)
-		.filter((candidate) => config.retryProtectedHosts || isRetryableSourceCandidate(candidate));
+		.filter((candidate) => config.retryProtectedHosts || isRoutineSourceCandidate(candidate));
 
 	return diversifyCandidates(
 		solicitationCandidates,
@@ -316,6 +317,20 @@ function sourceHost(value: string): string {
 function isLikelySolicitationSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`;
 	return !NON_SOLICITATION_DOCUMENT_PATTERN.test(haystack);
+}
+
+export function isRoutineSourceCandidate(value: {
+	sourceUrl: string;
+	status: string;
+	downloadAttempts: number;
+	lastError: string | null;
+}): boolean {
+	if (isProtectedRoutineSource(value)) return false;
+	return isRetryableSourceCandidate(value);
+}
+
+function isProtectedRoutineSource(value: { sourceUrl: string }): boolean {
+	return PROTECTED_403_RETRY_HOSTS.has(sourceHost(value.sourceUrl));
 }
 
 function isRetryableSourceCandidate(value: {
@@ -499,7 +514,9 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-main().catch((error) => {
-	console.error(error);
-	process.exitCode = 1;
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+	main().catch((error) => {
+		console.error(error);
+		process.exitCode = 1;
+	});
+}

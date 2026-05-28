@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Routine Intake Skips Protected Portal Rows
+
+Status: implemented, unit-verified, typechecked, and live dry-run verified.
+
+Purpose: keep routine RFP intake focused on downloadable source documents instead of repeatedly spending recovery time on protected DGMarket portal pages that return HTTP 403.
+
+Changes in this slice:
+- Changed source-document intake selection so routine batches skip known protected portal hosts, including newly discovered rows with zero prior attempts.
+- Preserved the explicit `SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=1` escape hatch for targeted protected-host recovery runs.
+- Made the source-intake script importable for focused helper tests without running the live intake side effect.
+
+Verification:
+- Added regression coverage proving routine intake keeps a fresh direct Kenya PDF but skips newly discovered and previously failed DGMarket portal rows.
+- `npx vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 3 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live dry-run `source_intake_protected_skip_dryrun_20260529`, with failed retries disabled and protected-host recovery off, selected 0 rows after the previous broad reseed. Before this change, newly discovered DGMarket rows were selected and then failed with HTTP 403.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Add a source-specific DGMarket recovery path only if protected access becomes operationally worthwhile; routine intake should not spend broad-collection capacity there.
+- Continue broad reseeding plus intake loops to keep growing the RFP and requirements corpus.
+
 ### 2026-05-29 - Broad Reseed Adds Five More Parsed RFPs
 
 Status: live-run, downloaded, parsed, and verified.
