@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Sparse HTML RFP Shells No Longer Enter The Parser Queue
+
+Status: implemented and verified.
+
+Purpose: keep broad RFP intake from treating portal shells and near-empty HTML pages as successful parse inputs while still accepting substantive HTML tender/RFP notices as source documents.
+
+Changes in this slice:
+- Added HTML and HTM as first-class discovered source-document extensions.
+- Allowed direct `.html` and `.htm` source pages to be evaluated directly instead of being mistaken for blocked PDF/DOC downloads that need recovery.
+- Raised the local and DocLing HTML extraction gate so HTML output must be substantive and include procurement/RFP language before it can seed parser text.
+- Stopped queueing HTML documents for parsing when no usable extracted text is available; they remain stored with a `stored_unparseable` ingest workflow instead of becoming completed zero-requirement parses.
+- Added regression coverage for both sparse HTML rejection and substantive HTML RFP acceptance.
+
+Verification:
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 30 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue fixing browser/CloakBrowser recovery for protected source-document pages that still block direct retrieval.
+- Continue bounded source-document intake against the remaining discovered source documents, then feed high-fit completed parses into response-package backfill.
+
 ### 2026-05-28 - SearXNG Can Fall Back Through Public Instance Discovery
 
 Status: implemented and verified with a forced-primary-failure live probe.
@@ -37,7 +58,7 @@ Verification:
 
 Remaining after this slice:
 - Add a trusted operator-controlled `SEARXNG_FALLBACK_URLS` pool if we want higher reliability than opportunistic public instances.
-- Continue fixing browser/CloakBrowser recovery for protected source-document pages and HTML quality gating.
+- Continue fixing browser/CloakBrowser recovery for protected source-document pages.
 
 ### 2026-05-28 - Broad RFP Search Runs Wider And In Parallel
 

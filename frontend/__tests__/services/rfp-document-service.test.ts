@@ -710,6 +710,123 @@ describe("RFP document fetch storage", () => {
 		expect(dbMock.update).toHaveBeenCalled();
 	});
 
+	it("stores sparse HTML downloads without queueing them for parsing", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const sparseHtml = "<!doctype html><html><body><main>Open</main></body></html>";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Sparse Portal.html",
+			sourceUrl: "https://buyer.example/tenders/sparse.html",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(sparseHtml, {
+			status: 200,
+			headers: {
+				"content-length": String(Buffer.byteLength(sparseHtml)),
+				"content-type": "text/html",
+			},
+		}));
+		doclingMock.processRfpDocument.mockResolvedValue({
+			text: "Open",
+			pageCount: 1,
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "not_queued",
+		});
+		expect(dbMock.insert).not.toHaveBeenCalled();
+		expect(processRfpParsingJob).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: undefined,
+		}));
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "stored_unparseable",
+				reason: expect.stringContaining("HTML document"),
+			})
+		);
+	});
+
+	it("queues substantive HTML procurement pages after local extraction", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const procurementText = [
+			"Request for Proposal for procurement of a grant management platform.",
+			"The tender invites qualified bidders to submit technical and financial proposals before the submission deadline.",
+			"Eligible suppliers must provide company registration, similar project references, implementation methodology, support plan, data protection controls, and pricing schedules.",
+			"Evaluation criteria include bidder experience, compliance with the terms of reference, proposed timeline, team qualifications, and value for money.",
+			"All proposal responses must include signed forms, delivery milestones, acceptance criteria, warranty commitments, and contact details for clarifications.",
+			"The procuring entity may issue amendments, answer questions, and publish award notices through the procurement portal.",
+		].join(" ");
+		const html = `<!doctype html><html><body><main>${procurementText}</main></body></html>`;
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Grant Management RFP.html",
+			sourceUrl: "https://buyer.example/tenders/grant-management-rfp.html",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000431", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000531" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(html, {
+			status: 200,
+			headers: {
+				"content-length": String(Buffer.byteLength(html)),
+				"content-type": "text/html",
+			},
+		}));
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("Request for Proposal"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("qualified bidders"),
+		});
+		expect(insertedValues[1]).toMatchObject({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000431",
+			status: "queued",
+		});
+	});
+
 	it("falls back from DocLing to sanitized legacy DOC text without storing binary control bytes", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];

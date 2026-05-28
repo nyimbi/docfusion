@@ -44,13 +44,17 @@ import { logger } from "@/lib/utils/logger";
 
 const DOCUMENT_STORAGE_PATH = process.env.DOCUMENT_STORAGE_PATH || "./storage/rfp-documents";
 const MAX_FILE_SIZE_MB = 100; // Maximum file size to download
-const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar"];
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar", ".html", ".htm"];
 const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
 const MIN_EXTRACTED_TEXT_LENGTH = 10;
+const MIN_HTML_EXTRACTED_TEXT_LENGTH = 450;
+const MIN_HTML_EXTRACTED_WORD_COUNT = 40;
 const SOURCE_DOCUMENT_FETCH_TIMEOUT_MS = 60_000;
 const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
 const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
 const PDFTOTEXT_TIMEOUT_MS = 30_000;
+const HTML_RFP_TEXT_SIGNAL =
+  /\b(requests?\s+for\s+proposals?|rfps?|tenders?|bids?|bidding|procurement|proposals?|solicitations?|expressions?\s+of\s+interest|eois?|invitations?\s+to\s+bid|terms?\s+of\s+reference|tors?|requests?\s+for\s+quotations?|rfqs?)\b/i;
 
 // ============================================================================
 // Types
@@ -404,7 +408,7 @@ function isValidDocumentUrl(url: string): boolean {
 
     // Check for common document patterns in URL
     const docPatterns = [
-      /\.(pdf|docx?|xlsx?|zip|rar)(\?|$)/i,
+      /\.(pdf|docx?|xlsx?|zip|rar|html?)(\?|$)/i,
       /download/i,
       /document/i,
       /tender-doc/i,
@@ -1152,7 +1156,7 @@ async function tryFetchSourceDocumentUrl(
 
   const buffer = Buffer.from(await response.arrayBuffer());
   assertSourceDocumentBufferSize(buffer);
-  if (isLikelyDirectDocumentUrl(url) && isHtmlMimeType(mimeType) && looksLikeHtml(buffer)) {
+  if (isLikelyDirectDocumentUrl(url) && !isLikelyHtmlDocumentUrl(url) && isHtmlMimeType(mimeType) && looksLikeHtml(buffer)) {
     return {
       ok: false,
       status: response.status,
@@ -1538,6 +1542,10 @@ function isLikelyDirectDocumentUrl(url: URL): boolean {
   return /\.(pdf|docx?|xlsx?|zip|html?)$/i.test(url.pathname);
 }
 
+function isLikelyHtmlDocumentUrl(url: URL): boolean {
+  return /\.html?$/i.test(url.pathname);
+}
+
 function isHtmlMimeType(mimeType: string): boolean {
   return /^text\/html\b/i.test(mimeType) || /\bhtml\b/i.test(mimeType);
 }
@@ -1545,6 +1553,23 @@ function isHtmlMimeType(mimeType: string): boolean {
 function looksLikeHtml(buffer: Buffer): boolean {
   const prefix = buffer.toString("utf8", 0, Math.min(buffer.length, 512)).trimStart();
   return /^<!doctype html\b/i.test(prefix) || /^<html[\s>]/i.test(prefix);
+}
+
+function isUsableHtmlExtractedText(text: string): boolean {
+  const wordCount = text.match(/[A-Za-z0-9][A-Za-z0-9'-]*/g)?.length ?? 0;
+  return (
+    text.length >= MIN_HTML_EXTRACTED_TEXT_LENGTH &&
+    wordCount >= MIN_HTML_EXTRACTED_WORD_COUNT &&
+    HTML_RFP_TEXT_SIGNAL.test(text)
+  );
+}
+
+function isUsableExtractedTextForFilename(filename: string, text: string): boolean {
+  const extension = extname(filename).toLowerCase();
+  if (extension === ".html" || extension === ".htm") {
+    return isUsableHtmlExtractedText(text);
+  }
+  return text.length >= MIN_EXTRACTED_TEXT_LENGTH;
 }
 
 function isUsableRecoveryScrape(scraped: { markdown?: string; html?: string; links?: string[] }): boolean {
@@ -1790,7 +1815,7 @@ async function extractSupportedDocumentText(
     logger.debug(`[DocLing] Processing document: ${filename}`);
     const processed = await processRfpDocument(buffer, filename);
     const text = cleanExtractedText(processed.text);
-    if (text.length >= MIN_EXTRACTED_TEXT_LENGTH) {
+    if (isUsableExtractedTextForFilename(filename, text)) {
       logger.debug(`[DocLing] Extracted ${processed.pageCount} pages, ${text.length} characters`);
       return {
         text,
@@ -1860,7 +1885,7 @@ async function extractDocumentTextLocally(
           .replace(/&gt;/g, ">")
           .replace(/&quot;/g, "\"")
       );
-      if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+      if (!isUsableHtmlExtractedText(text)) return undefined;
       return { text, extractor: "local_html_text" };
     }
 
@@ -2007,12 +2032,13 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     });
     return { parsingStatus: "not_queued" };
   }
-  if ((fileType === "xlsx" || fileType === "xls") && !params.extractedText?.trim()) {
+  if ((fileType === "xlsx" || fileType === "xls" || fileType === "html") && !params.extractedText?.trim()) {
+    const fileKind = fileType === "html" ? "HTML document" : "spreadsheet";
     await recordOpportunityDocumentIngestWorkflow({
       document: params.document,
       userId: params.userId,
       toState: "stored_unparseable",
-      reason: "Downloaded spreadsheet was stored, but no extracted text was available for the RFP parser.",
+      reason: `Downloaded ${fileKind} was stored, but no extracted text was available for the RFP parser.`,
       priority: "medium",
       storageReceipt: params.storageReceipt,
     });
