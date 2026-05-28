@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Fresh Tender Backlog Adds Twelve Parsed RFPs
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: keep converting broad discovery output into response-ready RFP documents and requirements.
+
+Changes in this slice:
+- Ran the next source-document dry-run with failed retries disabled to confirm a fresh direct-document batch remained after the previous RFQ/TOR drain.
+- Ran a bounded live intake batch of 12 documents.
+- Drained all queued parser jobs created by that intake.
+
+Verification:
+- Dry-run `source_intake_next_fresh_dryrun_20260529` selected 20 fresh rows, including Kenya tender PDFs, TOR/procurement consultant files, AFD EOI DOCX, ITB files, GIZ, IOM, Enisa, UK procurement guidance, and SAM.gov material.
+- Live intake `source_intake_next_fresh_live_20260529` selected 12 documents, downloaded 12, failed 0, and queued 12 parser jobs. Extraction used local `pdftotext`/DOCX parsing first; ISSA and IOM protected direct PDFs recovered as HTML with usable text.
+- Queued parse drain `queued_parse_next_fresh_intake_20260529` selected 12 jobs, completed 12, failed 0, and extracted 112 requirements.
+- Post-run live database snapshot: 3,117 opportunities, 171 RFP documents, 169 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,133 requirements, 143 RFP documents with requirements, 435 selected source-document rows, 209 downloaded source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Continue fresh source-document backlog drains while the selector still finds direct documents.
+- Public `searx.space` fallback remains noisy; a trusted fallback pool is still needed for reliable broad search coverage.
+
 ### 2026-05-29 - RFQ/TOR Source Backlog Converts Into Parsed Requirements
 
 Status: live-run, downloaded, parsed, and verified.
