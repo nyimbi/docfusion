@@ -95,6 +95,13 @@ beforeEach(() => {
 			failed: 0,
 		},
 		errors: [],
+		warnings: [{
+			type: "searxng_engine_degraded",
+			query: "ICT tender Kenya",
+			title: "SearXNG engine degradation",
+			url: "https://search.lindela.io/search",
+			message: "bing: timeout",
+		}],
 	});
 	delete process.env.DISCOVERY_IMPORT_USER_ID;
 	delete process.env.DISCOVERY_IMPORT_ORGANIZATION_ID;
@@ -147,8 +154,10 @@ describe("scheduled discovery preset run route", () => {
 					name: "Daily East Africa ICT",
 					input: {
 						queries: ["ICT tender Kenya", "digital transformation RFP Uganda"],
+						engines: ["duckduckgo", "bing"],
 						sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
 						downloadDiscoveredDocuments: true,
+						downloadLimit: 5,
 					},
 				},
 			],
@@ -169,9 +178,10 @@ describe("scheduled discovery preset run route", () => {
 			expect.objectContaining({
 				queries: ["ICT tender Kenya", "digital transformation RFP Uganda"],
 				countryRegion: "East Africa",
+				engines: ["duckduckgo", "bing"],
 				sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
 				downloadDiscoveredDocuments: true,
-				downloadLimit: 3,
+				downloadLimit: 5,
 			}),
 			"service-user-1",
 			"org-service-1"
@@ -186,6 +196,10 @@ describe("scheduled discovery preset run route", () => {
 					success: true,
 					importId: "import-1",
 					results: { imported: 1, updated: 1 },
+					warnings: [{
+						type: "searxng_engine_degraded",
+						query: "ICT tender Kenya",
+					}],
 				},
 			],
 		});

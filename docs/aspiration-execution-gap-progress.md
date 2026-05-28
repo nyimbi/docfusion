@@ -8577,6 +8577,36 @@ Remaining after this slice:
 - Replace proof-file reads with DB/object-storage backed artifact downloads once PostgreSQL and durable object storage persistence are available.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Broader RFP Collection Defaults
+
+Status: implemented and verified.
+
+Purpose: make unattended RFP sourcing broader and more reliable by default, because source collection is the most important capability.
+
+Changes in this slice:
+- Added a broad default SearXNG query profile for submission-deadline RFPs, consultancy RFPs, ICT tender notices, software development tenders, grant-management systems, health information systems, and consulting EOIs.
+- Expanded the configured source catalog from 10 to 19 procurement portals, adding World Bank tender notices, ADB, AIIB, IsDB, EBRD, USAID, SAM.gov, EU Funding & Tenders, and GIZ alongside the existing Kenya PPIP, UNGM, UNDP, World Bank projects, AFDB, dgMarket, COMESA, UN, and UNICEF sources.
+- Increased bounded default source scrape, top-result scrape, and source document download limits from 10/3/3 to 15/5/5.
+- Defaulted SearXNG engines to `duckduckgo,bing` after live probes showed DuckDuckGo returning RFP hits while Google was access-denied and Brave was rate-limited.
+- Preserved explicit source-only runs: callers can still pass `sourceUrls` without query fields to scrape only configured sources.
+- Returned scheduled preset warnings so SearXNG engine degradation, source scrape failures, empty sources, browser fallback use, and source document download failures are visible to operators.
+- Updated the opportunity discovery runbook with the broad default profile and warning review guidance.
+
+Verification:
+- `npm test -- default-discovery-sources.test.ts opportunity-discovery-route.test.ts opportunity-discovery-presets-route.test.ts --run` passed with 14 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-discovery-rfp-response-bridge` passed with 62 tests across default sources, dgMarket parsing, discovery import, opportunity document intake, RFP document service, and proposal document scope.
+- Live SearXNG probe against `https://search.lindela.io` for `"request for proposals" Africa submission deadline` with `duckduckgo,bing` returned actionable DuckDuckGo RFP results.
+
+Current count check:
+- Confirmed-current persisted RFP count is still unavailable because PostgreSQL refused the count query at `88.80.188.224:5432`.
+- Latest local export snapshot `data/sync_exports/opportunities_export_20260405_145344.json` contains 20 tender opportunities, but this is an old snapshot, not a current app count.
+
+Remaining after this slice:
+- Restore PostgreSQL connectivity and run a live count across `opportunities.opportunity_type` and `rfp_documents`.
+- Run the broad default collection profile through the authenticated API once DB connectivity is restored, then measure imported/updated/skipped/failed rows and source warning rates.
+- Add source-health rollups so chronically empty or degraded sources are visible before they cause missed RFPs.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.

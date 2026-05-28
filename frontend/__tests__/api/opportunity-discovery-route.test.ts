@@ -152,9 +152,50 @@ describe("opportunity discovery run route", () => {
 		expect(executeOpportunityDiscoveryImportMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				query: "scheduled rfp search",
+				queries: undefined,
+				engines: ["duckduckgo", "bing"],
 				sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
 				downloadDiscoveredDocuments: true,
-				downloadLimit: 3,
+				downloadLimit: 5,
+			}),
+			"service-user-1",
+			"org-service-1"
+		);
+		expect(body).toMatchObject({
+			success: true,
+			importId: "import-service",
+			results: { imported: 1 },
+		});
+	});
+
+	it("runs empty scheduled discovery with both broad default queries and configured sources", async () => {
+		process.env.SCRAPER_API_KEY = "scraper-secret";
+		process.env.DISCOVERY_IMPORT_USER_ID = "service-user-1";
+		process.env.DISCOVERY_IMPORT_ORGANIZATION_ID = "org-service-1";
+
+		const response = await POST(discoveryRequest(
+			{},
+			{ authorization: "Bearer scraper-secret" }
+		));
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(executeOpportunityDiscoveryImportMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				queries: expect.arrayContaining([
+					"\"request for proposals\" Africa submission deadline",
+					"\"software development\" tender procurement Africa",
+					"\"expression of interest\" consultancy services Africa deadline",
+				]),
+				engines: ["duckduckgo", "bing"],
+				sourceUrls: expect.arrayContaining([
+					"https://www.ungm.org/Public/Notice",
+					"https://tenders.worldbank.org/procurement-notices",
+					"https://sam.gov/search/?index=opp",
+				]),
+				sourceScrapeLimit: 15,
+				scrapeLimit: 5,
+				downloadLimit: 5,
 			}),
 			"service-user-1",
 			"org-service-1"
