@@ -502,6 +502,68 @@ describe("RFP parse workflow", () => {
 		expect(completedIndex).toBeGreaterThan(finalizingIndex);
 	});
 
+	it("normalizes AI parse results that omit sections before requirement extraction", async () => {
+		const updates: Record<string, unknown>[] = [];
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "ADB procurement notice with submission instructions and technical requirements.",
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: "Asian Development Bank",
+			solicitationNumber: "ADB-2026",
+			confidence: 0.82,
+		} as any);
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"section-1",
+			{
+				source: "heuristic",
+				requirements: [{
+					requirementNumber: "REQ-001",
+					sectionReference: "section-1",
+					title: "Submission Instructions",
+					fullText: "Submit a technical proposal.",
+					category: "technical",
+					requirementType: "shall",
+					priority: "mandatory",
+					confidenceScore: 0.72,
+					pageNumber: 1,
+				}],
+			},
+		]]));
+
+		const result = await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(result).toEqual({ status: "completed" });
+		expect(batchExtractRequirements).toHaveBeenCalledWith([
+			expect.objectContaining({
+				id: "section-1",
+				text: "ADB procurement notice with submission instructions and technical requirements.",
+			}),
+		]);
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				extractedTitle: "Document",
+				detectedSections: ["Document"],
+				parsingConfidence: 82,
+			}),
+			expect.objectContaining({
+				status: "completed",
+				requirementsExtracted: 1,
+			}),
+		]));
+	});
+
 	it("forces parser review when a completed parse extracts zero requirements", async () => {
 		const updates: Record<string, unknown>[] = [];
 		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({

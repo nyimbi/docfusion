@@ -49,6 +49,9 @@ async function main() {
 		if (proof.result.results.total === 0) {
 			throw new Error("Broad live discovery import produced zero candidate records");
 		}
+		if (proof.input.downloadParseMode === "inline" && proof.result.sourceDocumentsParseFailed > 0) {
+			throw new Error(`Inline source-document parsing failed for ${proof.result.sourceDocumentsParseFailed} downloaded documents`);
+		}
 		proof.completedAt = new Date().toISOString();
 		await writeArtifacts(proof, "pass");
 		console.log(JSON.stringify(proof, null, 2));
@@ -83,8 +86,15 @@ function liveDiscoveryImportInput(): DiscoveryImportInput {
 		downloadDiscoveredDocuments: process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS === "0"
 			? false
 			: undefined,
+		downloadParseMode: discoveryImportParseMode(),
 		sourceUrls: sourceUrlsFromEnv(),
 	});
+}
+
+function discoveryImportParseMode(): DiscoveryImportInput["downloadParseMode"] {
+	const raw = process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_PARSE_MODE?.trim().toLowerCase();
+	if (raw === "background" || raw === "inline") return raw;
+	return process.env.LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS === "0" ? undefined : "inline";
 }
 
 function sourceUrlsFromEnv(): string[] | undefined {
@@ -123,6 +133,8 @@ async function writeArtifacts(
 			`skipped:${result.results.skipped}`,
 			`failed:${result.results.failed}`,
 			`source_docs:${result.sourceDocumentsCreated}/${result.sourceDocumentsDownloaded}`,
+			`parsed_docs:${result.sourceDocumentsParsed}/${result.sourceDocumentsParseAttempted}`,
+			`parse_failed:${result.sourceDocumentsParseFailed}`,
 			`warnings:${result.warnings.length}`,
 			`sources:${health.length}`,
 			`degraded:${degraded}`,

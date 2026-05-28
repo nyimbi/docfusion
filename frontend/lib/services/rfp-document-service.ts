@@ -68,6 +68,8 @@ export interface DownloadResult {
   documentId?: string;
   rfpDocumentId?: string;
   parsingJobId?: string;
+  parsingStatus?: DownloadParseStatus;
+  parsingError?: string;
   localPath?: string;
   storagePath?: string;
   storageReceipt?: RfpStorageReceipt;
@@ -75,6 +77,13 @@ export interface DownloadResult {
   mimeType?: string;
   provenance?: RfpIngestProvenance;
   error?: string;
+}
+
+export type DownloadParseMode = "background" | "inline";
+export type DownloadParseStatus = "queued" | "completed" | "failed" | "duplicate" | "not_queued";
+
+export interface DownloadDocumentOptions {
+  parseMode?: DownloadParseMode;
 }
 
 export interface RfpStorageReceipt {
@@ -141,6 +150,8 @@ interface QueuedRfpParsing {
   rfpDocumentId?: string;
   parsingJobId?: string;
   duplicateOfRfpDocumentId?: string;
+  parsingStatus?: DownloadParseStatus;
+  parsingError?: string;
 }
 
 type OpportunityDocumentRow = typeof opportunityDocuments.$inferSelect;
@@ -673,7 +684,8 @@ export async function updateAllDocumentSelections(
 export async function downloadDocument(
   documentId: string,
   userId?: string,
-  expectedOpportunityId?: string
+  expectedOpportunityId?: string,
+  options: DownloadDocumentOptions = {}
 ): Promise<DownloadResult> {
   try {
     // Get document from database
@@ -778,6 +790,7 @@ export async function downloadDocument(
       extractedText,
       pageCount,
       userId: userId || "system",
+      parseMode: options.parseMode ?? "background",
     });
 
     return {
@@ -785,6 +798,8 @@ export async function downloadDocument(
       documentId,
       rfpDocumentId: queued.rfpDocumentId ?? queued.duplicateOfRfpDocumentId,
       parsingJobId: queued.parsingJobId,
+      parsingStatus: queued.parsingStatus,
+      parsingError: queued.parsingError,
       localPath,
       storagePath: localPath,
       storageReceipt: stored.receipt,
@@ -1806,6 +1821,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
   extractedText?: string;
   pageCount?: number;
   userId: string;
+  parseMode: DownloadParseMode;
 }): Promise<QueuedRfpParsing> {
   const fileType = inferRfpParserFileType(params.document.documentName, params.mimeType);
   if (!fileType) {
@@ -1817,7 +1833,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       priority: "medium",
       storageReceipt: params.storageReceipt,
     });
-    return {};
+    return { parsingStatus: "not_queued" };
   }
 
   try {
@@ -1839,7 +1855,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
         priority: "high",
         storageReceipt: params.storageReceipt,
       });
-      return {};
+      return { parsingStatus: "failed", parsingError: "Downloaded document could not be queued because the user has no default workspace." };
     }
 
     const existing = await db.query.rfpDocuments.findFirst({
@@ -1859,7 +1875,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
         storageReceipt: params.storageReceipt,
         rfpDocumentId: existing.id,
       });
-      return { duplicateOfRfpDocumentId: existing.id };
+      return { duplicateOfRfpDocumentId: existing.id, parsingStatus: "duplicate" };
     }
 
     const [rfpDocument] = await db.insert(rfpDocuments).values({
@@ -1930,20 +1946,50 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       parsingJobId: parsingJob.id,
     });
 
-    processRfpParsingJob({
+    const parseJob = processRfpParsingJob({
       jobId: parsingJob.id,
       rfpDocumentId: rfpDocument.id,
       tenantContext: {
         userId: params.userId,
         organizationId: rfpDocument.organizationId,
       },
-    }).catch((error) => {
+    });
+    if (params.parseMode === "inline") {
+      try {
+        const parseResult = await parseJob;
+        if (parseResult?.status === "failed") {
+          return {
+            rfpDocumentId: rfpDocument.id,
+            parsingJobId: parsingJob.id,
+            parsingStatus: "failed",
+            parsingError: parseResult.error ?? "RFP parser marked the job failed",
+          };
+        }
+        return {
+          rfpDocumentId: rfpDocument.id,
+          parsingJobId: parsingJob.id,
+          parsingStatus: "completed",
+        };
+      } catch (error) {
+        const parsingError = error instanceof Error ? error.message : String(error);
+        logger.error("[RFP Document Service] Inline parse failed:", error);
+        return {
+          rfpDocumentId: rfpDocument.id,
+          parsingJobId: parsingJob.id,
+          parsingStatus: "failed",
+          parsingError,
+        };
+      }
+    }
+
+    parseJob.catch((error) => {
       logger.error("[RFP Document Service] Background parse failed:", error);
     });
 
     return {
       rfpDocumentId: rfpDocument.id,
       parsingJobId: parsingJob.id,
+      parsingStatus: "queued",
     };
   } catch (error) {
     logger.warn("[RFP Document Service] Failed to queue downloaded document for parsing:", error);
@@ -1957,7 +2003,10 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     }).catch((workflowError) => {
       logger.warn("[RFP Document Service] Failed to persist parse queue failure workflow:", workflowError);
     });
-    return {};
+    return {
+      parsingStatus: "failed",
+      parsingError: error instanceof Error ? error.message : "Failed to queue parser",
+    };
   }
 }
 

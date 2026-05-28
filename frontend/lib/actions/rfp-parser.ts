@@ -41,6 +41,7 @@ import { requireTenantContext } from "@/lib/auth/tenant-context";
 import {
 	parseRFPWithAI,
 	batchExtractRequirements,
+	type ParsedRFP,
 	type ExtractedRequirement,
 } from "@/lib/ai/rfp-parser";
 import {
@@ -1913,6 +1914,42 @@ export interface ProcessRfpParsingJobInput {
 	tenantContext: { userId: string; organizationId: string };
 }
 
+export interface ProcessRfpParsingJobResult {
+	status: "completed" | "failed";
+	error?: string;
+}
+
+function normalizeParsedRfpForStorage(parsedRFP: ParsedRFP, fallbackText: string): ParsedRFP {
+	const sections = Array.isArray(parsedRFP.sections)
+		? parsedRFP.sections
+			.map((section, index) => ({
+				sectionId: String(section?.sectionId || `section-${index + 1}`),
+				title: String(section?.title || `Section ${index + 1}`).trim() || `Section ${index + 1}`,
+				pageStart: Number.isFinite(section?.pageStart) ? Number(section.pageStart) : 1,
+				pageEnd: Number.isFinite(section?.pageEnd) ? Number(section.pageEnd) : Number.isFinite(section?.pageStart) ? Number(section.pageStart) : 1,
+				content: String(section?.content || "").trim(),
+			}))
+			.filter((section) => section.content || section.title)
+		: [];
+	const normalizedSections = sections.length > 0
+		? sections
+		: [{
+			sectionId: "section-1",
+			title: "Document",
+			pageStart: 1,
+			pageEnd: 1,
+			content: fallbackText.slice(0, 6000),
+		}];
+	const confidence = Number.isFinite(parsedRFP.confidence)
+		? Math.min(1, Math.max(0, Number(parsedRFP.confidence)))
+		: 0.35;
+	return {
+		...parsedRFP,
+		sections: normalizedSections,
+		confidence,
+	};
+}
+
 /**
  * Process an RFP parsing job asynchronously.
  * This function handles the actual parsing, extraction, and storage of requirements,
@@ -1921,7 +1958,7 @@ export interface ProcessRfpParsingJobInput {
  */
 export async function processRfpParsingJob(
 	input: ProcessRfpParsingJobInput,
-): Promise<void> {
+): Promise<ProcessRfpParsingJobResult> {
 	const { jobId, rfpDocumentId, tenantContext } = input;
 	const organizationId = tenantContext.organizationId;
 	logger.debug(`[RFP Parser] Starting job ${jobId} for document ${rfpDocumentId} (org=${organizationId})`);
@@ -1977,7 +2014,7 @@ export async function processRfpParsingJob(
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 30, "Parsing RFP structure");
 
 		// Step 2: Parse RFP structure and metadata (30-50%)
-		const parsedRFP = await parseRFPWithAI(extractedText);
+		const parsedRFP = normalizeParsedRfpForStorage(await parseRFPWithAI(extractedText), extractedText);
 
 		// Update document with parsed metadata
 		const parsingConfidence = parsedRFP.confidence * 100;
@@ -2178,6 +2215,7 @@ export async function processRfpParsingJob(
 		}
 
 		logger.debug(`[RFP Parser] Job ${jobId} completed successfully. Extracted ${allExtractedRequirements.length} requirements.`);
+		return { status: "completed" };
 
 	} catch (error) {
 		logger.error(`[RFP Parser] Job ${jobId} failed:`, error);
@@ -2227,6 +2265,7 @@ export async function processRfpParsingJob(
 			eq(rfpDocuments.id, rfpDocumentId),
 			eq(rfpDocuments.organizationId, organizationId),
 		));
+		return { status: "failed", error: errorMessage };
 	}
 }
 

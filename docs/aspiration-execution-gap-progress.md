@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Live Import Proof Awaits RFP Parsing
+
+Status: implemented and verified.
+
+Purpose: close the proof gap where live discovery imports could download source documents but let RFP parsing continue in the background after the proof script closed the database pool, weakening evidence for response-creation readiness.
+
+Changes in this slice:
+- Added an explicit `inline` parse mode to source-document downloads while preserving the existing background parse default for app flows.
+- Threaded inline parse mode through discovery import and `run-live-discovery-import.ts`, including parse attempted/succeeded/failed counters in import results and evidence notes.
+- Made `processRfpParsingJob` return an explicit completed/failed result so callers can distinguish successful inline parsing from recorded parser failure.
+- Hardened RFP parsing against malformed AI parse output that omits `sections`, normalizing to a fallback document section instead of crashing before requirement extraction.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts discovery-opportunity-import.test.ts rfp-parse-workflow.test.ts --run` passed with 68 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `LIVE_DISCOVERY_IMPORT_ORGANIZATION_ID='__INLINE_PARSE_PROOF_2_20260528__' LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://www.adb.org/business/institutional-procurement/notices' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 LIVE_DISCOVERY_IMPORT_DOWNLOAD_LIMIT=1 npx tsx scripts/run-live-discovery-import.ts` passed with run `live_discovery_import_20260528T083619Z`; 6 ADB opportunities were created, 1 source document downloaded, 1 source document parsed inline, 0 parse failures, and the parser extracted 11 requirements before database shutdown.
+
+Remaining after this slice:
+- Docling on `84.247.181.100:3600` still timed out during the live proof; local PDF parsing recovered successfully, but Docling service health should be investigated separately.
+- Continue replacing remaining empty or blocked generic sources, especially AIIB and IsDB.
+
 ### 2026-05-28 - ADB Institutional Procurement Source Recovered
 
 Status: implemented and verified.
@@ -35,7 +56,7 @@ Verification:
 - `LIVE_DISCOVERY_IMPORT_SOURCE_URLS='https://www.adb.org/business/institutional-procurement/notices' LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT=10 LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT=0 LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT=0 npx tsx scripts/run-live-discovery-import.ts` passed with run `live_discovery_import_20260528T081223Z`; 6 candidates were created, 0 failed, 0 warnings, source health was healthy, 6 source-document rows were created, and 5 documents downloaded.
 
 Remaining after this slice:
-- The live import proof exposed a separate proof-harness issue: background RFP parsing can continue after `run-live-discovery-import.ts` closes the database pool, producing post-result parser errors even though opportunity/source-document import succeeded. Fix the proof harness before using downloaded-document parsing success as completion evidence.
+- The background parse proof-harness issue was closed by the 2026-05-28 inline parse proof slice.
 - Continue replacing remaining empty or blocked generic sources, especially AIIB and IsDB.
 
 ### 2026-05-28 - EU Funding & Tenders Source API Added

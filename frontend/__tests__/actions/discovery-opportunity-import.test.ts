@@ -684,6 +684,57 @@ describe("discoverAndImportOpportunities", () => {
 		expect(downloadDocumentMock).toHaveBeenCalledWith("source-doc-1", "user-1", "opp-1");
 	});
 
+	it("tracks inline source-document parse completion for proof imports", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Procurement notice for records response platform",
+					url: "https://procurement.example.com/tenders/records-response-platform",
+					content: "Tender notice with document downloads.",
+					engine: "google",
+					score: 11,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[Download RFP document](/documents/records-response-platform-rfp.pdf)",
+				metadata: {
+					title: "Records Response Platform Tender",
+					description: "Implementation scope and document download links.",
+				},
+			},
+		});
+		downloadDocumentMock.mockResolvedValueOnce({
+			success: true,
+			documentId: "source-doc-1",
+			parsingStatus: "completed",
+		});
+		selectResultsQueue.push([], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "records response platform tender",
+			scrapeTopResults: true,
+			downloadDiscoveredDocuments: true,
+			downloadLimit: 1,
+			downloadParseMode: "inline",
+		});
+
+		expect(result.sourceDocumentsDownloadAttempted).toBe(1);
+		expect(result.sourceDocumentsDownloaded).toBe(1);
+		expect(result.sourceDocumentsParseAttempted).toBe(1);
+		expect(result.sourceDocumentsParsed).toBe(1);
+		expect(result.sourceDocumentsParseFailed).toBe(0);
+		expect(downloadDocumentMock).toHaveBeenCalledWith(
+			"source-doc-1",
+			"user-1",
+			"opp-1",
+			{ parseMode: "inline" }
+		);
+	});
+
 	it("falls back to the browser service when Firecrawl cannot scrape a top result cleanly", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

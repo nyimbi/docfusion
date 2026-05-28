@@ -383,6 +383,82 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("awaits RFP parsing when downloads run in inline parse mode", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		const parserEvents: string[] = [];
+		vi.mocked(processRfpParsingJob).mockImplementationOnce(async () => {
+			parserEvents.push("completed");
+			return { status: "completed" };
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "inline" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			parsingStatus: "completed",
+		});
+		expect(parserEvents).toEqual(["completed"]);
+		expect(processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "00000000-0000-4000-8000-000000000501",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			tenantContext: {
+				userId: "capture-user",
+				organizationId: "org-1",
+			},
+		});
+		expect(insertedValues[1]).toMatchObject({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			status: "queued",
+		});
+	});
+
+	it("reports inline parser failures without downgrading the successful download", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+			}));
+		vi.mocked(processRfpParsingJob).mockResolvedValueOnce({
+			status: "failed",
+			error: "AI parser returned malformed sections",
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "inline" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			parsingStatus: "failed",
+			parsingError: "AI parser returned malformed sections",
+		});
+	});
+
 	it("falls back to local PDF extraction when DocLing is unavailable during download", async () => {
 		const updates: Record<string, unknown>[] = [];
 		const insertedValues: Record<string, unknown>[] = [];

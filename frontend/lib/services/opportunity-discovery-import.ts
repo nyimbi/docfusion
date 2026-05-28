@@ -16,7 +16,7 @@ import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
 import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
-import { downloadDocument } from "@/lib/services/rfp-document-service";
+import { downloadDocument, type DownloadParseMode, type DownloadParseStatus } from "@/lib/services/rfp-document-service";
 import {
 	getSearxngBaseUrl,
 	searchSearxng,
@@ -54,6 +54,7 @@ export interface DiscoveryImportInput {
 	browserFallbackLimit?: number;
 	downloadDiscoveredDocuments?: boolean;
 	downloadLimit?: number;
+	downloadParseMode?: DownloadParseMode;
 }
 
 interface DiscoveryCandidate {
@@ -98,7 +99,8 @@ export interface DiscoveryRunWarning {
 		| "browser_fallback_failed"
 		| "browser_fallback_used"
 		| "source_document_seed_failed"
-		| "source_document_download_failed";
+		| "source_document_download_failed"
+		| "source_document_parse_failed";
 	query: string;
 	title: string;
 	url: string;
@@ -116,6 +118,9 @@ export interface DiscoveryImportResult {
 	sourceDocumentsDownloadAttempted: number;
 	sourceDocumentsDownloaded: number;
 	sourceDocumentsDownloadFailed: number;
+	sourceDocumentsParseAttempted: number;
+	sourceDocumentsParsed: number;
+	sourceDocumentsParseFailed: number;
 }
 
 type SourceDocumentSeedResult =
@@ -123,6 +128,12 @@ type SourceDocumentSeedResult =
 	| { state: "none" | "failed"; documentId?: undefined; sourceUrl?: string };
 
 type SourceCandidateImportStatus = ImportRecordResult["status"];
+
+type SourceDocumentDownloadOutcome = {
+	downloaded: boolean;
+	parsingStatus?: DownloadParseStatus;
+	parsingError?: string;
+};
 
 interface SourceCandidateImportOutcome {
 	sourceUrl: string;
@@ -733,12 +744,19 @@ async function downloadSeededSourceDocumentSafely(
 	opportunityId: string,
 	userId: string,
 	candidate: DiscoveryCandidate,
-	warnings: DiscoveryRunWarning[]
-): Promise<boolean> {
+	warnings: DiscoveryRunWarning[],
+	parseMode?: DownloadParseMode
+): Promise<SourceDocumentDownloadOutcome> {
 	try {
-		const result = await downloadDocument(documentId, userId, opportunityId);
+		const result = parseMode
+			? await downloadDocument(documentId, userId, opportunityId, { parseMode })
+			: await downloadDocument(documentId, userId, opportunityId);
 		if (result.success) {
-			return true;
+			return {
+				downloaded: true,
+				parsingStatus: result.parsingStatus,
+				parsingError: result.parsingError,
+			};
 		}
 
 		warnings.push({
@@ -757,7 +775,7 @@ async function downloadSeededSourceDocumentSafely(
 			message: error instanceof Error ? error.message : "Seeded source document could not be downloaded",
 		});
 	}
-	return false;
+	return { downloaded: false };
 }
 
 function importConfigWithWarnings(
@@ -1763,6 +1781,7 @@ export async function executeOpportunityDiscoveryImport(
 	const limitPerQuery = Math.min(Math.max(input.limitPerQuery ?? 10, 1), 50);
 	const sourceScrapeLimit = Math.min(Math.max(input.sourceScrapeLimit ?? limitPerQuery, 0), 50);
 	const updateExisting = input.updateExisting ?? true;
+	const downloadParseMode = input.downloadParseMode;
 	const downloadLimit = input.downloadDiscoveredDocuments
 		? Math.min(Math.max(input.downloadLimit ?? 3, 0), 10)
 		: 0;
@@ -1847,8 +1866,39 @@ export async function executeOpportunityDiscoveryImport(
 	let sourceDocumentsDownloadAttempted = 0;
 	let sourceDocumentsDownloaded = 0;
 	let sourceDocumentsDownloadFailed = 0;
+	let sourceDocumentsParseAttempted = 0;
+	let sourceDocumentsParsed = 0;
+	let sourceDocumentsParseFailed = 0;
 	const allErrors: ImportRecordResult[] = [...searchFailures];
 	const sourceImportOutcomes: SourceCandidateImportOutcome[] = [];
+
+	function recordSourceDocumentDownloadOutcome(
+		outcome: SourceDocumentDownloadOutcome,
+		candidate: DiscoveryCandidate
+	): void {
+		if (outcome.downloaded) {
+			sourceDocumentsDownloaded++;
+		} else {
+			sourceDocumentsDownloadFailed++;
+			return;
+		}
+
+		if (outcome.parsingStatus === "completed") {
+			sourceDocumentsParseAttempted++;
+			sourceDocumentsParsed++;
+		}
+		if (outcome.parsingStatus === "failed") {
+			sourceDocumentsParseAttempted++;
+			sourceDocumentsParseFailed++;
+			warnings.push({
+				type: "source_document_parse_failed",
+				query: candidate.query,
+				title: candidate.result.title,
+				url: candidate.result.url,
+				message: outcome.parsingError ?? "Downloaded source document could not be parsed",
+			});
+		}
+	}
 
 	for (let i = 0; i < candidates.length; i++) {
 		const candidate = candidates[i];
@@ -1888,17 +1938,15 @@ export async function executeOpportunityDiscoveryImport(
 						sourceDocumentsCreated++;
 						if (sourceDocumentsDownloadAttempted < downloadLimit) {
 							sourceDocumentsDownloadAttempted++;
-							if (await downloadSeededSourceDocumentSafely(
+							const downloadOutcome = await downloadSeededSourceDocumentSafely(
 								sourceDocumentState.documentId,
 								existingId,
 								userId,
 								candidate,
-								warnings
-							)) {
-								sourceDocumentsDownloaded++;
-							} else {
-								sourceDocumentsDownloadFailed++;
-							}
+								warnings,
+								downloadParseMode
+							);
+							recordSourceDocumentDownloadOutcome(downloadOutcome, candidate);
 						}
 					}
 					if (sourceDocumentState.state === "existing") {
@@ -1930,17 +1978,15 @@ export async function executeOpportunityDiscoveryImport(
 						sourceDocumentsCreated++;
 						if (sourceDocumentsDownloadAttempted < downloadLimit) {
 							sourceDocumentsDownloadAttempted++;
-							if (await downloadSeededSourceDocumentSafely(
+							const downloadOutcome = await downloadSeededSourceDocumentSafely(
 								sourceDocumentState.documentId,
 								created.id,
 								userId,
 								candidate,
-								warnings
-							)) {
-								sourceDocumentsDownloaded++;
-							} else {
-								sourceDocumentsDownloadFailed++;
-							}
+								warnings,
+								downloadParseMode
+							);
+							recordSourceDocumentDownloadOutcome(downloadOutcome, candidate);
 						}
 					}
 					if (sourceDocumentState.state === "existing") {
@@ -2001,5 +2047,8 @@ export async function executeOpportunityDiscoveryImport(
 		sourceDocumentsDownloadAttempted,
 		sourceDocumentsDownloaded,
 		sourceDocumentsDownloadFailed,
+		sourceDocumentsParseAttempted,
+		sourceDocumentsParsed,
+		sourceDocumentsParseFailed,
 	};
 }
