@@ -21,6 +21,7 @@ import {
 	type LiveQualificationPackage,
 	type LiveResponsePackage,
 	type LiveResponseReadinessAssessment,
+	type LiveSubmissionSchedule,
 } from "@/lib/services/live-response-package";
 import { scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { fetchKenyaPpipOpportunities } from "@/lib/services/kenya-ppip-client";
@@ -136,6 +137,7 @@ interface LiveOpportunityResponseReadinessProof {
 		sourceId?: string;
 		portalUrl?: string;
 		documentUrl: string;
+		deadline?: string;
 	};
 	document?: {
 		url: string;
@@ -160,6 +162,7 @@ interface LiveOpportunityResponseReadinessProof {
 		draftArtifactHashes: Record<string, string>;
 		totalDraftWordCount: number;
 		draftArtifactPaths: string[];
+		submissionSchedule: LiveSubmissionSchedule;
 		qualificationPackage?: {
 			pursuitRoute: LiveQualificationPackage["pursuitRoute"];
 			title: string;
@@ -266,6 +269,7 @@ async function proveLiveOpportunityResponseReadiness(): Promise<Partial<LiveOppo
 			sourceId: opportunity.sourceId,
 			portalUrl: opportunity.portalUrl,
 			documentUrl: extracted.document.url,
+			deadline: dateLikeToIso(opportunity.deadline),
 		},
 		document: extracted.document,
 		responseReadiness,
@@ -868,6 +872,9 @@ function proveResponseSeedReadiness(
 	if (responsePackage.totalWordCount < 2000) {
 		throw new Error(`Live response package draft is too thin: ${responsePackage.totalWordCount} words`);
 	}
+	if (responsePackage.submissionSchedule.deadlineSource !== "not_found" && !responsePackage.submissionSchedule.deadlineIso) {
+		throw new Error("Submission schedule detected a deadline source without a normalized deadline timestamp");
+	}
 	if (responsePackage.readiness.status !== "ready_for_review") {
 		throw new Error(`Live response package readiness blocked: ${responsePackage.readiness.blockers.join("; ")}`);
 	}
@@ -913,6 +920,7 @@ function proveResponseSeedReadiness(
 		draftArtifactHashes,
 		totalDraftWordCount: responsePackage.totalWordCount,
 		draftArtifactPaths,
+		submissionSchedule: responsePackage.submissionSchedule,
 		qualificationPackage: qualificationSummary,
 		readiness: responsePackage.readiness,
 	};
@@ -1024,6 +1032,10 @@ async function writeArtifacts(
 			`pursuit-fit-score:${proof.responseReadiness?.pursuitFit.score ?? 0}`,
 			`pursuit-route:${proof.responseReadiness?.pursuitFit.pursuitRoute ?? "not-run"}`,
 			`pursuit-recommendation:${proof.responseReadiness?.pursuitFit.recommendation ?? "not-run"}`,
+			`submission-deadline:${proof.responseReadiness?.submissionSchedule.deadlineLabel ?? "not-found"}`,
+			`submission-deadline-source:${proof.responseReadiness?.submissionSchedule.deadlineSource ?? "not-run"}`,
+			`submission-urgency:${proof.responseReadiness?.submissionSchedule.urgency ?? "not-run"}`,
+			`submission-requirements:${proof.responseReadiness?.submissionSchedule.submissionRequirements.length ?? 0}`,
 			`qualification-package:${proof.responseReadiness?.qualificationPackage?.pursuitRoute ?? "none"}`,
 			`qualification-checklist:${proof.responseReadiness?.qualificationPackage?.checklistCount ?? 0}`,
 			`qualification-artifacts:${proof.responseReadiness?.qualificationPackage?.artifactPaths.length ?? 0}`,

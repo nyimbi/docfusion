@@ -8229,6 +8229,36 @@ Remaining after this slice:
 - Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
+
+Status: implemented and verified.
+
+Purpose: close the deadline-intelligence gap in the live response path so operators can see source-backed submission timing before acting on generated pursuit artifacts.
+
+Changes in this slice:
+- Added deterministic live submission schedule extraction to response packages, including normalized deadline, deadline source, days remaining, urgency, submission method, submission requirements, and source evidence snippets.
+- Updated response drafts and qualification briefs to show deadline and submission timing when source evidence is available.
+- Extended live response-readiness proofs to record `submissionSchedule` and deadline evidence IDs.
+- Carried submission schedule data into portfolio ranking, operator briefs, and ranking reasons.
+- Added an expired-deadline guard so stale opportunities cannot remain `pursue_now`.
+- Updated pursuit handoff briefs, next actions, and proof summaries to include primary pursuit deadline and urgency.
+
+Verification:
+- `npm test -- live-response-package.test.ts live-response-portfolio-triage.test.ts live-pursuit-handoff.test.ts --run` passed with 30 tests.
+- `npm test -- platform-proof-scenarios.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 26 tests.
+- `npm run platform:proof -- --run live-kenya-ppip-response-readiness --include-live-safe` passed with run `live_kenya_ppip_response_readiness_20260528T004820Z`, extracting deadline `2026-05-28`, urgency `critical`, submission method `Written (Physical/Hard Copy)`, and 6 submission requirement signals.
+- `npm run platform:proof -- --run live-qualification-workflow --include-live-safe` passed with run `live_qualification_workflow_20260528T005157Z`, refreshing the ready supplier-registration workflow for the new Kenya response-readiness run.
+- `npm run platform:proof -- --run live-afdb-response-readiness --include-live-safe` passed with run `live_afdb_response_readiness_20260528T005236Z`, extracting deadline `2026-06-11`, urgency `normal`, and source-text evidence from the AFDB EOI.
+- `npm run platform:proof -- --run live-opportunity-portfolio-triage --include-live-safe` passed with run `live_opportunity_portfolio_triage_20260528T005350Z`, ranking the refreshed AFDB pursuit first with `Deadline urgency: normal for 2026-06-11 (source_text)` and Kenya PPIP third with `Deadline urgency: critical for 2026-05-28 (opportunity_metadata)`.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T005404Z`, bundling source portfolio `live_opportunity_portfolio_triage_20260528T005350Z`, primary AFDB deadline `2026-06-11`, 3 review-queue candidates, and 32 linked artifacts.
+
+Remaining after this slice:
+- Refresh older UNGM, World Bank, and COMESA live response-readiness artifacts so their portfolio rows also carry schedule evidence instead of `deadline unknown`.
+- Persist pursuit handoffs, qualification workflows, and submission schedules in the DB-backed runtime once PostgreSQL connectivity is restored.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.

@@ -180,11 +180,23 @@ export interface LiveResponsePursuitFitAssessment {
 	rationale: string;
 }
 
+export interface LiveSubmissionSchedule {
+	deadlineIso?: string;
+	deadlineLabel?: string;
+	deadlineSource: "opportunity_metadata" | "source_text" | "not_found";
+	daysUntilDeadline?: number;
+	urgency: "expired" | "critical" | "urgent" | "normal" | "unknown";
+	submissionMethod?: string;
+	submissionRequirements: string[];
+	evidenceSnippets: string[];
+}
+
 export interface LiveResponsePackage {
 	opportunityTitle: string;
 	clientName: string;
 	solicitationNumber?: string;
 	generatedAt: string;
+	submissionSchedule: LiveSubmissionSchedule;
 	requirements: LiveResponseRequirementSignal[];
 	evaluationCriteria: LiveResponseEvaluationSignal[];
 	winThemeSeeds: LiveResponseWinThemeSeed[];
@@ -256,6 +268,11 @@ export function buildLiveResponsePackage(input: {
 	const requirements = extractLiveResponseRequirementSignals(input.sourceText);
 	const evaluationCriteria = extractLiveResponseEvaluationSignals(input.sourceText);
 	const relevantSnippets = selectLiveResponseSnippets(input.opportunity, input.sourceText);
+	const submissionSchedule = buildLiveSubmissionSchedule({
+		opportunity: input.opportunity,
+		sourceText: input.sourceText,
+		generatedAt,
+	});
 	const pursuitFit = assessLiveResponsePursuitFit({
 		opportunity: input.opportunity,
 		sourceText: input.sourceText,
@@ -265,7 +282,7 @@ export function buildLiveResponsePackage(input: {
 		client_name: clientName,
 		opportunity_name: input.opportunity.title,
 		solicitation_number: input.opportunity.sourceId ?? input.opportunity.noticeId ?? "",
-		submission_date: deadlineLabel(input.opportunity.deadline) ?? generatedAt.toISOString().slice(0, 10),
+		submission_date: submissionSchedule.deadlineLabel ?? generatedAt.toISOString().slice(0, 10),
 	};
 
 	const documents = documentTypes.map((documentType) => {
@@ -284,6 +301,7 @@ export function buildLiveResponsePackage(input: {
 			requirements: assignedRequirements,
 			evaluationCriteria: assignedEvaluationCriteria,
 			snippets,
+			submissionSchedule,
 			generatedAt,
 		});
 		const title = `${getDocumentTypeLabel(documentType)} - ${input.opportunity.title}`;
@@ -322,6 +340,7 @@ export function buildLiveResponsePackage(input: {
 		clientName,
 		solicitationNumber: input.opportunity.sourceId ?? input.opportunity.noticeId,
 		generatedAt: generatedAt.toISOString(),
+		submissionSchedule,
 		requirements,
 		evaluationCriteria,
 		winThemeSeeds,
@@ -362,6 +381,40 @@ export function buildLiveQualificationPackage(responsePackage: LiveResponsePacka
 	return {
 		...packageValue,
 		operatorBriefMarkdown: formatLiveQualificationBrief(packageValue, responsePackage),
+	};
+}
+
+export function buildLiveSubmissionSchedule(input: {
+	opportunity: OpportunityData;
+	sourceText: string;
+	generatedAt?: Date;
+}): LiveSubmissionSchedule {
+	const generatedAt = input.generatedAt ?? new Date();
+	const metadataDeadline = normalizeDeadlineDate(input.opportunity.deadline);
+	const sourceDeadline = metadataDeadline ? undefined : extractSourceDeadline(input.sourceText);
+	const deadline = metadataDeadline ?? sourceDeadline?.deadline;
+	const deadlineIso = deadline ? deadline.toISOString() : undefined;
+	const daysUntilDeadline = deadline ? daysBetweenDates(generatedAt, deadline) : undefined;
+	const submissionRequirements = extractSubmissionRequirements(input.sourceText);
+	const evidenceSnippets = uniqueStrings([
+		...(metadataDeadline && input.opportunity.deadline
+			? [`Opportunity metadata deadline: ${deadlineLabel(input.opportunity.deadline)}`]
+			: []),
+		...(sourceDeadline ? [sourceDeadline.evidenceSnippet] : []),
+		...(input.opportunity.submissionMethod ? [`Submission method: ${input.opportunity.submissionMethod}`] : []),
+		...(input.opportunity.submissionRequirements ? [`Submission requirements: ${compactText(input.opportunity.submissionRequirements, 260)}`] : []),
+		...submissionRequirements,
+	]).slice(0, 8);
+
+	return {
+		deadlineIso,
+		deadlineLabel: deadline ? deadlineLabel(deadline) : undefined,
+		deadlineSource: metadataDeadline ? "opportunity_metadata" : sourceDeadline ? "source_text" : "not_found",
+		daysUntilDeadline,
+		urgency: deadlineUrgency(daysUntilDeadline),
+		submissionMethod: input.opportunity.submissionMethod,
+		submissionRequirements,
+		evidenceSnippets,
 	};
 }
 
@@ -594,6 +647,9 @@ function formatLiveQualificationBrief(
 		"",
 		`Route: \`${packageValue.pursuitRoute}\``,
 		`Pursuit fit: ${responsePackage.pursuitFit.status} (${responsePackage.pursuitFit.score}/100), ${responsePackage.pursuitFit.recommendation}`,
+		responsePackage.submissionSchedule.deadlineLabel
+			? `Deadline: ${responsePackage.submissionSchedule.deadlineLabel} (${responsePackage.submissionSchedule.urgency}, ${responsePackage.submissionSchedule.deadlineSource})`
+			: "Deadline: not found in source evidence",
 		"",
 		"## Summary",
 		"",
@@ -1008,6 +1064,7 @@ function buildDocumentMarkdown(input: {
 	requirements: LiveResponseRequirementSignal[];
 	evaluationCriteria: LiveResponseEvaluationSignal[];
 	snippets: DatacraftResponseSnippetInput[];
+	submissionSchedule: LiveSubmissionSchedule;
 	generatedAt: Date;
 }): string {
 	const label = getDocumentTypeLabel(input.documentType);
@@ -1031,7 +1088,13 @@ function buildDocumentMarkdown(input: {
 		`Client: ${input.clientName}`,
 		`Opportunity: ${input.opportunity.title}`,
 		input.opportunity.sourceId ? `Solicitation: ${input.opportunity.sourceId}` : null,
-		input.opportunity.deadline ? `Deadline: ${deadlineLabel(input.opportunity.deadline)}` : null,
+		input.submissionSchedule.deadlineLabel
+			? `Deadline: ${input.submissionSchedule.deadlineLabel} (${input.submissionSchedule.urgency}, ${input.submissionSchedule.deadlineSource})`
+			: "Deadline: not found in source evidence",
+		input.submissionSchedule.submissionMethod ? `Submission method: ${input.submissionSchedule.submissionMethod}` : null,
+		...input.submissionSchedule.submissionRequirements.slice(0, 2).map((requirement) =>
+			`Submission requirement: ${requirement}`
+		),
 		input.opportunity.portalUrl ? `Portal: ${input.opportunity.portalUrl}` : null,
 	].filter((value): value is string => Boolean(value));
 
@@ -1396,11 +1459,182 @@ function flattenUnknown(value: unknown): string {
 	return "";
 }
 
+const MONTH_INDEX_BY_NAME: Record<string, number> = {
+	jan: 0,
+	january: 0,
+	feb: 1,
+	february: 1,
+	mar: 2,
+	march: 2,
+	apr: 3,
+	april: 3,
+	may: 4,
+	jun: 5,
+	june: 5,
+	jul: 6,
+	july: 6,
+	aug: 7,
+	august: 7,
+	sep: 8,
+	sept: 8,
+	september: 8,
+	oct: 9,
+	october: 9,
+	nov: 10,
+	november: 10,
+	dec: 11,
+	december: 11,
+};
+
+function normalizeDeadlineDate(value: OpportunityData["deadline"]): Date | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+	if (typeof value !== "string") return undefined;
+	return parseProcurementDate(value);
+}
+
+function extractSourceDeadline(sourceText: string): { deadline: Date; evidenceSnippet: string } | undefined {
+	const normalized = sourceText.replace(/\r/g, "\n");
+	const patterns = [
+		/(?:submission\s+deadline|deadline(?:\s+date\/time)?|closing\s+date|close(?:s|d)?(?:\s+date)?|due\s+date)\s*[:\-]?\s*([^\n]{3,160})/giu,
+		/(?:before|by|not\s+later\s+than)\s+([^\n]{3,140})/giu,
+	];
+	for (const pattern of patterns) {
+		for (const match of normalized.matchAll(pattern)) {
+			const rawCandidate = compactText(match[1] ?? "", 160);
+			const parsed = parseProcurementDate(rawCandidate);
+			if (!parsed) continue;
+			const lineStart = normalized.lastIndexOf("\n", match.index ?? 0) + 1;
+			const lineEnd = normalized.indexOf("\n", match.index ?? 0);
+			const line = normalized.slice(lineStart, lineEnd === -1 ? normalized.length : lineEnd);
+			return {
+				deadline: parsed,
+				evidenceSnippet: compactText(line || match[0], 260),
+			};
+		}
+	}
+	return undefined;
+}
+
+function parseProcurementDate(value: string): Date | undefined {
+	const cleaned = value
+		.replace(/\b(\d{1,2})\s*(st|nd|rd|th)\b/giu, "$1")
+		.replace(/\bat\s+/giu, " ")
+		.replace(/\btime\s*[:\-]?\s*/giu, " ")
+		.replace(/\s+/gu, " ")
+		.trim();
+	if (!cleaned) return undefined;
+
+	const isoMatch = cleaned.match(/\b(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/u);
+	if (isoMatch) {
+		return dateFromParts(
+			Number(isoMatch[1]),
+			Number(isoMatch[2]) - 1,
+			Number(isoMatch[3]),
+			timePartsFromText(cleaned, isoMatch[4], isoMatch[5], isoMatch[6])
+		);
+	}
+
+	const numericMatch = cleaned.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?!\d)/u);
+	if (numericMatch) {
+		return dateFromParts(
+			Number(numericMatch[3]),
+			Number(numericMatch[2]) - 1,
+			Number(numericMatch[1]),
+			timePartsFromText(cleaned)
+		);
+	}
+
+	const dayMonthYearMatch = cleaned.match(/\b(\d{1,2})[-\s]+([A-Za-z]{3,9}),?[-\s]+(\d{4})\b/u);
+	if (dayMonthYearMatch) {
+		const month = MONTH_INDEX_BY_NAME[dayMonthYearMatch[2].toLowerCase()];
+		if (month !== undefined) {
+			return dateFromParts(
+				Number(dayMonthYearMatch[3]),
+				month,
+				Number(dayMonthYearMatch[1]),
+				timePartsFromText(cleaned)
+			);
+		}
+	}
+
+	const monthDayYearMatch = cleaned.match(/\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})\b/u);
+	if (monthDayYearMatch) {
+		const month = MONTH_INDEX_BY_NAME[monthDayYearMatch[1].toLowerCase()];
+		if (month !== undefined) {
+			return dateFromParts(
+				Number(monthDayYearMatch[3]),
+				month,
+				Number(monthDayYearMatch[2]),
+				timePartsFromText(cleaned)
+			);
+		}
+	}
+
+	const parsed = new Date(cleaned);
+	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function timePartsFromText(
+	text: string,
+	hourMatch?: string,
+	minuteMatch?: string,
+	secondMatch?: string
+): { hour: number; minute: number; second: number } | undefined {
+	const explicit = hourMatch && minuteMatch
+		? { hour: Number(hourMatch), minute: Number(minuteMatch), second: Number(secondMatch ?? 0) }
+		: undefined;
+	const timeMatch = text.match(/\b(\d{1,2})[:.](\d{2})\s*(am|pm)?\b/iu)
+		?? text.match(/\b(\d{1,2})\s*(am|pm)\b/iu);
+	const time = explicit ?? (timeMatch
+		? { hour: Number(timeMatch[1]), minute: Number(/^\d{2}$/u.test(timeMatch[2] ?? "") ? timeMatch[2] : 0), second: 0 }
+		: undefined);
+	if (!time) return undefined;
+	const meridiem = text.match(/\b(am|pm)\b/iu)?.[1]?.toLowerCase();
+	let hour = time.hour;
+	if (meridiem === "pm" && hour < 12) hour += 12;
+	if (meridiem === "am" && hour === 12) hour = 0;
+	if (hour > 23 || time.minute > 59 || time.second > 59) return undefined;
+	return { hour, minute: time.minute, second: time.second };
+}
+
+function dateFromParts(
+	year: number,
+	month: number,
+	day: number,
+	time?: { hour: number; minute: number; second: number }
+): Date | undefined {
+	if (year < 2000 || month < 0 || month > 11 || day < 1 || day > 31) return undefined;
+	const date = new Date(Date.UTC(year, month, day, time?.hour ?? 23, time?.minute ?? 59, time?.second ?? 0));
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function daysBetweenDates(start: Date, end: Date): number {
+	return Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function deadlineUrgency(daysUntilDeadline: number | undefined): LiveSubmissionSchedule["urgency"] {
+	if (daysUntilDeadline === undefined) return "unknown";
+	if (daysUntilDeadline < 0) return "expired";
+	if (daysUntilDeadline <= 2) return "critical";
+	if (daysUntilDeadline <= 7) return "urgent";
+	return "normal";
+}
+
+function extractSubmissionRequirements(sourceText: string): string[] {
+	return uniqueStrings(sourceText
+		.split(/\r?\n/)
+		.map((line) => line.replace(/\s+/g, " ").trim())
+		.filter((line) => /\b(submit|submission|deliver|portal|sealed|hard\s+copy|soft\s+copy|email|upload|receipt|closing\s+date|deadline)\b/iu.test(line))
+		.map((line) => compactText(line.replace(/^(?:[-*]|\d+(?:\.\d+)*[.)]|[a-z][.)])\s+/iu, ""), 260))
+	).slice(0, 6);
+}
+
 function deadlineLabel(value: OpportunityData["deadline"]): string | undefined {
 	if (!value) return undefined;
-	if (value instanceof Date) return value.toISOString().slice(0, 10);
-	const parsed = new Date(value);
-	return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString().slice(0, 10);
+	if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value.toISOString().slice(0, 10);
+	const parsed = parseProcurementDate(value);
+	return parsed ? parsed.toISOString().slice(0, 10) : value;
 }
 
 function compactText(text: string, maxLength: number): string {

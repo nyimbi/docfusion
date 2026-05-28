@@ -60,6 +60,15 @@ function candidate(overrides: Partial<LiveResponsePortfolioCandidate>): LiveResp
 			winThemeSeedCount: overrides.response?.winThemeSeedCount ?? 4,
 			totalDraftWordCount: overrides.response?.totalDraftWordCount ?? 7000,
 			relevantSnippetCount: overrides.response?.relevantSnippetCount ?? 24,
+			submissionSchedule: overrides.response?.submissionSchedule ?? {
+				deadlineIso: "2026-06-18T23:59:00.000Z",
+				deadlineLabel: "2026-06-18",
+				deadlineSource: "opportunity_metadata",
+				daysUntilDeadline: 22,
+				urgency: "normal",
+				submissionRequirements: ["Submit through the source portal before closing."],
+				evidenceSnippets: ["Opportunity metadata deadline: 2026-06-18"],
+			},
 			readiness: overrides.response?.readiness ?? baseReadiness,
 			pursuitFit: overrides.response?.pursuitFit ?? {
 				status: "strong_fit",
@@ -128,8 +137,49 @@ describe("live response portfolio triage", () => {
 		expect(brief).toContain("# Live Response Portfolio Triage");
 		expect(brief).toContain("### 1. Security API Platform");
 		expect(brief).toContain("- Priority: `pursue_now`");
+		expect(brief).toContain("- Deadline: 2026-06-18 (normal, opportunity_metadata)");
 		expect(brief).toContain("### 2. Medical Insurance RFP");
 		expect(brief).toContain("insurance domain may require specialist partner");
+	});
+
+	it("keeps expired opportunities out of pursue-now priority", () => {
+		const triage = triageLiveResponsePortfolio([
+			candidate({
+				runId: "expired",
+				response: {
+					sourceRequirementCount: 20,
+					evaluatorCriteriaCount: 4,
+					winThemeSeedCount: 4,
+					totalDraftWordCount: 7000,
+					relevantSnippetCount: 24,
+					submissionSchedule: {
+						deadlineIso: "2026-05-20T23:59:00.000Z",
+						deadlineLabel: "2026-05-20",
+						deadlineSource: "source_text",
+						daysUntilDeadline: -7,
+						urgency: "expired",
+						submissionRequirements: ["Closing date: 20 May 2026"],
+						evidenceSnippets: ["Closing date: 20 May 2026"],
+					},
+					readiness: baseReadiness,
+					pursuitFit: {
+						status: "strong_fit",
+						score: 95,
+						pursuitRoute: "proposal_response",
+						matchedCapabilities: ["security", "api", "software"],
+						riskFactors: [],
+						recommendation: "pursue",
+						rationale: "Strong fit.",
+					},
+				},
+			}),
+		]);
+
+		expect(triage.ranked[0]).toMatchObject({
+			portfolioRecommendation: "hold_or_partner",
+			portfolioScore: 49,
+		});
+		expect(triage.ranked[0]?.rankingReasons.join("\n")).toContain("Deadline urgency: expired for 2026-05-20");
 	});
 
 	it("keeps only the latest run for the same opportunity", () => {

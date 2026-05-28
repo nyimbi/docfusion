@@ -90,6 +90,7 @@ interface LiveResponseReadinessProofJson {
 		winThemeSeedCount?: number;
 		totalDraftWordCount?: number;
 		relevantSnippetCount?: number;
+		submissionSchedule?: LiveResponsePortfolioCandidate["response"]["submissionSchedule"];
 		readiness?: LiveResponsePortfolioCandidate["response"]["readiness"];
 		pursuitFit?: LiveResponsePortfolioCandidate["response"]["pursuitFit"];
 	};
@@ -253,6 +254,7 @@ function responseProofToCandidate(
 			winThemeSeedCount: proof.responseReadiness.winThemeSeedCount ?? 0,
 			totalDraftWordCount: proof.responseReadiness.totalDraftWordCount ?? 0,
 			relevantSnippetCount: proof.responseReadiness.relevantSnippetCount ?? 0,
+			submissionSchedule: proof.responseReadiness.submissionSchedule,
 			readiness: proof.responseReadiness.readiness,
 			pursuitFit: normalizePursuitFit(proof.responseReadiness.pursuitFit),
 		},
@@ -322,6 +324,8 @@ async function writeArtifacts(
 			`top-fit:${top?.response.pursuitFit.status ?? "none"}:${top?.response.pursuitFit.score ?? 0}`,
 			`top-route:${top?.response.pursuitFit.pursuitRoute ?? "none"}`,
 			`top-qualification-workflow:${top?.qualificationWorkflow?.status ?? "none"}`,
+			`top-deadline:${top?.response.submissionSchedule?.deadlineLabel ?? "not-found"}`,
+			`top-deadline-urgency:${top?.response.submissionSchedule?.urgency ?? "unknown"}`,
 			`top-readiness:${top?.response.readiness.status ?? "none"}`,
 			`top-score:${top?.portfolioScore ?? 0}`,
 		],

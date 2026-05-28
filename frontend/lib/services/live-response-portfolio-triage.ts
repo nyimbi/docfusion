@@ -1,4 +1,8 @@
-import type { LiveResponsePursuitFitAssessment, LiveResponseReadinessAssessment } from "@/lib/services/live-response-package";
+import type {
+	LiveResponsePursuitFitAssessment,
+	LiveResponseReadinessAssessment,
+	LiveSubmissionSchedule,
+} from "@/lib/services/live-response-package";
 
 export interface LiveResponsePortfolioCandidate {
 	runId: string;
@@ -24,6 +28,7 @@ export interface LiveResponsePortfolioCandidate {
 		winThemeSeedCount: number;
 		totalDraftWordCount: number;
 		relevantSnippetCount: number;
+		submissionSchedule?: LiveSubmissionSchedule;
 		readiness: LiveResponseReadinessAssessment;
 		pursuitFit: LiveResponsePursuitFitAssessment;
 	};
@@ -113,6 +118,9 @@ export function formatLiveResponsePortfolioBrief(triage: LiveResponsePortfolioTr
 			`- Portfolio score: ${opportunity.portfolioScore}/100`,
 			`- Pursuit fit: ${opportunity.response.pursuitFit.status} (${opportunity.response.pursuitFit.score}/100), ${opportunity.response.pursuitFit.recommendation}`,
 			`- Pursuit route: ${opportunity.response.pursuitFit.pursuitRoute}`,
+			...(opportunity.response.submissionSchedule?.deadlineLabel
+				? [`- Deadline: ${opportunity.response.submissionSchedule.deadlineLabel} (${opportunity.response.submissionSchedule.urgency}, ${opportunity.response.submissionSchedule.deadlineSource})`]
+				: ["- Deadline: not found in response-readiness evidence"]),
 			...(opportunity.qualificationWorkflow
 				? [`- Qualification workflow: ${opportunity.qualificationWorkflow.status}, ${opportunity.qualificationWorkflow.gateCount} gates, ${opportunity.qualificationWorkflow.blockedGateCount} blocked`]
 				: []),
@@ -168,13 +176,16 @@ function scoreCandidate(candidate: LiveResponsePortfolioCandidate): Omit<RankedL
 		+ Math.min(10, candidate.response.evaluatorCriteriaCount * 2)
 		+ Math.min(10, Math.floor(candidate.response.totalDraftWordCount / 1000));
 	const warningPenalty = Math.min(20, readiness.warnings.length * 4 + readiness.blockers.length * 10);
+	const deadlinePenalty = deadlineRiskPenalty(candidate.response.submissionSchedule);
 	const portfolioScore = capScoreForPursuitRecommendation(
-		clampScore(fit.score + readyBonus + fitBonus + evidenceBonus - warningPenalty),
+		clampScore(fit.score + readyBonus + fitBonus + evidenceBonus - warningPenalty - deadlinePenalty),
 		fit.recommendation,
+		candidate.response.submissionSchedule,
 	);
-	const portfolioRecommendation = portfolioScore >= 85 && readiness.status === "ready_for_review" && fit.recommendation === "pursue"
+	const deadlineExpired = candidate.response.submissionSchedule?.urgency === "expired";
+	const portfolioRecommendation = !deadlineExpired && portfolioScore >= 85 && readiness.status === "ready_for_review" && fit.recommendation === "pursue"
 		? "pursue_now"
-		: portfolioScore >= 50 && readiness.status === "ready_for_review" && fit.recommendation !== "no_bid_unless_partnered"
+		: !deadlineExpired && portfolioScore >= 50 && readiness.status === "ready_for_review" && fit.recommendation !== "no_bid_unless_partnered"
 			? "review_before_pursuit"
 			: "hold_or_partner";
 
@@ -195,6 +206,9 @@ function rankingReasons(
 		`Portfolio score ${score}/100 with ${candidate.response.pursuitFit.status} pursuit fit`,
 		`Recommendation: ${recommendation}`,
 		`Pursuit route: ${candidate.response.pursuitFit.pursuitRoute}`,
+		...(candidate.response.submissionSchedule?.deadlineLabel
+			? [`Deadline urgency: ${candidate.response.submissionSchedule.urgency} for ${candidate.response.submissionSchedule.deadlineLabel} (${candidate.response.submissionSchedule.deadlineSource})`]
+			: ["Deadline urgency: unknown; no deadline found in response-readiness evidence"]),
 		...(candidate.qualificationWorkflow
 			? [`Qualification workflow: ${candidate.qualificationWorkflow.status} (${candidate.qualificationWorkflow.gateCount} gates, ${candidate.qualificationWorkflow.blockedGateCount} blocked)`]
 			: []),
@@ -217,11 +231,26 @@ function clampScore(value: number): number {
 
 function capScoreForPursuitRecommendation(
 	score: number,
-	recommendation: LiveResponsePursuitFitAssessment["recommendation"]
+	recommendation: LiveResponsePursuitFitAssessment["recommendation"],
+	submissionSchedule: LiveSubmissionSchedule | undefined
 ): number {
+	if (submissionSchedule?.urgency === "expired") return Math.min(score, 49);
 	if (recommendation === "review_before_pursuit") return Math.min(score, 84);
 	if (recommendation === "no_bid_unless_partnered") return Math.min(score, 49);
 	return score;
+}
+
+function deadlineRiskPenalty(submissionSchedule: LiveSubmissionSchedule | undefined): number {
+	switch (submissionSchedule?.urgency) {
+		case "expired":
+			return 50;
+		case "critical":
+			return 5;
+		case "unknown":
+			return 5;
+		default:
+			return 0;
+	}
 }
 
 function compareIso(left: string | undefined, right: string | undefined): number {

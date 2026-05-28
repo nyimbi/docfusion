@@ -42,6 +42,7 @@ interface PortfolioProofJson {
 			};
 			response: {
 				totalDraftWordCount: number;
+				submissionSchedule?: LivePursuitHandoffOpportunity["submissionSchedule"];
 				readiness: {
 					status: string;
 				};
@@ -78,6 +79,8 @@ interface LivePursuitHandoffProof {
 	handoff?: {
 		primaryRunId: string;
 		primaryTitle: string;
+		primaryDeadline?: string;
+		primaryDeadlineUrgency?: string;
 		reviewQueueCount: number;
 		artifactCount: number;
 		briefHash: string;
@@ -138,6 +141,8 @@ async function proveLivePursuitHandoff(): Promise<Partial<LivePursuitHandoffProo
 		handoff: {
 			primaryRunId: handoff.primaryPursuit.runId,
 			primaryTitle: handoff.primaryPursuit.title,
+			primaryDeadline: handoff.primaryPursuit.submissionSchedule?.deadlineLabel,
+			primaryDeadlineUrgency: handoff.primaryPursuit.submissionSchedule?.urgency,
 			reviewQueueCount: handoff.reviewQueue.length,
 			artifactCount: handoff.artifactCount,
 			briefHash: crypto.createHash("sha256").update(handoff.operatorBriefMarkdown).digest("hex"),
@@ -163,6 +168,7 @@ function handoffOpportunity(
 		portfolioScore: candidate.portfolioScore,
 		readinessStatus: candidate.response.readiness.status,
 		responseDraftWordCount: candidate.response.totalDraftWordCount,
+		submissionSchedule: candidate.response.submissionSchedule,
 		responseArtifactPaths: responseProof?.responseReadiness?.draftArtifactPaths ?? [],
 		qualificationArtifactPaths: responseProof?.responseReadiness?.qualificationPackage?.artifactPaths,
 		qualificationWorkflow: candidate.qualificationWorkflow,
@@ -256,6 +262,8 @@ async function writeArtifacts(
 			`ranked:${proof.sourcePortfolio?.rankedCount ?? 0}`,
 			`primary-run:${proof.handoff?.primaryRunId ?? "none"}`,
 			`primary-title:${proof.handoff?.primaryTitle ?? "none"}`,
+			`primary-deadline:${proof.handoff?.primaryDeadline ?? "not-found"}`,
+			`primary-deadline-urgency:${proof.handoff?.primaryDeadlineUrgency ?? "unknown"}`,
 			`review-queue:${proof.handoff?.reviewQueueCount ?? 0}`,
 			`handoff-artifacts:${proof.handoff?.artifactCount ?? 0}`,
 			...(proof.handoff?.artifactPaths.map((artifactPath) => `handoff-artifact:${artifactPath}`) ?? []),

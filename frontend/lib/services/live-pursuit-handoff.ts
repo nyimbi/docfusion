@@ -1,3 +1,5 @@
+import type { LiveSubmissionSchedule } from "@/lib/services/live-response-package";
+
 export interface LivePursuitHandoffOpportunity {
 	runId: string;
 	sourceKind: string;
@@ -10,6 +12,7 @@ export interface LivePursuitHandoffOpportunity {
 	portfolioScore: number;
 	readinessStatus: string;
 	responseDraftWordCount: number;
+	submissionSchedule?: LiveSubmissionSchedule;
 	responseArtifactPaths: string[];
 	qualificationArtifactPaths?: string[];
 	qualificationWorkflow?: {
@@ -83,7 +86,9 @@ function buildNextActions(
 ): string[] {
 	return [
 		`Open the response package for ${primaryPursuit.title} and assign proposal ownership.`,
-		`Confirm source deadline and submission instructions from ${primaryPursuit.sourceKind}.`,
+		primaryPursuit.submissionSchedule?.deadlineLabel
+			? `Confirm ${primaryPursuit.submissionSchedule.urgency} source deadline ${primaryPursuit.submissionSchedule.deadlineLabel} and submission instructions from ${primaryPursuit.sourceKind}.`
+			: `Confirm source deadline and submission instructions from ${primaryPursuit.sourceKind}.`,
 		`Run bid/no-bid review for ${reviewQueue.length} review-before-pursuit candidate${reviewQueue.length === 1 ? "" : "s"}.`,
 		...reviewQueue
 			.filter((opportunity) => opportunity.qualificationWorkflow)
@@ -130,6 +135,15 @@ function formatOpportunity(opportunity: LivePursuitHandoffOpportunity): string[]
 		`- Route: \`${opportunity.pursuitRoute}\``,
 		`- Score: ${opportunity.portfolioScore}/100`,
 		`- Readiness: ${opportunity.readinessStatus}`,
+		...(opportunity.submissionSchedule?.deadlineLabel
+			? [`- Deadline: ${opportunity.submissionSchedule.deadlineLabel} (${opportunity.submissionSchedule.urgency}, ${opportunity.submissionSchedule.deadlineSource})`]
+			: ["- Deadline: not found in response-readiness evidence"]),
+		...(opportunity.submissionSchedule?.submissionMethod
+			? [`- Submission method: ${opportunity.submissionSchedule.submissionMethod}`]
+			: []),
+		...(opportunity.submissionSchedule?.submissionRequirements.length
+			? [`- Submission requirements: ${opportunity.submissionSchedule.submissionRequirements.length} extracted signal${opportunity.submissionSchedule.submissionRequirements.length === 1 ? "" : "s"}`]
+			: []),
 		`- Draft words: ${opportunity.responseDraftWordCount}`,
 		`- Response artifacts: ${opportunity.responseArtifactPaths.length}`,
 		...(opportunity.qualificationArtifactPaths?.length

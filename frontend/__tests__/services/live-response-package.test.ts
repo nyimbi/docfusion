@@ -5,6 +5,7 @@ import {
 	assessLiveResponsePursuitFit,
 	buildLiveQualificationPackage,
 	buildLiveResponsePackage,
+	buildLiveSubmissionSchedule,
 	buildLiveResponseWinThemeSeeds,
 	extractLiveResponseEvaluationSignals,
 	extractLiveResponseRequirementSignals,
@@ -216,6 +217,44 @@ The procuring entity invites eligible consultants to submit a technical and fina
 		expect(buildLiveQualificationPackage(responsePackage)).toBeUndefined();
 	});
 
+	it("normalizes submission deadlines from metadata and source text", () => {
+		const metadataSchedule = buildLiveSubmissionSchedule({
+			opportunity,
+			sourceText,
+			generatedAt: new Date("2026-06-10T00:00:00.000Z"),
+		});
+		const sourceSchedule = buildLiveSubmissionSchedule({
+			opportunity: {
+				title: "Registration of suppliers for goods, services and works",
+				source: "kenya_ppip",
+				sourceId: "registration",
+				organization: "Water Utility",
+				projectSummary: "Supplier registration.",
+				submissionMethod: "Electronic tender box",
+			},
+			sourceText: [
+				"REGISTRATION OF SUPPLIERS FOR GOODS, SERVICES AND WORKS.",
+				"CLOSING DATE: 28 TH MAY, 2026 TIME: 10.00 AM",
+				"Bidders must submit company profile, tax compliance certificate, and signed declarations through the electronic tender box before the closing date.",
+			].join("\n"),
+			generatedAt: new Date("2026-05-27T08:00:00.000Z"),
+		});
+
+		expect(metadataSchedule).toMatchObject({
+			deadlineLabel: "2026-06-18",
+			deadlineSource: "opportunity_metadata",
+			urgency: "normal",
+		});
+		expect(sourceSchedule).toMatchObject({
+			deadlineLabel: "2026-05-28",
+			deadlineSource: "source_text",
+			urgency: "critical",
+			submissionMethod: "Electronic tender box",
+		});
+		expect(sourceSchedule.submissionRequirements.join("\n")).toContain("Bidders must submit company profile");
+		expect(sourceSchedule.evidenceSnippets.join("\n")).toContain("CLOSING DATE: 28 TH MAY, 2026 TIME: 10.00 AM");
+	});
+
 	it("extracts evaluator criteria signals from scoring sections", () => {
 		const criteria = extractLiveResponseEvaluationSignals(sourceText);
 
@@ -335,6 +374,11 @@ The consultant must provide a technical methodology, work plan, personnel, simil
 		expect(responsePackage.pursuitFit).toMatchObject({
 			status: "strong_fit",
 			recommendation: "pursue",
+		});
+		expect(responsePackage.submissionSchedule).toMatchObject({
+			deadlineLabel: "2026-06-18",
+			deadlineSource: "opportunity_metadata",
+			urgency: "normal",
 		});
 		expect(responsePackage.readiness.status).toBe("ready_for_review");
 		expect(responsePackage.readiness.blockers).toEqual([]);
