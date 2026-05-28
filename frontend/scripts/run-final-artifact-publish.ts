@@ -3,7 +3,7 @@ import "./load-env";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { JSONContent } from "@tiptap/react";
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -12,7 +12,6 @@ import {
 	type EvidenceRecord,
 } from "./platform-proof/core";
 import { forceLocalEnv } from "./env-utils";
-import { recordWorkflowRuntimeTransition, upsertWorkflowRuntimeTask } from "@/lib/actions/workflow-runtime";
 import { documents, opportunities, proposalDocuments } from "@/lib/db/schema";
 import { complianceMatrices } from "@/lib/db/schema-rfp";
 import { workflowInstances } from "@/lib/db/schema-workflow-runtime";
@@ -37,6 +36,8 @@ const SIGNOFF_ROLE = (process.env.LIVE_FINAL_ARTIFACT_PUBLISH_SIGNOFF_ROLE ?? "e
 
 let db: typeof import("@/lib/db")["db"];
 let closeDatabaseConnection: typeof import("@/lib/db")["closeDatabaseConnection"] = async () => undefined;
+let recordWorkflowRuntimeTransition: typeof import("@/lib/actions/workflow-runtime")["recordWorkflowRuntimeTransition"];
+let upsertWorkflowRuntimeTask: typeof import("@/lib/actions/workflow-runtime")["upsertWorkflowRuntimeTask"];
 
 type DbClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -180,47 +181,48 @@ async function main() {
 }
 
 async function loadRuntime(): Promise<void> {
-	const databaseModule = await import("@/lib/db");
+	const [databaseModule, workflowRuntimeModule] = await Promise.all([
+		import("@/lib/db"),
+		import("@/lib/actions/workflow-runtime"),
+	]);
 	db = databaseModule.db;
 	closeDatabaseConnection = databaseModule.closeDatabaseConnection;
+	recordWorkflowRuntimeTransition = workflowRuntimeModule.recordWorkflowRuntimeTransition;
+	upsertWorkflowRuntimeTask = workflowRuntimeModule.upsertWorkflowRuntimeTask;
 }
 
 async function selectCandidates(): Promise<CandidateRow[]> {
-	const conditions = [
-		sql`${opportunities.organizationId} is not null`,
-		sql`exists (
-			select 1 from workflow_instances
-			where workflow_instances.workflow_key = 'proposal_response_package'
-				and workflow_instances.subject_type = 'opportunity'
-				and workflow_instances.subject_id = ${opportunities.id}::text
-				and workflow_instances.metadata->'readiness'->>'status' = 'ready_for_review'
-		)`,
-		sql`exists (
-			select 1 from proposal_documents
-			join documents on documents.id = proposal_documents.document_id
-			where proposal_documents.opportunity_id = ${opportunities.id}
-				and proposal_documents.status in ('in_review', 'approved')
-				and documents.metadata->'finalArtifact' is null
-		)`,
-	];
-	if (TARGET_OPPORTUNITY_IDS.length > 0) {
-		conditions.push(inArray(opportunities.id, TARGET_OPPORTUNITY_IDS));
-	}
-
-	return db
-		.select({
-			opportunityId: opportunities.id,
-			title: opportunities.title,
-			organizationId: sql<string>`${opportunities.organizationId}`,
-		})
-		.from(opportunities)
-		.where(and(...conditions))
-		.orderBy(sql`(
+	const result = await db.execute(sql<CandidateRow>`
+		select
+			opportunities.id::text as "opportunityId",
+			opportunities.title,
+			opportunities.organization_id as "organizationId"
+		from opportunities
+		where opportunities.organization_id is not null
+			and exists (
+				select 1 from workflow_instances
+				where workflow_instances.workflow_key = 'proposal_response_package'
+					and workflow_instances.subject_type = 'opportunity'
+					and workflow_instances.subject_id = opportunities.id::text
+					and workflow_instances.metadata->'readiness'->>'status' = 'ready_for_review'
+			)
+			and exists (
+				select 1 from proposal_documents
+				join documents on documents.id = proposal_documents.document_id
+				where proposal_documents.opportunity_id = opportunities.id
+					and proposal_documents.status in ('in_review', 'approved')
+					and documents.metadata->'finalArtifact' is null
+			)
+		order by (
 			select max(proposal_documents.updated_at)
 			from proposal_documents
-			where proposal_documents.opportunity_id = ${opportunities.id}
-		) desc nulls last`)
-		.limit(LIMIT);
+			where proposal_documents.opportunity_id = opportunities.id
+		) desc nulls last
+		limit ${TARGET_OPPORTUNITY_IDS.length > 0 ? 500 : LIMIT}
+	`);
+	const rows = result.rows as CandidateRow[];
+	const targetIds = new Set(TARGET_OPPORTUNITY_IDS);
+	return (targetIds.size > 0 ? rows.filter((row) => targetIds.has(row.opportunityId)) : rows).slice(0, LIMIT);
 }
 
 async function summarizeCandidate(candidate: CandidateRow) {
