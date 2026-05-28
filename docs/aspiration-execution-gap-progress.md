@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-28 - Source Intake Prioritizes Direct RFP Artifacts
+
+Status: implemented and verified.
+
+Purpose: move the growing source-document backlog into parsed RFP documents and requirements by preventing protected portal HTML rows from crowding out direct downloadable artifacts.
+
+Changes in this slice:
+- Added DOC/XLS/XLSX to the source-document intake selector so formats already supported by the downloader/parser are eligible for scheduled intake.
+- Ranked direct document URLs and direct document filenames ahead of HTML/portal rows during source-document intake selection.
+- Preserved HTML eligibility for later portal-page intake, but stopped newest protected aggregator pages from consuming the first intake slots when direct PDFs/XLSX/ZIPs are available.
+
+Verification:
+- Initial live intake run `source_document_intake_20260528T0953` selected five fresh DGMarket `.html` portal rows and failed all five with HTTP 403, proving the selection order was blocking useful intake.
+- Dry run `source_document_intake_dryrun_20260528T0955` selected five direct AIIB artifacts after the ranking change: four PDFs and one XLSX.
+- Live intake `source_document_intake_20260528T0955` downloaded 5/5 direct AIIB artifacts, completed 5/5 parse jobs, had 0 failures and 0 timeouts, and extracted 16 total requirements.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Post-run live database snapshot: 2,847 opportunities, 1,631 RFP opportunities, 291 source documents, 30 downloaded source documents, 23 RFP documents, and 60 extracted requirements.
+
+Remaining after this slice:
+- Add a dedicated strategy for protected DGMarket portal pages instead of retrying them as direct RFP documents.
+- Continue draining direct source-document backlog in bounded batches while monitoring parse yield and document quality.
+
 ### 2026-05-28 - JavaScript Sources Use Browser as Primary Collection
 
 Status: implemented and verified.

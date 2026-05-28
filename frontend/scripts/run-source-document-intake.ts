@@ -18,7 +18,7 @@ const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.SOURCE_DOCUMENT_INTAKE_RUN_ID ?? createProofRunId("source_document_intake");
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "source-document-intake" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
-const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".docx", ".html", ".htm", ".zip"];
+const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
 
 type IntakeDisposition = "downloaded" | "failed" | "skipped";
 
@@ -188,6 +188,12 @@ async function selectDiscoveredDocuments(
 		conditions.push(eq(opportunityDocuments.organizationId, config.organizationId));
 	}
 
+	const directDocumentRank = sql<number>`case
+		when ${opportunityDocuments.sourceUrl} ~* '\\.(pdf|docx?|xlsx?|zip)(\\?|$)' then 0
+		when ${opportunityDocuments.documentName} ~* '\\.(pdf|docx?|xlsx?|zip)$' then 1
+		else 2
+	end`;
+
 	return db
 		.select({
 			id: opportunityDocuments.id,
@@ -199,7 +205,7 @@ async function selectDiscoveredDocuments(
 		})
 		.from(opportunityDocuments)
 		.where(and(...conditions))
-		.orderBy(desc(opportunityDocuments.discoveredAt), desc(opportunityDocuments.createdAt))
+		.orderBy(directDocumentRank, desc(opportunityDocuments.discoveredAt), desc(opportunityDocuments.createdAt))
 		.limit(config.limit);
 }
 
