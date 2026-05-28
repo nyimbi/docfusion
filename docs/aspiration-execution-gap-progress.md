@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Broad Reseed Adds Five More Parsed RFPs
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: keep RFP collection growing after the fresh source-document backlog was exhausted.
+
+Changes in this slice:
+- Confirmed the fresh source-document intake backlog was empty with failed retries disabled.
+- Ran a broad live discovery reseed with downloads disabled to create new opportunity and source-document rows without spending the search run on document processing.
+- Ran a bounded source-document intake over the newly seeded direct documents.
+- Drained the queued parser jobs created by that intake.
+
+Verification:
+- Dry-run `source_intake_remaining_backlog_dryrun_20260529` selected 0 rows, confirming the prior fresh backlog was exhausted.
+- Broad reseed `live_broad_reseed_after_fallback_ranking_20260529` returned 165 candidate records, created 17 opportunities, updated 148 opportunities, failed 0 records, created 17 source-document rows, and attempted 0 downloads by design.
+- The reseed reached public `searx.space` fallbacks, but most public fallback calls still returned 403, 429, 418, or 500. One recovery path did use `https://etsi.me` during DGMarket document recovery, confirming fallback fan-out is active but still opportunistic.
+- Dry-run `source_intake_after_broad_reseed_dryrun_20260529` selected 8 fresh rows: 5 direct Kenya tender PDFs and 3 DGMarket HTML rows.
+- Live intake `source_intake_after_broad_reseed_live_20260529` selected 8 rows, downloaded 5 direct PDFs, failed 3 DGMarket rows with HTTP 403, and queued 5 parser jobs. Successful PDFs used local `pdftotext`.
+- Queued parse drain `queued_parse_after_broad_reseed_intake_20260529` selected 5 jobs, completed 5, failed 0, and extracted 44 requirements.
+- Follow-up dry-run `source_intake_post_reseed_remaining_dryrun_20260529` selected 0 rows with failed retries disabled.
+- Post-run live database snapshot: 3,134 opportunities, 182 RFP documents, 180 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,213 requirements, 154 RFP documents with requirements, 452 selected source-document rows, 221 downloaded source-document rows, and 80 failed source-document rows.
+
+Remaining after this slice:
+- DGMarket is now a recurring protected-source failure; normal intake should keep suppressing protected retries unless a source-specific recovery path is added.
+- Public `searx.space` fallback is active but too rate-limited for reliable breadth. A trusted fallback pool remains the highest-leverage infrastructure improvement for broad RFP search.
+
 ### 2026-05-29 - Engine-Aware SearXNG Public Fallback Selection
 
 Status: implemented, unit-verified, and typechecked.
