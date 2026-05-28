@@ -8354,6 +8354,26 @@ Remaining after this slice:
 - Add real user assignment and receipt-upload/capture state once the handoff moves from proof artifacts to authenticated runtime records.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Stable Latest Handoff Index
+
+Status: implemented and verified.
+
+Purpose: give operators and follow-on automation a stable entrypoint to the current live pursuit handoff instead of requiring them to inspect timestamped proof directories or evidence rows.
+
+Changes in this slice:
+- Added `.omx/state/latest-live-pursuit-handoff.json` as a stable machine-readable index for the latest live handoff run, source portfolio, primary pursuit, handoff artifact paths, and structured execution plan.
+- Added `.omx/state/latest-live-pursuit-handoff.md` as a stable operator-readable brief that points to the current run and embeds the latest handoff checklist.
+- Added readback validation for both stable latest-handoff artifacts inside `prove-live-pursuit-handoff.ts`.
+- Added latest-handoff artifact paths to live pursuit handoff evidence rows.
+
+Verification:
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run live-pursuit-handoff --include-live-safe` passed with run `live_pursuit_handoff_20260528T012604Z`, writing latest-handoff JSON/Markdown indexes for source portfolio `live_opportunity_portfolio_triage_20260528T010913Z`, primary UNGM pursuit `live_response_readiness_20260528T010842Z`, 32 linked artifacts, 8 execution tasks, and 5 critical execution tasks.
+
+Remaining after this slice:
+- Move the latest-handoff index behind authenticated product/API access once DB-backed runtime persistence is reachable.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Live Pursuit Handoff Bundle
 
 Status: implemented and verified.

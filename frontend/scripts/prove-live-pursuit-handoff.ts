@@ -20,6 +20,8 @@ const WORKSPACE_ROOT = path.resolve(process.cwd(), "..");
 const RUN_ID = process.env.LIVE_PURSUIT_HANDOFF_RUN_ID ?? createProofRunId("live_pursuit_handoff");
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "live-pursuit-handoff" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-live-pursuit-handoff-evidence.md");
+const LATEST_HANDOFF_JSON_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "latest-live-pursuit-handoff.json");
+const LATEST_HANDOFF_BRIEF_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "latest-live-pursuit-handoff.md");
 const COMPLETION_LOG_ROOT = path.resolve(WORKSPACE_ROOT, ".omx", "logs", "platform-completion");
 const PORTFOLIO_PROOF_FILENAME = "live-opportunity-portfolio-triage.json";
 
@@ -87,8 +89,33 @@ interface LivePursuitHandoffProof {
 		criticalExecutionTaskCount: number;
 		briefHash: string;
 		artifactPaths: string[];
+		latestIndexPaths: string[];
 	};
 	error?: string;
+}
+
+interface LatestLivePursuitHandoffIndex {
+	runId: string;
+	updatedAt: string;
+	sourcePortfolio: {
+		runId?: string;
+		path: string;
+		completedAt?: string;
+		rankedCount: number;
+	};
+	handoffArtifactPaths: string[];
+	primaryPursuit: {
+		runId: string;
+		sourceKind: string;
+		title: string;
+		deadline?: string;
+		deadlineUrgency?: string;
+		portalUrl?: string;
+		documentUrl?: string;
+	};
+	reviewQueueCount: number;
+	artifactCount: number;
+	executionPlan: LivePursuitHandoff["executionPlan"];
 }
 
 async function main() {
@@ -133,6 +160,12 @@ async function proveLivePursuitHandoff(): Promise<Partial<LivePursuitHandoffProo
 		reviewQueue: reviewQueue.map((candidate) => handoffOpportunity(candidate, responseProofs)),
 	});
 	const handoffArtifactPaths = await writeHandoffArtifacts(handoff);
+	const latestIndexPaths = await writeLatestHandoffIndex(handoff, handoffArtifactPaths, {
+		runId: sourcePortfolio.proof.runId,
+		path: sourcePortfolio.relativePath,
+		completedAt: sourcePortfolio.proof.completedAt,
+		rankedCount: sourcePortfolio.proof.triage.ranked.length,
+	});
 	return {
 		sourcePortfolio: {
 			runId: sourcePortfolio.proof.runId,
@@ -151,6 +184,7 @@ async function proveLivePursuitHandoff(): Promise<Partial<LivePursuitHandoffProo
 			criticalExecutionTaskCount: handoff.executionPlan.criticalTaskCount,
 			briefHash: crypto.createHash("sha256").update(handoff.operatorBriefMarkdown).digest("hex"),
 			artifactPaths: handoffArtifactPaths,
+			latestIndexPaths,
 		},
 	};
 }
@@ -249,6 +283,58 @@ async function writeHandoffArtifacts(handoff: LivePursuitHandoff): Promise<strin
 	return relativePaths;
 }
 
+async function writeLatestHandoffIndex(
+	handoff: LivePursuitHandoff,
+	handoffArtifactPaths: string[],
+	sourcePortfolio: NonNullable<LivePursuitHandoffProof["sourcePortfolio"]>
+): Promise<string[]> {
+	const latestIndex: LatestLivePursuitHandoffIndex = {
+		runId: RUN_ID,
+		updatedAt: new Date().toISOString(),
+		sourcePortfolio,
+		handoffArtifactPaths,
+		primaryPursuit: {
+			runId: handoff.primaryPursuit.runId,
+			sourceKind: handoff.primaryPursuit.sourceKind,
+			title: handoff.primaryPursuit.title,
+			deadline: handoff.primaryPursuit.submissionSchedule?.deadlineLabel,
+			deadlineUrgency: handoff.primaryPursuit.submissionSchedule?.urgency,
+			portalUrl: handoff.primaryPursuit.portalUrl,
+			documentUrl: handoff.primaryPursuit.documentUrl,
+		},
+		reviewQueueCount: handoff.reviewQueue.length,
+		artifactCount: handoff.artifactCount,
+		executionPlan: handoff.executionPlan,
+	};
+	await fs.mkdir(path.dirname(LATEST_HANDOFF_JSON_PATH), { recursive: true });
+	await fs.writeFile(LATEST_HANDOFF_JSON_PATH, `${JSON.stringify(latestIndex, null, 2)}\n`, "utf8");
+	const jsonReadback = JSON.parse(await fs.readFile(LATEST_HANDOFF_JSON_PATH, "utf8")) as LatestLivePursuitHandoffIndex;
+	if (jsonReadback.runId !== RUN_ID || jsonReadback.executionPlan.taskCount !== handoff.executionPlan.taskCount) {
+		throw new Error("Latest live pursuit handoff JSON readback mismatch");
+	}
+
+	const latestBrief = [
+		"# Latest Live Pursuit Handoff",
+		"",
+		`Run: \`${RUN_ID}\``,
+		`Updated: ${latestIndex.updatedAt}`,
+		`Source portfolio: \`${sourcePortfolio.runId ?? "unknown"}\``,
+		"",
+		handoff.operatorBriefMarkdown.trimEnd(),
+		"",
+	].join("\n");
+	await fs.writeFile(LATEST_HANDOFF_BRIEF_PATH, latestBrief, "utf8");
+	const briefReadback = await fs.readFile(LATEST_HANDOFF_BRIEF_PATH, "utf8");
+	if (!briefReadback.includes(RUN_ID) || !briefReadback.includes("## Execution Checklist")) {
+		throw new Error("Latest live pursuit handoff brief readback mismatch");
+	}
+
+	return [
+		path.relative(WORKSPACE_ROOT, LATEST_HANDOFF_JSON_PATH),
+		path.relative(WORKSPACE_ROOT, LATEST_HANDOFF_BRIEF_PATH),
+	];
+}
+
 async function writeArtifacts(
 	proof: LivePursuitHandoffProof,
 	disposition: EvidenceRecord["disposition"]
@@ -273,6 +359,7 @@ async function writeArtifacts(
 			`execution-tasks:${proof.handoff?.executionTaskCount ?? 0}`,
 			`critical-execution-tasks:${proof.handoff?.criticalExecutionTaskCount ?? 0}`,
 			...(proof.handoff?.artifactPaths.map((artifactPath) => `handoff-artifact:${artifactPath}`) ?? []),
+			...(proof.handoff?.latestIndexPaths.map((artifactPath) => `latest-handoff:${artifactPath}`) ?? []),
 		],
 		topology_tier: "live-connectivity",
 		verification_bucket: "live-safe pursuit handoff",
@@ -281,7 +368,7 @@ async function writeArtifacts(
 		cleanup_status: "not-applicable",
 		disposition,
 		notes: disposition === "pass"
-			? "Live portfolio and response artifacts were bundled into an operator pursuit handoff with structured execution tasks."
+			? "Live portfolio and response artifacts were bundled into an operator pursuit handoff with structured execution tasks and a stable latest-handoff index."
 			: proof.error ?? "Live pursuit handoff proof failed.",
 	}], {
 		title: "Platform Live Pursuit Handoff Evidence",
