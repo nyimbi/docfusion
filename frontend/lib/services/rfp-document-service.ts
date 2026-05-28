@@ -37,6 +37,7 @@ const DOCUMENT_STORAGE_PATH = process.env.DOCUMENT_STORAGE_PATH || "./storage/rf
 const MAX_FILE_SIZE_MB = 100; // Maximum file size to download
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar"];
 const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
+const MIN_EXTRACTED_TEXT_LENGTH = 10;
 
 // ============================================================================
 // Types
@@ -94,6 +95,12 @@ interface StoredFetchedRfpDocument {
   storagePath: string;
   receipt: RfpStorageReceipt;
 }
+
+type ExtractedDocumentText = {
+  text: string;
+  pageCount?: number;
+  extractor: "docling" | "local_pdf_parse" | "local_docx_parse" | "local_html_text";
+};
 
 interface QueuedRfpParsing {
   rfpDocumentId?: string;
@@ -708,20 +715,16 @@ export async function downloadDocument(
     });
     const localPath = stored.storagePath;
 
-    // Process document with DocLing for text extraction
+    // Process document with DocLing for text extraction, falling back locally
+    // for common office formats when the service is unavailable.
     let extractedText: string | undefined;
     let pageCount: number | undefined;
     
     if (isSupportedFileType(doc.documentName)) {
-      try {
-        logger.debug(`[DocLing] Processing document: ${doc.documentName}`);
-        const processed = await processRfpDocument(buffer, doc.documentName);
+      const processed = await extractSupportedDocumentText(buffer, doc.documentName);
+      if (processed) {
         extractedText = processed.text;
         pageCount = processed.pageCount;
-        logger.debug(`[DocLing] Extracted ${pageCount} pages, ${extractedText?.length || 0} characters`);
-      } catch (error) {
-        logger.error(`[DocLing] Failed to process document:`, error);
-        // Continue without extraction - document is still downloaded
       }
     }
 
@@ -1030,8 +1033,10 @@ export async function extractDocumentText(documentId: string): Promise<string | 
       return null;
     }
 
-    logger.debug(`[DocLing] Extracting text from: ${doc.documentName}`);
-    const processed = await processRfpDocument(buffer, doc.documentName);
+    const processed = await extractSupportedDocumentText(buffer, doc.documentName);
+    if (!processed) {
+      return null;
+    }
     
     // Update database with extracted text
     await db.update(opportunityDocuments)
@@ -1043,12 +1048,107 @@ export async function extractDocumentText(documentId: string): Promise<string | 
       })
       .where(eq(opportunityDocuments.id, documentId));
 
-    logger.debug(`[DocLing] Extracted ${processed.pageCount} pages, ${processed.text.length} characters`);
     return processed.text;
   } catch (error) {
     logger.error(`[DocLing] Text extraction failed for ${documentId}:`, error);
     return null;
   }
+}
+
+async function extractSupportedDocumentText(
+  buffer: Buffer,
+  filename: string
+): Promise<ExtractedDocumentText | undefined> {
+  if (!isSupportedFileType(filename)) {
+    logger.debug(`[DocLing] File type not supported for extraction: ${filename}`);
+    return undefined;
+  }
+
+  try {
+    logger.debug(`[DocLing] Processing document: ${filename}`);
+    const processed = await processRfpDocument(buffer, filename);
+    const text = cleanExtractedText(processed.text);
+    if (text.length >= MIN_EXTRACTED_TEXT_LENGTH) {
+      logger.debug(`[DocLing] Extracted ${processed.pageCount} pages, ${text.length} characters`);
+      return {
+        text,
+        pageCount: processed.pageCount,
+        extractor: "docling",
+      };
+    }
+    logger.warn(`[DocLing] Extracted too little text from ${filename}; trying local fallback`, {
+      extractedTextLength: text.length,
+    });
+  } catch (error) {
+    logger.error(`[DocLing] Failed to process document:`, error);
+  }
+
+  const local = await extractDocumentTextLocally(buffer, filename);
+  if (local) {
+    logger.warn(`[RFP Document Service] Used ${local.extractor} fallback for ${filename}`, {
+      extractedTextLength: local.text.length,
+      pageCount: local.pageCount,
+    });
+  }
+  return local;
+}
+
+async function extractDocumentTextLocally(
+  buffer: Buffer,
+  filename: string
+): Promise<ExtractedDocumentText | undefined> {
+  const extension = extname(filename).toLowerCase();
+  try {
+    if (extension === ".pdf") {
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText({ pageJoiner: "\n\n" });
+        const text = cleanExtractedText(result.text ?? "");
+        if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+        const pageCount = typeof (result as { total?: unknown }).total === "number"
+          ? (result as { total: number }).total
+          : undefined;
+        return { text, pageCount, extractor: "local_pdf_parse" };
+      } finally {
+        await parser.destroy();
+      }
+    }
+
+    if (extension === ".docx") {
+      const mammoth = await import("mammoth");
+      const extractRawText = mammoth.extractRawText ?? mammoth.default?.extractRawText;
+      if (!extractRawText) return undefined;
+      const result = await extractRawText({ buffer });
+      const text = cleanExtractedText(result.value ?? "");
+      if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+      return { text, extractor: "local_docx_parse" };
+    }
+
+    if (extension === ".html" || extension === ".htm") {
+      const text = cleanExtractedText(
+        buffer.toString("utf8")
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, "\"")
+      );
+      if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
+      return { text, extractor: "local_html_text" };
+    }
+  } catch (error) {
+    logger.error(`[RFP Document Service] Local text extraction failed for ${filename}:`, error);
+  }
+
+  return undefined;
+}
+
+function cleanExtractedText(value: string | undefined | null): string {
+  return value?.replace(/\s+/g, " ").trim() ?? "";
 }
 
 async function storeFetchedRfpDocument(params: {
@@ -1184,7 +1284,9 @@ async function queueRfpParsingFromDownloadedDocument(params: {
         eq(userWorkspaces.isDefault, true),
       ),
     });
-    if (!userWorkspace) {
+    const organizationId = userWorkspace?.organizationId
+      ?? (params.userId === "system" ? params.document.organizationId : undefined);
+    if (!organizationId) {
       logger.warn("[RFP Document Service] Aborting parse queue — user has no default workspace", { userId: params.userId });
       await recordOpportunityDocumentIngestWorkflow({
         document: params.document,
@@ -1196,7 +1298,6 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       });
       return {};
     }
-    const organizationId = userWorkspace.organizationId;
 
     const existing = await db.query.rfpDocuments.findFirst({
       where: and(

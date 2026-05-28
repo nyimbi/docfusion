@@ -8251,6 +8251,29 @@ Remaining after this slice:
 - Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Source Document Intake Resilience and System Queueing
+
+Status: implemented and verified.
+
+Purpose: keep RFP source-document intake moving even when Docling is unavailable or returns unusably short text, and allow automated discovery downloads by `system` to enqueue parsing under the downloaded document's organization instead of requiring a default user workspace.
+
+Changes in this slice:
+- Added a shared extraction path for downloaded opportunity documents that tries Docling first, then falls back to local PDF text extraction, local DOCX raw text extraction, or basic HTML text extraction for supported file types.
+- Persisted locally extracted text and page counts through the existing `opportunity_documents` and `rfp_documents` write paths so downloaded RFPs can continue into parsing and response preparation without waiting for Docling recovery.
+- Updated automated parse queueing so `userId = "system"` uses `opportunity_documents.organization_id` as the tenant when there is no user workspace, while human users without a default workspace still receive the existing remediation workflow.
+- Added service coverage for Docling-unavailable PDF download fallback, later DOCX extraction fallback, and automated `system` queueing under the source document organization.
+
+Verification:
+- `npm test -- rfp-document-service.test.ts --run` passed with 16 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB-backed intake proof downloaded UNICEF source document `1e7a6f2e-0639-4c37-bbe7-26a65c0182a2` as `system`, uploaded `UNICEF-Education-Tender-Calendar-2026.pdf` to Linode E3 at `s3://mansa/rfp/60a77e47-f425-4a08-babf-9350de39b390/1e7a6f2e-0639-4c37-bbe7-26a65c0182a2/UNICEF-Education-Tender-Calendar-2026.pdf`, and persisted 30,042 extracted characters.
+- The live proof created RFP document `8ebb91a4-b844-4b8d-b8fc-2d16c095eaca` and parse job `68ac7325-9aa2-4c00-ba24-8c952d7f421f` under organization `__MIGRATED_LEGACY__`; the parse job completed and extracted 3 requirements.
+- Current live DB counts after the proof: 2,723 opportunities, 1,611 RFP opportunities, 164 opportunity source documents, 6 downloaded source documents, 1 RFP document, and 1 completed RFP parse job.
+
+Remaining after this slice:
+- Run additional live document downloads across more sources to build volume now that automated queueing no longer depends on user workspace rows.
+- Keep Docling health monitored; the local fallback is now covered for PDF/DOCX/HTML, but Docling remains the preferred extraction path when available.
+
 ### 2026-05-28 - Live Submission Schedule Evidence in Pursuit Handoff
 
 Status: implemented and verified.

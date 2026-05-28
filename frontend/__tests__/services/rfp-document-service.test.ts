@@ -27,6 +27,7 @@ function createChain(config: ChainConfig = {}) {
 
 const baseDocument = {
 	id: "00000000-0000-4000-8000-000000000901",
+	organizationId: "org-1",
 	opportunityId: "00000000-0000-4000-8000-000000000902",
 	documentName: "Main RFP.pdf",
 	documentType: "rfp",
@@ -78,6 +79,9 @@ const doclingMock = vi.hoisted(() => ({
 	isSupportedFileType: vi.fn(),
 	processRfpDocument: vi.fn(),
 }));
+const pdfParseGetTextMock = vi.hoisted(() => vi.fn());
+const pdfParseDestroyMock = vi.hoisted(() => vi.fn());
+const mammothExtractRawTextMock = vi.hoisted(() => vi.fn());
 
 const dnsLookupMock = vi.hoisted(() =>
 	vi.fn<() => Promise<Array<{ address: string; family: 4 | 6 }>>>()
@@ -104,6 +108,18 @@ vi.mock("@/lib/scrapers/firecrawl", () => ({
 	})),
 }));
 vi.mock("@/lib/services/docling-client", () => doclingMock);
+vi.mock("pdf-parse", () => ({
+	PDFParse: vi.fn(() => ({
+		getText: pdfParseGetTextMock,
+		destroy: pdfParseDestroyMock,
+	})),
+}));
+vi.mock("mammoth", () => ({
+	default: {
+		extractRawText: mammothExtractRawTextMock,
+	},
+	extractRawText: mammothExtractRawTextMock,
+}));
 vi.mock("@/lib/storage/linode-e3", () => storageMock);
 vi.mock("@/lib/actions/rfp-parser", () => ({
 	processRfpParsingJob: vi.fn(async () => undefined),
@@ -166,6 +182,14 @@ beforeEach(() => {
 	doclingMock.processRfpDocument.mockResolvedValue({
 		text: "Extracted RFP text",
 		pageCount: 3,
+	});
+	pdfParseGetTextMock.mockResolvedValue({
+		text: "Locally extracted PDF RFP text with enough content.",
+		total: 2,
+	});
+	pdfParseDestroyMock.mockResolvedValue(undefined);
+	mammothExtractRawTextMock.mockResolvedValue({
+		value: "Locally extracted DOCX RFP text with enough content.",
 	});
 	fetchPublicHttpUrlMock.mockResolvedValue(new Response("downloaded-pdf", {
 		status: 200,
@@ -344,6 +368,64 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("falls back to local PDF extraction when DocLing is unavailable during download", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+		});
+		expect(pdfParseGetTextMock).toHaveBeenCalledWith({ pageJoiner: "\n\n" });
+		expect(pdfParseDestroyMock).toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: "Locally extracted PDF RFP text with enough content.",
+			pageCount: 2,
+			extractedAt: expect.any(Date),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			extractedText: "Locally extracted PDF RFP text with enough content.",
+			pageCount: 2,
+		});
+	});
+
+	it("falls back to local DOCX extraction when later text extraction cannot reach DocLing", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Main RFP.docx",
+			localPath: "s3://mansa/rfp/opportunity/document/Main-RFP.docx",
+			mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			extractedText: null,
+		});
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const text = await extractDocumentText(baseDocument.id);
+
+		expect(text).toBe("Locally extracted DOCX RFP text with enough content.");
+		expect(mammothExtractRawTextMock).toHaveBeenCalledWith({ buffer: Buffer.from("downloaded-pdf") });
+		expect(dbMock.update).toHaveBeenCalled();
+	});
+
 	it("allows invalid TLS only for Kenya PPIP source document downloads", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
 			...baseDocument,
@@ -420,6 +502,48 @@ describe("RFP document fetch storage", () => {
 				state: "open",
 				priority: "high",
 				assignedTo: "capture-user",
+			})
+		);
+	});
+
+	it("queues automated discovery downloads under the document organization without a user workspace", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue(baseDocument);
+		dbMock.query.userWorkspaces.findFirst.mockResolvedValue(null);
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+		});
+		expect(insertedValues[0]).toMatchObject({
+			organizationId: "org-1",
+			uploadedBy: "system",
+		});
+		expect(processRfpParsingJob).toHaveBeenCalledWith({
+			jobId: "00000000-0000-4000-8000-000000000501",
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			tenantContext: {
+				userId: "system",
+				organizationId: "org-1",
+			},
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "queued_for_parse",
+				actorId: "system",
+				assignedTo: null,
 			})
 		);
 	});
