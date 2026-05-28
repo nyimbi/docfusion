@@ -58,6 +58,7 @@ import {
 	MapPin,
 	CheckCircle,
 	BookmarkCheck,
+	ClipboardCheck,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
@@ -508,6 +509,12 @@ function OpportunitiesContent() {
 						<Button variant="outline">
 							<Database className="h-4 w-4" />
 							<span className="hidden sm:inline">Sources</span>
+						</Button>
+					</Link>
+					<Link href="/opportunities/live-handoff">
+						<Button variant="outline">
+							<ClipboardCheck className="h-4 w-4" />
+							<span className="hidden sm:inline">Handoff</span>
 						</Button>
 					</Link>
 					<Button

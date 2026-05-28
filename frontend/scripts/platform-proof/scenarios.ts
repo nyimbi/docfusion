@@ -326,9 +326,23 @@ export const PLATFORM_PROOF_SCENARIOS: ProofScenarioDefinition[] = [
 		description: "Validates deterministic source-driven response package drafting and readiness gates for complete, evidence-backed Datacraft proposal drafts.",
 		command: {
 			command: "npm",
-			args: ["test", "--", "live-response-package.test.ts", "live-qualification-workflow.test.ts", "live-pursuit-handoff.test.ts"],
+			args: [
+				"test",
+				"--",
+				"live-response-package.test.ts",
+				"live-qualification-workflow.test.ts",
+				"live-pursuit-handoff.test.ts",
+				"latest-live-pursuit-handoff.test.ts",
+				"live-handoff-latest-route.test.ts",
+			],
 		},
-		expectedArtifacts: ["vitest:live-response-package", "vitest:live-qualification-workflow", "vitest:live-pursuit-handoff"],
+		expectedArtifacts: [
+			"vitest:live-response-package",
+			"vitest:live-qualification-workflow",
+			"vitest:live-pursuit-handoff",
+			"vitest:latest-live-pursuit-handoff",
+			"vitest:live-handoff-latest-route",
+		],
 	},
 	{
 		id: "wave9-presentation-export-artifacts",

@@ -8374,6 +8374,29 @@ Remaining after this slice:
 - Move the latest-handoff index behind authenticated product/API access once DB-backed runtime persistence is reachable.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-05-28 - Authenticated Latest Handoff Surface
+
+Status: implemented and verified.
+
+Purpose: move the current live pursuit handoff from filesystem-only proof state into an authenticated operator surface, so proposal teams can open the current response package checklist from the product without reading proof logs.
+
+Changes in this slice:
+- Added a server-side latest live handoff reader that validates `.omx/state/latest-live-pursuit-handoff.json` and `.omx/state/latest-live-pursuit-handoff.md` stay aligned.
+- Added authenticated `GET /api/opportunities/live-handoff/latest`, gated by tenant context, returning the latest handoff index, Markdown brief, artifact paths, and proof guidance when no handoff has been generated.
+- Added `/opportunities/live-handoff` to render the primary pursuit, artifact count, review queue count, deadline urgency, source links, execution task priorities, owner-role hints, due labels, and required evidence.
+- Added a Handoff button to the main Opportunities header.
+- Expanded the Wave 9 response-readiness package proof scenario to include the latest-handoff reader and authenticated route tests.
+
+Verification:
+- `npm test -- latest-live-pursuit-handoff.test.ts live-handoff-latest-route.test.ts --run` passed with 6 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `npm run platform:proof -- --run wave9-response-readiness-package` passed with 33 tests across live response package, qualification workflow, pursuit handoff, latest-handoff reader, and latest-handoff route coverage.
+- `npm run build` passed; Next.js build output includes dynamic API route `/api/opportunities/live-handoff/latest` and page `/opportunities/live-handoff`.
+
+Remaining after this slice:
+- Add real execution state transitions, user assignment, and receipt capture once DB-backed runtime persistence is reachable.
+- DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
+
 ### 2026-05-28 - Persisted Proof Recheck Still DB Blocked
 
 Status: externally blocked.
