@@ -18,6 +18,12 @@ vi.mock("@/lib/services/opportunity-discovery-import", () => ({
 }));
 
 import { POST } from "@/app/api/opportunities/discovery/run/route";
+import {
+	DEFAULT_DISCOVERY_SEARCH_ENGINES,
+	DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT,
+	DEFAULT_DISCOVERY_SOURCE_URLS,
+	DEFAULT_DISCOVERY_DOWNLOAD_LIMIT,
+} from "@/lib/services/default-discovery-sources";
 
 function discoveryRequest(body?: unknown, headers?: HeadersInit): NextRequest {
 	return new NextRequest("https://app.test/api/opportunities/discovery/run", {
@@ -153,10 +159,10 @@ describe("opportunity discovery run route", () => {
 			expect.objectContaining({
 				query: "scheduled rfp search",
 				queries: undefined,
-				engines: ["duckduckgo", "bing"],
+				engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
 				sourceUrls: expect.arrayContaining(["https://www.ungm.org/Public/Notice"]),
 				downloadDiscoveredDocuments: true,
-				downloadLimit: 5,
+				downloadLimit: DEFAULT_DISCOVERY_DOWNLOAD_LIMIT,
 			}),
 			"service-user-1",
 			"org-service-1"
@@ -187,19 +193,23 @@ describe("opportunity discovery run route", () => {
 					"\"software development\" tender procurement Africa",
 					"\"expression of interest\" consultancy services Africa deadline",
 				]),
-				engines: ["duckduckgo", "bing"],
+				engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
 				sourceUrls: expect.arrayContaining([
 					"https://www.ungm.org/Public/Notice",
-					"https://tenders.worldbank.org/procurement-notices",
-					"https://sam.gov/search/?index=opp",
+					"https://projects.worldbank.org/en/projects-operations/procurement",
+					"https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
 				]),
-				sourceScrapeLimit: 15,
+				sourceScrapeLimit: DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT,
 				scrapeLimit: 5,
-				downloadLimit: 5,
+				downloadLimit: DEFAULT_DISCOVERY_DOWNLOAD_LIMIT,
 			}),
 			"service-user-1",
 			"org-service-1"
 		);
+		const scheduledInput = executeOpportunityDiscoveryImportMock.mock.calls[0]?.[0];
+		expect(scheduledInput.sourceUrls).toEqual([...DEFAULT_DISCOVERY_SOURCE_URLS]);
+		expect(scheduledInput.sourceUrls).not.toContain("https://tenders.worldbank.org/procurement-notices");
+		expect(scheduledInput.sourceUrls).not.toContain("https://www.unicef.org/supply/tender-calendars");
 		expect(body).toMatchObject({
 			success: true,
 			importId: "import-service",

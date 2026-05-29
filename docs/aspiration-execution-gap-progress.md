@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Confirm Broad Source Health And Replace Uganda Scrape With GPP API
+
+Status: implemented, focused-test verified, typechecked, and live-imported.
+
+Purpose: keep the broad default source profile focused on productive RFP sources after proving the SearXNG/searx.space fallback and source-specific repairs in one run.
+
+Changes in this slice:
+- Removed the duplicate World Bank tenders default URL from the broad source profile because it returns the same source-API opportunity set as the World Bank projects procurement URL and was marked `not_run` after the first World Bank source consumed those identities.
+- Removed the currently empty UNICEF umbrella tender-calendars URL from the broad source profile while keeping the productive UNICEF service-contract calendar source and explicit UNICEF tender-calendar parser support.
+- Replaced the blocked `egpuganda.go.ug/bid-notices` scrape default with Uganda PPDA GPP's public bid-invitations API at `https://cdn.ppda.go.ug/api/bid-invitations`.
+- Added Uganda GPP API parsing for active bid invitations, including procuring entity, reference, method, procurement type, deadline, budget, funding source, OCDS ID, and public GPP detail URLs.
+
+Verification:
+- Broad live discovery import `live_broad_source_health_refresh_20260529T1330` processed 400 candidates, imported 43 new opportunities, updated 357, failed 0, created 39 source-document rows, and reused 297 existing source-document rows with downloads disabled.
+- The broad run marked 28 configured sources healthy. The only non-healthy entries were the duplicate World Bank tenders URL marked `not_run` and the currently empty UNICEF umbrella tender-calendars page.
+- Public SearXNG fallback fanout still encountered public-instance 403/418/429 responses during the run, but the client continued with source scraping and direct DuckDuckGo fallback where applicable; no import rows failed.
+- `npx vitest run __tests__/scrapers/egp-uganda-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/api/opportunity-discovery-route.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 54 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live Uganda GPP API import `live_uganda_gpp_api_import_20260529T1355` processed 3 active Uganda candidates, imported 3, failed 0, emitted 0 warnings, and marked the source healthy.
+- Pruned source-only health run `live_pruned_default_source_health_20260529T1356` processed 379 candidates from 28 configured sources, imported 2, updated 377, failed 0, emitted 0 warnings, created 2 source-document rows, reused 337 existing source-document rows, and marked every configured source healthy.
+- Post-run live database snapshot: 3,551 total opportunities and 1,754 RFP-typed opportunities.
+
+Remaining after this slice:
+- Continue improving response-readiness and document intake, using lightweight text extraction before Docling for documents where direct text extraction works.
+
 ### 2026-05-29 - Recover Full UNICEF Service-Contracts Calendar Collection
 
 Status: implemented, focused-test verified, typechecked, and live-imported.

@@ -243,6 +243,8 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?etenders\.gov\.za\//i,
 	/\/\/(?:www\.)?ppra\.go\.tz\/tenders/i,
 	/\/\/egpuganda\.go\.ug\/(?:bid-notices|index\/)/i,
+	/\/\/gpp\.ppda\.go\.ug\/public\/bid-invitations/i,
+	/\/\/cdn\.ppda\.go\.ug\/api\/bid-invitations/i,
 	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
 	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
 	/\/\/(?:www\.)?un\.org\/procurement/i,
@@ -401,6 +403,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
+	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
@@ -413,7 +416,8 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
 		|| parser.sourceId === "iom"
-		|| parser.sourceId === "nest_tanzania";
+		|| parser.sourceId === "nest_tanzania"
+		|| parser.sourceId === "egp_uganda";
 }
 
 function isLowValueDiscoveryUrl(url: string | undefined): boolean {
