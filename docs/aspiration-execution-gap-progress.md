@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Prove Live RFP Document Download And Parse Intake
+
+Status: live-proof verified.
+
+Purpose: close the gap between opportunity acquisition and usable RFP content by downloading and parsing newly discovered source-document rows, including the new Mauritius CEB Solar/BESS RFPs.
+
+Verification:
+- Dry-run selection `source_doc_intake_ceb_dry_20260530T0000` selected the two new CEB Solar/BESS RFP PDFs as the highest-ranked intake candidates.
+- Live source-document intake `source_doc_intake_rfp_docs_20260530T0001` selected 5 documents, downloaded 5, failed 0, skipped 0, completed 5 parse jobs, and timed out 0 parse jobs.
+- The two CEB Solar/BESS RFP PDFs used local `pdftotext` extraction before any Docling fallback, extracting approximately 174,218 and 175,983 characters respectively.
+- Completed parse jobs extracted 44 total requirements across the 5 downloaded RFP documents: 3 and 5 requirements from the two CEB Solar/BESS PDFs, 14 and 18 from two South Africa eTenders RFP documents, and 4 from an IOM contract-template recovery.
+- The run exercised the intended fallback order: direct/local extraction first, Docling only after local HTML extraction was unusable, and search/scrape recovery after an IOM direct 403.
+
+Remaining after this slice:
+- Continue source-document intake in small batches to convert the newly broadened opportunity corpus into parsed requirements and response-ready packages.
+- Stabilize Docling service availability on `84.247.181.100:3600`; one fallback attempt saw a socket close and another saw `ECONNREFUSED`, though the run still completed through local/recovery paths.
+
 ### 2026-05-29 - Add Mauritius CEB Tender Document Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
