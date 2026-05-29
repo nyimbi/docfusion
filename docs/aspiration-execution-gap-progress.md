@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Broad Reseed After Reader Recovery Adds Fresh Parsed Documents
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: keep collection growth focused on fresh opportunities and source documents after protected UNICEF recovery, instead of inflating counts by retrying duplicate same-URL UNICEF rows.
+
+Changes in this slice:
+- Ran the broad default discovery profile with downloads disabled to seed fresh opportunities and source-document rows through SearXNG plus configured procurement sources.
+- Confirmed public `searx.space` fallback fan-out is active from this environment, but most public instances rejected server-side search with 403, 418, 429, fetch failures, or timeouts.
+- Ran a bounded source-document intake dry-run over the newly seeded backlog, then processed the top 5 direct documents live.
+
+Verification:
+- Live reseed `live_broad_reseed_after_reader_recovery_20260529` processed 380 candidates, imported 66 new opportunities, updated 314 opportunities, failed 0 imports, created 42 source-document rows, reused 270 existing source-document rows, and attempted 0 downloads by design.
+- Healthy configured sources included Tenders Kenya, UNGM, UNOPS, IOM, WHO, ILO, FAO, IFAD, UNDP, World Bank, AFDB, ADB, AIIB, IsDB, EBRD, DGMarket, COMESA, UN Procurement, UNICEF tender calendars, SAM.gov, EU funding, South Africa eTenders, and GIZ.
+- Source-intake dry-run `source_intake_after_reader_recovery_reseed_dryrun_20260529` selected 10 direct documents from the fresh backlog, including AIIB XLSX procurement-plan data and multiple PDF tender/RFP files.
+- Live intake `source_intake_after_reader_recovery_reseed_live_20260529` selected 5, downloaded 4, failed 1 GTAI URL that returned HTML from a direct PDF path, completed 4 parses, and extracted 15 requirements.
+- The successful intake used local `local_xlsx_parse` for the AIIB procurement-plan XLSX and local `pdftotext` for the PDF documents.
+- Post-run live database snapshot: 3,240 opportunities, 195 RFP documents, 193 completed RFP documents, 0 queued parse jobs, 1,265 RFP requirements, 164 RFP documents with requirements, 234 downloaded source-document rows, and 77 failed source-document rows.
+
+Remaining after this slice:
+- Public SearXNG fallback is operating but too throttled for reliable breadth; populate `SEARXNG_FALLBACK_URLS` with trusted known-good instances if primary `search.lindela.io` does not provide enough engine fan-out.
+- Continue the remaining fresh source-document backlog from the dry-run, but keep batches bounded because each successful download can trigger parser work.
+
 ### 2026-05-29 - Recover Protected UNICEF Landing Pages Through Reader Fallback
 
 Status: implemented, focused-test verified, live-retried, and parsed.
