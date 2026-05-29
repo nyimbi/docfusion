@@ -231,6 +231,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("giz.de") && new URL(sourceUrl).pathname.endsWith("/tenders")) return getParser("giz") ?? genericParser;
 	if (host === "ocds-api.etenders.gov.za" && new URL(sourceUrl).pathname.startsWith("/api/OCDSReleases")) return getParser("etenders_sa") ?? genericParser;
 	if (host === "nest.go.tz" && new URL(sourceUrl).pathname.includes("/nest-data-portal-api/api/releases")) return getParser("nest_tanzania") ?? genericParser;
+	if (host === "umucyo.gov.rw" && new URL(sourceUrl).pathname.startsWith("/eb/bav/selectListAdvertisingListForGU.do")) return getParser("umucyo_rwanda") ?? genericParser;
 	return genericParser;
 }
 
@@ -243,6 +244,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "cdb"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
+		|| parser.sourceId === "umucyo_rwanda"
 		|| parser.sourceId === "etenders_sa";
 }
 

@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Rwanda UMUCYO Advertising Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand broad RFP collection with Rwanda's public UMUCYO e-procurement advertising list, which is reachable from this environment and currently publishes dozens of active tender rows.
+
+Changes in this slice:
+- Added a Rwanda UMUCYO advertising parser for `selectListAdvertisingListForGU.do`, extracting tender title, tender number, status, advertising date, submission deadline, opening date, method, type, stage, procuring-entity shorthand, and stable source identity.
+- Routed UMUCYO through the direct source-parser path so collection does not depend on generic search, Firecrawl, or browser rendering for this source.
+- Added UMUCYO to the broad default configured-source list and added a targeted Rwanda default search query.
+- Added UMUCYO support to the live source-discovery proof script.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/umucyo-rwanda-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 50 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_umucyo_rwanda_source_20260529T2250` parsed 48 UMUCYO opportunities via `source_api` with no Firecrawl/browser fallback.
+- Live DB import `live_umucyo_rwanda_import_20260529T2252` processed 48 Rwanda UMUCYO candidates, imported 48, failed 0, emitted 0 warnings, created 48 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,624 total opportunities, 1,765 RFP-typed opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- Continue adding direct parsers for reachable national procurement portals with current public tender tables or APIs; these materially improve breadth more than generic retry tuning.
+
 ### 2026-05-29 - Retry Discovery Import Persistence After Broad Collection
 
 Status: implemented, focused-test verified, typechecked, and live-failure characterized.

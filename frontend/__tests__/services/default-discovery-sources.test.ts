@@ -52,6 +52,7 @@ describe("default discovery sources", () => {
 			"site:ocds-api.etenders.gov.za/api/OCDSReleases \"Request for Proposal\"",
 			"site:nest.go.tz/gateway/nest-data-portal-api/api/releases \"active\" \"tenderPeriod\"",
 			"site:gpp.ppda.go.ug/public/bid-invitations tender deadline Uganda",
+			"site:umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do tender deadline Rwanda",
 			"filetype:pdf \"request for proposals\" \"submission deadline\"",
 			"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 			"filetype:docx \"request for proposals\" procurement",
@@ -84,6 +85,7 @@ describe("default discovery sources", () => {
 			"https://ocds-api.etenders.gov.za/api/OCDSReleases",
 			"https://nest.go.tz/gateway/nest-data-portal-api/api/releases",
 			"https://cdn.ppda.go.ug/api/bid-invitations",
+			"https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&leftTopFlag=l&recordCountPerPage=50",
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 		]);
