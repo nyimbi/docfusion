@@ -37,8 +37,10 @@ Verification:
 - South Africa eTenders proof dry-run `source_doc_intake_etenders_pdfname_dry_20260530T0233` selected 4 `Download?...downloadedFileName=...pdf` source documents that were discovered with `.html` names.
 - South Africa eTenders proof live intake `source_doc_intake_etenders_pdfname_live_20260530T0234` selected 4, downloaded 4, failed 0, skipped 0, completed 4 parse jobs, timed out 0 parse jobs, and extracted 56 requirements.
 - The proof live logs showed local `pdftotext` used for `FAPM-R_1.pdf`, `RFQ_Framing_Matereality.pdf`, and `RFQ_Staff_Transport_R.pdf`; no Docling fallback was needed for those wrapper downloads.
-- Updated live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 298 RFP documents with extracted text, 31,205,765 extracted text characters, and 2,135 extracted `rfp_requirements`.
-- Source backlog remains broad after this slice: South Africa eTenders has 10 downloaded source documents and 15 queued selected documents; Ghana GHANEPS 10 downloaded and 71 queued; Zambia ZPPA 10 downloaded and 90 queued; Rwanda UMUCYO 16 downloaded and 80 queued; Kenya PPIP 47 downloaded and 68 queued; Configured Source Scrape 2 downloaded and 186 queued.
+- Follow-up South Africa eTenders live intake `source_doc_intake_etenders_afterfix_batch2_live_20260530T0240` selected 10, downloaded 9, failed 1 due to a source URL request timeout, skipped 0, completed 9 parse jobs, timed out 0 parse jobs, and extracted 113 requirements.
+- The follow-up eTenders batch continued using local `pdftotext` or local DOCX extraction for the successful downloads, including `NMPH_Layout_Graphic_Design_RFQ.pdf`, `BS06-05-2026_ADVERT.pdf`, `BID_DOC_STRATEGIC_PLANNING_AND_FACILITATION_SUPPORT._27.docx`, and `SPECIFICATION_FOR_THE_PROCUREMENT_OF_WAN_AND_VOIP_SERVICES_FOR_A_PERIOD_OF_12_MONTHS.pdf`.
+- Updated live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 307 RFP documents with extracted text, 31,540,406 extracted text characters, and 2,248 extracted `rfp_requirements`.
+- Source backlog remains broad after this slice: South Africa eTenders has 19 downloaded source documents and 6 queued selected documents; Ghana GHANEPS 10 downloaded and 71 queued; Zambia ZPPA 10 downloaded and 90 queued; Rwanda UMUCYO 16 downloaded and 80 queued; Kenya PPIP 47 downloaded and 68 queued; Configured Source Scrape 2 downloaded and 186 queued.
 
 Remaining after this slice:
 - Continue bounded broad queue drains, preferring smaller portal-targeted batches for wrapper-heavy hosts.
