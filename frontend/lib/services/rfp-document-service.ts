@@ -52,6 +52,8 @@ const MIN_HTML_EXTRACTED_WORD_COUNT = 40;
 const SOURCE_DOCUMENT_FETCH_TIMEOUT_MS = 60_000;
 const SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS = 30_000;
 const BROWSER_SCRAPER_URL = (process.env.STEALTH_SCRAPER_URL ?? "http://84.247.181.100:3003").replace(/\/$/, "");
+const SOURCE_DOCUMENT_READER_FALLBACK_PREFIX =
+  process.env.SOURCE_DOCUMENT_READER_FALLBACK_PREFIX ?? "https://r.jina.ai/http://r.jina.ai/http://";
 const PDFTOTEXT_TIMEOUT_MS = 30_000;
 const HTML_RFP_TEXT_SIGNAL =
   /(?:\brequests?\s+for\s+proposals?\b|\brfps?\b|\btenders?\b|\bbids?\b|\bbidding\b|\bprocurement\b|\bpre-?qualification\b|\bproposals?\b|\bsolicitations?\b|\bexpressions?\s+of\s+interest\b|\beois?\b|\binvitations?\s+to\s+bid\b|\bterms?\s+of\s+reference\b|\btors?\b|\brequests?\s+for\s+quotations?\b|\brfqs?\b|\bappel(?:s)?\s+d['’]offres?\b|\bavis\s+d['’]appel\b|\bmarch[eé]s?\b|\bconsultations?\b|\bacquisition\b|\brecrutement\b|\blicitaci[oó]n\b|\badquisici[oó]n\b|\bcontrataci[oó]n\b|закупк[а-яё]*|тендер[а-яё]*|конкурс[а-яё]*|поставк[а-яё]*|заявк[а-яё]*|предложени[а-яё]*)/iu;
@@ -132,7 +134,9 @@ type SourceDocumentFetchMethod =
   | "browser_link"
   | "browser_landing_page_html"
   | "cloakbrowser_link"
-  | "cloakbrowser_landing_page_html";
+  | "cloakbrowser_landing_page_html"
+  | "reader_link"
+  | "reader_landing_page_html";
 
 type FetchedSourceDocument = {
   buffer: Buffer;
@@ -154,7 +158,7 @@ type SourceRecoveryScrape = {
   markdown?: string;
   html?: string;
   links?: string[];
-  method: "firecrawl" | "browser" | "cloakbrowser";
+  method: "firecrawl" | "browser" | "cloakbrowser" | "reader";
 };
 
 interface QueuedRfpParsing {
@@ -735,7 +739,7 @@ export async function downloadDocument(
     // Extract text before queueing so the parser does not have to re-fetch
     // stored bytes. Cheap local extractors run before DocLing where available.
     let processedText = await extractFetchedDocumentText(fetched);
-    if (!processedText && isFetchedHtmlDocument(fetched)) {
+    if (!processedText && isFetchedHtmlDocument(fetched) && shouldRecoverUnusableFetchedHtmlDocument(fetched)) {
       const recoveredHtml = await recoverUnusableFetchedHtmlDocument(fetched, doc.documentName);
       if (recoveredHtml) {
         fetched = await prepareFetchedDocumentForIntake(recoveredHtml);
@@ -1392,22 +1396,98 @@ async function scrapeRecoveryCandidate(candidateUrl: URL): Promise<SourceRecover
       candidateUrl: candidateUrl.toString(),
       error: cloak.error,
     });
-    return undefined;
+  } else {
+    const cloakScrape = {
+      markdown: cloak.data?.markdown,
+      html: cloak.data?.html,
+      links: cloak.data?.links,
+      method: "cloakbrowser" as const,
+    };
+    if (isUsableRecoveryScrape(cloakScrape)) {
+      return cloakScrape;
+    }
+    logger.warn("[RFP Document Service] CloakBrowser recovery scrape returned unusable source content", {
+      candidateUrl: candidateUrl.toString(),
+    });
   }
 
-  const cloakScrape = {
-    markdown: cloak.data?.markdown,
-    html: cloak.data?.html,
-    links: cloak.data?.links,
-    method: "cloakbrowser" as const,
+  const reader = await scrapeWithReaderFallback(candidateUrl);
+  if (!reader.success) {
+    logger.warn("[RFP Document Service] Reader recovery scrape failed", {
+      candidateUrl: candidateUrl.toString(),
+      error: reader.error,
+    });
+    return undefined;
+  }
+  const readerScrape = {
+    markdown: reader.markdown,
+    links: reader.links,
+    method: "reader" as const,
   };
-  if (!isUsableRecoveryScrape(cloakScrape)) {
-    logger.warn("[RFP Document Service] CloakBrowser recovery scrape returned unusable source content", {
+  if (!isUsableRecoveryScrape(readerScrape)) {
+    logger.warn("[RFP Document Service] Reader recovery scrape returned unusable source content", {
       candidateUrl: candidateUrl.toString(),
     });
     return undefined;
   }
-  return cloakScrape;
+  return readerScrape;
+}
+
+async function scrapeWithReaderFallback(candidateUrl: URL): Promise<
+  | { success: true; markdown: string; links: string[] }
+  | { success: false; error: string }
+> {
+  const readerUrl = readerFallbackUrl(candidateUrl);
+  if (!readerUrl) {
+    return { success: false, error: "Reader fallback is disabled" };
+  }
+
+  const response = await fetchPublicHttpUrl(readerUrl, {
+    headers: {
+      "Accept": "text/markdown,text/plain;q=0.9,*/*;q=0.8",
+      "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+    },
+    timeoutMs: SOURCE_DOCUMENT_FALLBACK_TIMEOUT_MS,
+  }, "Reader fallback URL");
+  if (!response.ok) {
+    return {
+      success: false,
+      error: `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+
+  const markdown = cleanExtractedText(await response.text());
+  if (isChallengeOrErrorPage(markdown) || markdown.length < 80) {
+    return {
+      success: false,
+      error: "Reader fallback returned no usable page content",
+    };
+  }
+
+  return {
+    success: true,
+    markdown,
+    links: extractAbsoluteLinksFromText(markdown, candidateUrl),
+  };
+}
+
+function readerFallbackUrl(candidateUrl: URL): URL | undefined {
+  if (process.env.SOURCE_DOCUMENT_READER_FALLBACKS === "0") return undefined;
+  const prefix = SOURCE_DOCUMENT_READER_FALLBACK_PREFIX.trim();
+  if (!prefix) return undefined;
+  const rawUrl = prefix.includes("{url}")
+    ? prefix.replace("{url}", candidateUrl.toString())
+    : `${prefix}${candidateUrl.toString()}`;
+  return safeCandidateUrl(rawUrl, candidateUrl);
+}
+
+function extractAbsoluteLinksFromText(text: string, baseUrl: URL): string[] {
+  const links = new Set<string>();
+  for (const match of text.matchAll(/\((https?:\/\/[^)\s]+)\)|href=["']([^"']+)["']|(https?:\/\/[^\s<>"')]+)/gi)) {
+    const url = safeCandidateUrl(match[1] || match[2] || match[3] || "", baseUrl);
+    if (url) links.add(url.toString());
+  }
+  return [...links];
 }
 
 function extractDocumentLinksFromScrape(
@@ -1540,12 +1620,14 @@ function shouldTrySourceRecovery(status: number | undefined, error?: string): bo
 function sourceDocumentLinkMethod(method: SourceRecoveryScrape["method"]): SourceDocumentFetchMethod {
   if (method === "browser") return "browser_link";
   if (method === "cloakbrowser") return "cloakbrowser_link";
+  if (method === "reader") return "reader_link";
   return "firecrawl_link";
 }
 
 function sourceDocumentLandingPageMethod(method: SourceRecoveryScrape["method"]): SourceDocumentFetchMethod {
   if (method === "browser") return "browser_landing_page_html";
   if (method === "cloakbrowser") return "cloakbrowser_landing_page_html";
+  if (method === "reader") return "reader_landing_page_html";
   return "firecrawl_landing_page_html";
 }
 
@@ -1752,6 +1834,25 @@ async function extractFetchedDocumentText(
 function isFetchedHtmlDocument(fetched: FetchedSourceDocument): boolean {
   const extension = extname(fetched.extractionFilename).toLowerCase();
   return extension === ".html" || extension === ".htm" || isHtmlMimeType(fetched.mimeType);
+}
+
+function shouldRecoverUnusableFetchedHtmlDocument(fetched: FetchedSourceDocument): boolean {
+  const html = fetched.buffer.toString("utf8", 0, Math.min(fetched.buffer.length, 20_000));
+  const text = cleanExtractedText(
+    html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+  );
+  if (isChallengeOrErrorPage(text)) return true;
+  if (fetched.method !== "direct" && fetched.method !== "searxng_direct") return false;
+
+  const lower = html.toLowerCase();
+  const hasClientAppRoot =
+    /\bid=["']__(next|nuxt)["']/i.test(html) ||
+    /\bid=["'](root|app)["']/i.test(html) ||
+    lower.includes("window.__next_data__");
+  return hasClientAppRoot && text.length < 180 && countExtractedWords(text) < 25;
 }
 
 async function recoverUnusableFetchedHtmlDocument(

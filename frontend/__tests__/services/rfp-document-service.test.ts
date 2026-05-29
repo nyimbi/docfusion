@@ -1250,6 +1250,82 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("uses the public reader fallback when UNICEF landing pages block Firecrawl and browser recovery", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Medicines-Tender-Calendar-2025-2026.pdf",
+			sourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000434", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000534" }],
+			}));
+		fetchPublicHttpUrlMock
+			.mockResolvedValueOnce(new Response("blocked", {
+				status: 403,
+				statusText: "Forbidden",
+				headers: { "content-type": "text/html" },
+			}))
+			.mockResolvedValueOnce(new Response([
+				"Title: Medicines Tender Calendar",
+				"URL Source: https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				"Markdown Content:",
+				"# Medicines Tender Calendar",
+				"2025-2026 calendar for the yearly bidding exercise for delivery of medicines to the UNICEF warehouse in Copenhagen or directly to countries.",
+				"UNICEF Supply Division procures pharmaceutical products to be supplied to the organization's warehouse in Copenhagen, country offices and partners.",
+				"Suppliers and manufacturers should indicate their interest to offer product categories by registering on the United Nations Global Marketplace website.",
+				"UNICEF reserves the right to accept or reject any expression of interest, to initiate any tender exercise at any time, without incurring liability to suppliers.",
+				"Files available for download",
+				"[Medicines Tender Calendar 2025-2026 (pdf)](https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf)",
+			].join("\n"), {
+				status: 200,
+				headers: { "content-type": "text/markdown" },
+			}))
+			.mockResolvedValueOnce(new Response("blocked", {
+				status: 403,
+				statusText: "Forbidden",
+				headers: { "content-type": "text/html" },
+			}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({ success: false, error: "Cloudflare block" });
+		browserScrapeMock.mockResolvedValue({ success: false, error: "browser service returned 403" });
+		cloakScrapeMock.mockResolvedValue({ success: false, error: "CloakBrowser endpoint is not configured" });
+		doclingMock.processRfpDocument.mockRejectedValue(new Error("DocLing unavailable"));
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				originalSourceUrl: "https://www.unicef.org/supply/media/24786/file/Medicines-Tender-Calendar-2025-2026.pdf",
+				downloadMethod: "reader_landing_page_html",
+			}),
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(
+			2,
+			new URL("https://r.jina.ai/http://r.jina.ai/http://https://www.unicef.org/supply/documents/medicines-tender-calendar"),
+			expect.objectContaining({
+				headers: expect.objectContaining({ Accept: "text/markdown,text/plain;q=0.9,*/*;q=0.8" }),
+			}),
+			"Reader fallback URL"
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("Medicines Tender Calendar"),
+			metadata: expect.objectContaining({
+				sourceUrl: "https://www.unicef.org/supply/documents/medicines-tender-calendar",
+				downloadMethod: "reader_landing_page_html",
+			}),
+		});
+	});
+
 	it("tries scraping the original blocked document URL when search recovery finds no usable landing page", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];

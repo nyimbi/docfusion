@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover Protected UNICEF Landing Pages Through Reader Fallback
+
+Status: implemented, focused-test verified, live-retried, and parsed.
+
+Purpose: increase RFP-source collection reliability for public procurement pages that block direct server-side document fetches and still defeat Firecrawl/browser recovery.
+
+Changes in this slice:
+- Added a final reader fallback to source-document scrape recovery after Firecrawl, the browser service, and CloakBrowser fail or return unusable content.
+- Preserved the existing direct PDF and scraped-link recovery flow: reader markdown is used only to discover linked documents or store a public landing-page HTML surrogate when the original binary remains unavailable.
+- Added explicit `reader_link` and `reader_landing_page_html` provenance so recovered public-reader content is auditable.
+- Added `SOURCE_DOCUMENT_READER_FALLBACKS=0` and `SOURCE_DOCUMENT_READER_FALLBACK_PREFIX` operator controls to disable or replace the public reader endpoint.
+- Limited direct sparse-HTML scrape recovery to challenge pages and client-rendered shells, so ordinary sparse HTML still stores as `not_queued` instead of spending recovery capacity.
+- Documented the reader fallback in the opportunity discovery runbook.
+
+Verification:
+- Added regression coverage proving a blocked UNICEF media-file URL can recover through a public reader landing page when Firecrawl, browser scraping, and CloakBrowser all fail.
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 36 tests.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 15 tests.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 8 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live retry recovered three previously failed UNICEF source documents: medical devices tender calendar via `reader_landing_page_html`, medicines tender calendar via `firecrawl_landing_page_html`, and education tender calendar via `reader_landing_page_html`.
+- Queued parse drain `queued_parse_after_unicef_reader_recovery_20260529` completed 3 jobs, failed 0, and extracted 11 requirements.
+- Post-run live database snapshot: 3,174 opportunities, 191 RFP documents, 189 completed RFP documents, 0 queued parse jobs, 1,250 RFP requirements, 161 RFP documents with requirements, 230 downloaded source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Public reader fallback is an external best-effort recovery path; keep direct/Firecrawl/browser/Cloak ahead of it, and configure a trusted reader or disable it if deployment policy requires no public reader egress.
+- Continue source-specific recovery for high-intent failed hosts, especially DGMarket and remaining UNICEF rows that are not represented by these three tender-calendar URLs.
+
 ### 2026-05-29 - Profile And Probe Remaining Protected Source Documents
 
 Status: live-profiled and partially recovered.
