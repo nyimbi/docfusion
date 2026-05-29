@@ -1654,6 +1654,8 @@ function isChallengeOrErrorPage(content: string): boolean {
 function documentTitleForSearch(documentName: string): string {
   return basename(documentName)
     .replace(/\.[^.]+$/, "")
+    .replace(/([a-z]{5,})and([a-z]{5,})/gi, "$1 $2")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -1662,7 +1664,10 @@ function documentTitleForSearch(documentName: string): string {
 function tokenizeDocumentTitle(value: string): string[] {
   return value.toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 4);
+    .filter((token) =>
+      token.length >= 4 ||
+      /^(rfp|rfq|eoi|itb)$/.test(token)
+    );
 }
 
 function slugifyDocumentTitleVariants(value: string): string[] {

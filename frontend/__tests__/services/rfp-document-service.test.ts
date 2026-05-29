@@ -1389,6 +1389,70 @@ describe("RFP document fetch storage", () => {
 		expect(insertedValues[0].extractedText).not.toContain("Guide 2: submit quotations");
 	});
 
+	it("matches lowercase concatenated IOM procurement filenames against listing entries", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/rfp-livelihoodandagriculture_39901.pdf";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "rfp-livelihoodandagriculture_39901.pdf",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000433", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000533" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValueOnce({
+			success: true,
+			data: {
+				markdown: [
+					"# Procurement opportunities",
+					"Guide 2: submit quotations, bids and proposals. This guide explains supplier portal steps.",
+					"Supplier code of conduct and vendor registration information.",
+					"RFP-LivelihoodAndAgriculture_39901",
+					"Brief Project Description: The International Organization for Migration Cambodia is implementing a stabilization and recovery programme aimed at fostering peace, resilience, and self-reliance in conflict-affected communities.",
+					"The request for proposal covers agricultural livelihoods, community recovery, technical approach, evaluation criteria, eligibility requirements, proposal submission instructions, clarification procedures, financial proposal forms, and submission deadline.",
+					"Prospective proposers must provide organizational experience, staffing, methodology, work plan, legal registration, tax documents, and signed proposal forms.",
+					"Late submissions will not be accepted and incomplete proposals may be rejected.",
+					"Download: rfp-livelihoodandagriculture_39901.pdf",
+					"Another archived opportunity follows with unrelated supplier instructions.",
+				].join("\n"),
+				links: [sourceUrl],
+			},
+		});
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.iom.int/procurement-opportunities",
+				originalSourceUrl: sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("RFP-LivelihoodAndAgriculture_39901"),
+			metadata: expect.objectContaining({
+				sourceUrl: "https://www.iom.int/procurement-opportunities",
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(insertedValues[0].extractedText).toContain("agricultural livelihoods");
+		expect(insertedValues[0].extractedText).not.toContain("Guide 2: submit quotations");
+	});
+
 	it("tries scraping the original blocked tender page when search recovery has no alternate source", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const sourceUrl = "https://www.dgmarket.com/tender/107625897";

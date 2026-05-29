@@ -25,16 +25,22 @@ Purpose: convert IOM procurement PDFs that return HTTP 403 to server-side fetch 
 Changes in this slice:
 - Added a deterministic recovery candidate for blocked IOM procurement document URLs: `https://www.iom.int/procurement-opportunities`.
 - Focus recovered listing-page text around the target document title/solicitation number before storing it as an HTML source surrogate, avoiding unrelated procurement guide content when a listing page contains many links.
+- Normalized recovery title matching for lower-case concatenated filenames such as `rfp-livelihoodandagriculture_39901.pdf`, including split `and` compounds and short procurement acronyms such as RFP/RFQ/EOI/ITB.
 
 Verification:
 - Added regression coverage proving a blocked IOM procurement PDF can recover from the IOM procurement listing page and store focused solicitation text without nearby generic guide content.
-- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 34 tests.
+- Added regression coverage for a lower-case concatenated IOM filename matching a camel-cased listing entry.
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 35 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
 - Live retry of previously failed document `27f945ce-0607-4881-8e9d-9031cc1e5c28` (`invitation-to-bid_30000024345_0.pdf`) succeeded after direct fetch returned 403, storing `invitation-to-bid_30000024345_0.html` from `https://www.iom.int/procurement-opportunities`.
 - Queued parse drain `queued_parse_after_iom_recovery_20260529` completed 1 parser job and extracted 1 requirement.
-- Post-run live database snapshot: 3,174 opportunities, 185 RFP documents, 183 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,230 RFP requirements, 157 RFP documents with requirements, 508 selected source-document rows, 224 downloaded source-document rows, and 82 failed source-document rows.
+- Live retry of previously failed document `7850d0d0-b471-48d0-a1d3-55db5101e1f8` (`solicitation-30000025693-successfully-published-on-ungm.pdf`) succeeded after direct fetch returned 403, storing `solicitation-30000025693-successfully-published-on-ungm.html` from `https://www.iom.int/procurement-opportunities`; queued parse drain `queued_parse_after_iom_second_recovery_20260529` completed 1 parser job and extracted 6 requirements.
+- Live retry of previously failed document `77c913a6-3810-4fd2-96f0-f68a34993119` (`rfp-livelihoodandagriculture_39901.pdf`) succeeded after direct fetch returned 403, storing `rfp-livelihoodandagriculture_39901.html` from `https://www.iom.int/procurement-opportunities`; queued parse drain `queued_parse_after_iom_livelihood_recovery_20260529` completed 1 parser job and extracted 3 requirements.
+- Post-run live database snapshot: `db.lindela.io:5432/docfusion` resolved to server `62.84.181.55:5432` and contained 3,174 opportunities, 1,703 RFP opportunities, 187 RFP documents, 185 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,239 RFP requirements, 159 RFP documents with requirements, 508 selected source-document rows, 226 downloaded source-document rows, and 80 failed source-document rows.
 
 Remaining after this slice:
-- Two IOM direct PDFs from the previous batch still failed with 403. Retry them after this change or add more precise listing-section extraction if their listing text remains sparse.
+- The previous batch's IOM direct-PDF failures are now recovered except for older generic IOM guidance/document rows that are not necessarily solicitations.
 - The browser service at `http://84.247.181.100:3003` still returns `/v1/scrape` 404 and intermittent `/scrape` failures for some blocked PDFs; repair or replace with CloakBrowser for the stubborn cases.
 
 ### 2026-05-29 - Expand Default RFP Sources Across UN And Multilateral Portals
