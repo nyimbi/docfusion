@@ -39,6 +39,21 @@ Verification:
 Remaining after this slice:
 - Continue bounded intake from the still-large fresh backlog; the ranking now improves parser value, but source-specific recovery is still needed for failed protected hosts and HTML-disguised direct document URLs.
 
+### 2026-05-29 - Third Prioritized Intake Batch Adds Five More Parsed Documents
+
+Status: live-run, downloaded, parsed, and verified.
+
+Purpose: continue converting the fresh source-document backlog after the response-worthy ordering fix, while keeping parser work bounded.
+
+Verification:
+- Dry-run `source_intake_priority_third_dryrun_20260529` selected 8 remaining direct documents, led by RFQ, EOI, capacity-building, project-document, and managed-services PDFs.
+- Live intake `source_intake_priority_third_live_20260529` selected 5, downloaded 5, failed 0, completed 5 parses, and extracted 54 requirements.
+- Successful documents used local `pdftotext`; no Docling fallback was needed in this batch.
+- Post-run live database snapshot: 3,240 opportunities, 205 RFP documents, 203 completed RFP documents, 0 queued parse jobs, 1,358 RFP requirements, 173 RFP documents with requirements, 244 downloaded source-document rows, 241 discovered source-document rows, and 77 failed source-document rows.
+
+Remaining after this slice:
+- Keep draining fresh source documents in bounded prioritized batches; the remaining queue is still large enough to grow parsed RFP coverage without another broad reseed yet.
+
 ### 2026-05-29 - Broad Reseed After Reader Recovery Adds Fresh Parsed Documents
 
 Status: live-run, downloaded, parsed, and verified.
