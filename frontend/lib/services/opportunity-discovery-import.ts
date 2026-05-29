@@ -297,6 +297,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/cdn\.ppda\.go\.ug\/api\/bid-invitations/i,
 	/\/\/(?:www\.)?umucyo\.gov\.rw\/eb\/bav\/selectListAdvertisingListForGU\.do/i,
 	/\/\/(?:www\.)?ghaneps\.gov\.gh\/epps\/quickSearchAction\.do/i,
+	/\/\/eprocure\.zppa\.org\.zm\/epps\/quickSearchAction\.do/i,
 	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
 	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
 	/\/\/(?:www\.)?un\.org\/procurement/i,
@@ -460,6 +461,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
 	else if (host === "umucyo.gov.rw" && safeUrlPathname(sourceUrl).startsWith("/eb/bav/selectListAdvertisingListForGU.do")) sourceId = "umucyo_rwanda";
 	else if (host === "ghaneps.gov.gh" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "ghaneps";
+	else if (host === "eprocure.zppa.org.zm" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "zppa_zambia";
 	else if (host === "ocds-api.etenders.gov.za" && safeUrlPathname(sourceUrl).startsWith("/api/OCDSReleases")) sourceId = "etenders_sa";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
@@ -477,6 +479,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "egp_uganda"
 		|| parser.sourceId === "umucyo_rwanda"
 		|| parser.sourceId === "ghaneps"
+		|| parser.sourceId === "zppa_zambia"
 		|| parser.sourceId === "etenders_sa";
 }
 

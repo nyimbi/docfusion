@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Zambia ZPPA Current Tender Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand national-procurement collection with Zambia ZPPA's public e-GP current tenders, a high-volume source that returned 4,770 current tender rows from this environment.
+
+Changes in this slice:
+- Added a Zambia ZPPA parser for `eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6`, extracting title, resource ID, procuring entity, submission deadline, procedure, status, portal URL, and notice PDF URL.
+- Added bounded direct pagination with `ZPPA_MAX_PAGES`, defaulting to 3 pages and capped at 10, so scheduled collection can pull beyond the first page without overloading the source or database.
+- Routed ZPPA through the direct source-parser path and added it to the broad default configured-source list plus targeted Zambia search query.
+- Added ZPPA support to the live source-discovery proof script.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/zppa-zambia-parser.test.ts __tests__/scrapers/ghaneps-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 52 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_zppa_zambia_source_20260529T2304` parsed 30 ZPPA opportunities via `source_api` across the configured page window.
+- Live DB import `live_zppa_zambia_import_20260529T2304` processed 30 Zambia ZPPA candidates, imported 30, failed 0, emitted 0 warnings, created 30 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,684 total opportunities, 1,768 RFP-typed opportunities, 30 ZPPA opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- Increase `ZPPA_MAX_PAGES` for scheduled runs if operators want deeper ZPPA coverage beyond the default bounded first 30 records.
+- Continue adding source-specific national portals that expose stable public current-tender tables or APIs.
+
 ### 2026-05-29 - Add Ghana GHANEPS Current Tender Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

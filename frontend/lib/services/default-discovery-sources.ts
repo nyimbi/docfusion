@@ -45,6 +45,7 @@ export const DEFAULT_DISCOVERY_QUERIES = [
 	"site:gpp.ppda.go.ug/public/bid-invitations tender deadline Uganda",
 	"site:umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do tender deadline Rwanda",
 	"site:ghaneps.gov.gh/epps/quickSearchAction.do current tenders Ghana deadline",
+	"site:eprocure.zppa.org.zm/epps/quickSearchAction.do current tenders Zambia deadline",
 	"filetype:pdf \"request for proposals\" \"submission deadline\"",
 	"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 	"filetype:docx \"request for proposals\" procurement",
@@ -86,6 +87,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://cdn.ppda.go.ug/api/bid-invitations",
 	"https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&leftTopFlag=l&recordCountPerPage=50",
 	"https://www.ghaneps.gov.gh/epps/quickSearchAction.do?searchSelect=6",
+	"https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6",
 	"https://www.giz.de/en/regions/africa/ghana/tenders",
 	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;

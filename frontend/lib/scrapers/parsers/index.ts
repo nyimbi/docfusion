@@ -32,6 +32,7 @@ import "./umucyo-rwanda";
 import "./undp";
 import "./ungm";
 import "./world-bank";
+import "./zppa-zambia";
 
 // Re-export for direct access
 export { afdbParser } from "./afdb";
@@ -57,6 +58,7 @@ export { umucyoRwandaParser } from "./umucyo-rwanda";
 export { undpParser } from "./undp";
 export { ungmParser } from "./ungm";
 export { worldBankParser } from "./world-bank";
+export { zppaZambiaParser } from "./zppa-zambia";
 
 // LLM-based extraction (for sites without custom parsers)
 export * from "./llm-extractor";
