@@ -162,6 +162,83 @@ async def test_searxng_client_fans_out_when_primary_returns_zero_results(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_searxng_client_fans_out_when_default_engine_primary_degrades(monkeypatch):
+	monkeypatch.delenv("SEARXNG_FALLBACK_URLS", raising=False)
+	monkeypatch.setenv("SEARXNG_PUBLIC_FALLBACK_LIMIT", "1")
+	monkeypatch.setenv("SEARXNG_SPACE_INSTANCES_URL", "https://searx.space/data/instances.json")
+
+	requests: list[httpx.Request] = []
+
+	def handler(request: httpx.Request) -> httpx.Response:
+		requests.append(request)
+		if request.url.host == "primary.example":
+			return httpx.Response(
+				200,
+				json={
+					"query": "afdb procurement",
+					"results": [{
+						"title": "Primary DuckDuckGo RFP",
+						"url": "https://buyer.example/primary",
+						"content": "Tender notice.",
+						"engine": "duckduckgo",
+						"score": 2.0,
+					}],
+					"unresponsive_engines": [{"engine": "google", "error": "access denied"}],
+				},
+			)
+		if request.url.host == "searx.space":
+			return httpx.Response(
+				200,
+				json={
+					"instances": {
+						"https://fallback.example/": {
+							"network_type": "normal",
+							"git_url": "https://github.com/searxng/searxng",
+							"http": {"status_code": 200},
+							"timing": {"search": {"success_percentage": 100, "all": {"median": 0.2}}},
+						},
+					},
+				},
+			)
+		if request.url.host == "fallback.example":
+			return httpx.Response(
+				200,
+				json={
+					"query": "afdb procurement",
+					"results": [{
+						"title": "Fallback Google RFP",
+						"url": "https://buyer.example/google-rfp",
+						"content": "Request for proposals for implementation services.",
+						"engine": "google",
+						"score": 3.0,
+					}],
+				},
+			)
+		return httpx.Response(404)
+
+	client = SearXNGClient(base_url="https://primary.example")
+	client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+	try:
+		response = await client.search("afdb procurement", limit=10)
+	finally:
+		await client.close()
+
+	assert [result.title for result in response.results] == [
+		"Primary DuckDuckGo RFP",
+		"Fallback Google RFP",
+	]
+	assert response.source_instances == ["https://primary.example", "https://fallback.example"]
+	assert response.fallback_from == "https://primary.example"
+	assert "default engines" in (response.fallback_reason or "")
+	assert [(request.url.host, request.url.path) for request in requests] == [
+		("primary.example", "/search"),
+		("searx.space", "/data/instances.json"),
+		("fallback.example", "/search"),
+	]
+
+
+@pytest.mark.asyncio
 async def test_searxng_client_fans_out_when_requested_engine_is_missing(monkeypatch):
 	monkeypatch.delenv("SEARXNG_FALLBACK_URLS", raising=False)
 	monkeypatch.setenv("SEARXNG_PUBLIC_FALLBACK_LIMIT", "1")

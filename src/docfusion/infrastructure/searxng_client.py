@@ -328,7 +328,7 @@ class SearXNGClient:
 		unresponsive = payload.get("unresponsive_engines") or []
 		if unresponsive:
 			if not requested_engines:
-				return False
+				return True
 			return (
 				self._has_requested_engine_degradation(payload, requested_engines)
 				or bool(self._missing_requested_result_engines(payload, requested_engines))
@@ -371,6 +371,11 @@ class SearXNGClient:
 				f"{self.base_url} returned {len(payload.get('results') or [])} result(s), "
 				f"but primary fanout missed requested engines {', '.join(missing_engines)}; "
 				f"observed engines: {observed}"
+			)
+		if payload.get("results") and payload.get("unresponsive_engines"):
+			return (
+				f"{self.base_url} returned {len(payload.get('results') or [])} result(s) "
+				f"but default engines reported degraded fanout; degraded engines: {degraded}"
 			)
 		return f"{self.base_url} degraded for {engines}: {degraded}"
 

@@ -282,7 +282,7 @@ async function searchSearxngBase(
 function shouldRetryOnFallback(response: SearxngSearchResponse, options: SearchOptions): boolean {
   if (response.results.length === 0) return true;
   if (response.unresponsive_engines?.length) {
-    if (!options.engines?.length) return false;
+    if (!options.engines?.length) return true;
     return responseHasRequestedEngineDegradation(response, options) || missingRequestedResultEngines(response, options).length > 0;
   }
   return missingRequestedResultEngines(response, options).length > 0;
@@ -314,7 +314,7 @@ function describeDegradedSearch(response: SearxngSearchResponse, options: Search
     return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s), but primary fanout missed requested engines ${missingEngines.join(", ")}; observed engines: ${observed}`;
   }
   if (response.results.length > 0 && response.unresponsive_engines?.length) {
-    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but requested engine fanout degraded for ${engines}; degraded engines: ${degraded}`;
+    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but default engines reported degraded fanout; degraded engines: ${degraded}`;
   }
   return `${SEARXNG_BASE_URL} returned no results for ${engines}; degraded engines: ${degraded}`;
 }

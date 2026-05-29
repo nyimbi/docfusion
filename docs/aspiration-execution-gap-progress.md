@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Fan Out SearXNG On Default-Engine Degradation
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: ensure broad RFP search does not silently accept partial `search.lindela.io` coverage when a SearXNG query relies on default engines instead of passing an explicit `engines` list.
+
+Changes in this slice:
+- Tightened the TypeScript SearXNG client so any primary response with results plus `unresponsive_engines` now triggers configured/public fallback fan-out, including default-engine searches with no explicit engine filter.
+- Applied the same rule to the Python infrastructure SearXNG client.
+- Documented the default-engine degraded-fanout behavior in the opportunity discovery runbook.
+- Added TypeScript and Python regression coverage proving a default-engine primary result set with a degraded Google engine queries `https://searx.space/data/instances.json`, calls a healthy fallback instance, and merges primary plus fallback RFP results.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/searxng-client-config.test.ts` passed with 19 tests.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 13 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Forced-primary-failure live probe with `SEARXNG_URL=http://127.0.0.1:9` and `SEARXNG_PUBLIC_FALLBACK_LIMIT=4` reached four public `searx.space` fallback instances. All four public instances rejected the server-side request with 429, and the frontend client recovered 4 RFP-oriented results through direct DuckDuckGo HTML fallback.
+
+Remaining after this slice:
+- Public `searx.space` fallback fan-out is active but still rate-limited; reliable multi-engine breadth still requires keeping `search.lindela.io` healthy and adding a trusted `SEARXNG_FALLBACK_URLS` pool when available.
+
 ### 2026-05-29 - Reprove Live Opportunity To Response Readiness After Source Repairs
 
 Status: live-proof verified.

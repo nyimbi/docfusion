@@ -311,6 +311,66 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://healthy.example");
 	});
 
+	it("uses searx.space fallback when default-engine primary results report degraded fanout", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "afdb procurement",
+				number_of_results: 1,
+				results: [{
+					title: "Primary DuckDuckGo RFP",
+					url: "https://buyer.example/primary",
+					content: "Tender notice",
+					engine: "duckduckgo",
+					score: 1,
+				}],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://healthy.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.2 } } },
+					},
+				},
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "afdb procurement",
+				number_of_results: 1,
+				results: [{
+					title: "Fallback Google RFP",
+					url: "https://buyer.example/google-rfp",
+					content: "Request for proposals",
+					engine: "google",
+					score: 2,
+				}],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("afdb procurement");
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://primary.example",
+			sourceInstances: ["https://primary.example", "https://healthy.example"],
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("default engines"),
+			number_of_results: 2,
+		});
+		expect(result.results.map((item) => item.title)).toEqual([
+			"Primary DuckDuckGo RFP",
+			"Fallback Google RFP",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock.mock.calls[1][0]).toBe("https://searx.space/data/instances.json");
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://healthy.example");
+	});
+
 	it("uses searx.space fallback when requested engine filtering returns only other engines", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
