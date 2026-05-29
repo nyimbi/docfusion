@@ -11,6 +11,7 @@ import { cleanText, parseDate, registerParser } from "./types";
 
 const AIIB_BASE_URL = "https://www.aiib.org";
 const AIIB_PROJECT_PROCUREMENT_DATA_PATH = "/en/opportunities/business/project-procurement/_common/ppo-data-all.js";
+const AIIB_PROJECT_PROCUREMENT_DATA_URL = new URL(AIIB_PROJECT_PROCUREMENT_DATA_PATH, AIIB_BASE_URL).toString();
 const DATA_SCRIPT_PATTERN = /<script\b[^>]*\bsrc=["']([^"']*ppo-data-all\.js[^"']*)["'][^>]*>/i;
 const DATA_ARRAY_PATTERN = /var\s+ppoData\s*=\s*\[([\s\S]*?)\]\s*;?/i;
 const DATA_OBJECT_PATTERN = /\{[^{}]*\}/g;
@@ -77,7 +78,7 @@ function resolveAiibUrl(href: string | undefined): string | undefined {
 
 function extractDataScriptUrl(html: string | undefined): string {
 	const src = html?.match(DATA_SCRIPT_PATTERN)?.[1];
-	return resolveAiibUrl(src) ?? new URL(AIIB_PROJECT_PROCUREMENT_DATA_PATH, AIIB_BASE_URL).toString();
+	return resolveAiibUrl(src) ?? AIIB_PROJECT_PROCUREMENT_DATA_URL;
 }
 
 function parseAiibRows(dataScript: string): AiibProjectProcurementRow[] {
@@ -218,9 +219,27 @@ async function fetchText(url: string): Promise<string> {
 }
 
 async function fetchAiibDataScript(sourceUrl: string, html?: string): Promise<string> {
-	const pageHtml = html?.includes("ppo-data-all.js") ? html : await fetchText(sourceUrl);
-	const dataScriptUrl = extractDataScriptUrl(pageHtml);
-	return await fetchText(dataScriptUrl);
+	if (sourceUrl.includes("ppo-data-all.js")) {
+		return await fetchText(sourceUrl);
+	}
+
+	if (html?.includes("ppo-data-all.js")) {
+		return await fetchText(extractDataScriptUrl(html));
+	}
+
+	try {
+		return await fetchText(AIIB_PROJECT_PROCUREMENT_DATA_URL);
+	} catch (directError) {
+		try {
+			const pageHtml = await fetchText(sourceUrl);
+			const dataScriptUrl = extractDataScriptUrl(pageHtml);
+			return await fetchText(dataScriptUrl);
+		} catch (pageError) {
+			const directMessage = directError instanceof Error ? directError.message : String(directError);
+			const pageMessage = pageError instanceof Error ? pageError.message : String(pageError);
+			throw new Error(`AIIB project procurement data fetch failed: direct=${directMessage}; page=${pageMessage}`);
+		}
+	}
 }
 
 export const aiibParser: TenderParser = {

@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Stabilize AIIB Direct Feed Collection After Broad Health Refresh
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: remove a fragile AIIB listing-page network dependency after broad source health showed a transient AIIB `fetch failed` even though AIIB's official project-procurement data script was reachable and current.
+
+Changes in this slice:
+- Changed the AIIB parser to fetch the official `ppo-data-all.js` project-procurement feed directly before falling back to listing-page script discovery.
+- Preserved listing-page discovery as a fallback if AIIB changes the data-script URL later.
+- Updated the configured-source import regression to prove AIIB imports no longer require fetching the rendered listing page first.
+
+Verification:
+- Broad live source-health refresh `live_broad_source_health_refresh_20260529T1244` processed 128 candidates across the default profile, imported 28, updated 100, failed 0, and created 21 source-document rows with downloads disabled.
+- The same broad refresh showed the remaining weak configured sources clearly: AIIB transient `fetch failed`, AFDB empty behind site protection, USAID business forecast empty/404, and one World Bank tender source not run under the source cap.
+- `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts` passed with 42 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source proof `live_aiib_direct_feed_probe_20260529T125220Z` passed through the source API path and returned 33 current AIIB project procurement opportunities.
+- Live DB import `live_aiib_direct_feed_import_20260529T1253` passed with downloads disabled; it processed 10 candidates, imported 1 new opportunity, updated 9, failed 0, emitted 0 warnings, created 1 source-document row, reused 9, and marked the AIIB source healthy.
+- Post-run live database snapshot: 3,351 total opportunities, 1,735 RFP-typed opportunities, and 27 AIIB opportunities.
+
+Remaining after this slice:
+- Remove or replace the stale `https://www.usaid.gov/business-forecast` configured source; both `/business-forecast` and `/business-forecast/search` returned HTTP 404 from this environment.
+- AFDB configured-source collection still needs a reliable challenge-resistant route or a source-specific search/document fallback for broad opportunity collection.
+
 ### 2026-05-29 - Replace Phased-Down DevBusiness Source With CDB Procurement
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
