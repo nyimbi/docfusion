@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Remove Dead USAID Business Forecast From Default Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: stop spending broad source-scrape budget on USAID Business Forecast pages that now return HTTP 404, while preserving USAID-related procurement coverage through the live SAM.gov source API.
+
+Changes in this slice:
+- Removed `https://www.usaid.gov/business-forecast` from the default configured-source list.
+- Replaced the dead `site:usaid.gov "Request for Proposal" Africa` default query with `site:sam.gov USAID "response date"`.
+- Kept the source-specific `https://sam.gov/search/?index=opp&keywords=USAID` configured source as the reliable USAID-related procurement path.
+
+Verification:
+- Live checks against `https://www.usaid.gov/business-forecast` and `https://www.usaid.gov/business-forecast/search` both returned HTTP 404 from this environment.
+- `npx vitest run __tests__/services/default-discovery-sources.test.ts` passed with 2 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source proof `live_sam_gov_usaid_recheck_20260529T125609Z` passed through the SAM.gov source API path and returned 5 USAID-related opportunities.
+- Live DB import `live_sam_gov_usaid_recheck_import_20260529T1257` passed with downloads disabled; it processed 5 candidates, updated 5, failed 0, emitted 0 warnings, reused 5 source-document rows, and marked the SAM.gov USAID source healthy.
+
+Remaining after this slice:
+- If USAID publishes a replacement public forecast feed later, add it only after proving the URL returns current opportunities.
+- AFDB remains the main default configured-source health gap because the official listing currently returns site-protection/empty content to our scrapers.
+
 ### 2026-05-29 - Stabilize AIIB Direct Feed Collection After Broad Health Refresh
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
