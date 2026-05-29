@@ -256,6 +256,7 @@ const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
+const DEFAULT_CONFIGURED_SOURCE_MAX_PAGES = 3;
 const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
 const MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE = 6;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
@@ -787,6 +788,12 @@ function configuredSourceScrapeAttempts(): number {
 	return Number.isFinite(parsed) ? Math.max(1, Math.trunc(parsed)) : DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS;
 }
 
+function configuredSourceMaxPages(): number {
+	const parsed = Number(process.env.CONFIGURED_SOURCE_MAX_PAGES ?? DEFAULT_CONFIGURED_SOURCE_MAX_PAGES);
+	if (!Number.isFinite(parsed)) return DEFAULT_CONFIGURED_SOURCE_MAX_PAGES;
+	return Math.min(5, Math.max(1, Math.trunc(parsed)));
+}
+
 function sourceOpportunityType(opportunity: OpportunityData | undefined): OpportunityInput["opportunityType"] | undefined {
 	if (!opportunity?.opportunityType) return undefined;
 	if (opportunity.opportunityType === "contract") return "tender";
@@ -1255,7 +1262,7 @@ async function discoverConfiguredSourceCandidates(
 			if (ungmResult.handled) continue;
 		}
 
-		const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl, {
+		const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl, limitPerSource, {
 			browserFallback: input.browserFallback ?? true,
 		});
 		if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
@@ -1365,6 +1372,7 @@ function configuredSourceMethodLabel(method: ConfiguredSourceParseResult["method
 async function scrapeAndParseConfiguredSource(
 	firecrawl: FirecrawlClient,
 	sourceUrl: string,
+	limitPerSource: number,
 	options: { browserFallback: boolean }
 ): Promise<ConfiguredSourceParseResult> {
 	const parser = parserForSourceUrl(sourceUrl);
@@ -1441,9 +1449,22 @@ async function scrapeAndParseConfiguredSource(
 			url: sourceUrl,
 		});
 		if (lastParseResult.opportunities.length > 0) {
+			const paginatedParseResult = await scrapeAdditionalConfiguredSourcePages(
+				firecrawl,
+				parser,
+				sourceUrl,
+				{
+					html: scrapeResult.data.html,
+					markdown: scrapeResult.data.markdown ?? "",
+					links: scrapeResult.data.links ?? [],
+					url: sourceUrl,
+				},
+				lastParseResult,
+				limitPerSource
+			);
 			return {
 				parser,
-				parseResult: lastParseResult,
+				parseResult: paginatedParseResult,
 				scrapeResult,
 				attempts: attempt,
 				method: "firecrawl",
@@ -1479,6 +1500,79 @@ async function scrapeAndParseConfiguredSource(
 			lastEmptyMessage
 		),
 	};
+}
+
+async function scrapeAdditionalConfiguredSourcePages(
+	firecrawl: FirecrawlClient,
+	parser: TenderParser,
+	sourceUrl: string,
+	firstPageInput: Parameters<TenderParser["parse"]>[0],
+	firstPageResult: ParseResult,
+	limitPerSource: number
+): Promise<ParseResult> {
+	const maxPages = configuredSourceMaxPages();
+	if (maxPages <= 1 || firstPageResult.opportunities.length >= limitPerSource) {
+		return firstPageResult;
+	}
+
+	const opportunities = [...firstPageResult.opportunities];
+	const seen = new Set(opportunities.map((opportunity) => sourceOpportunityIdentity(opportunity, sourceUrl)));
+	let currentInput = firstPageInput;
+	let currentResult = firstPageResult;
+	let currentUrl = sourceUrl;
+
+	for (let page = 1; page < maxPages && opportunities.length < limitPerSource; page++) {
+		const nextPageUrl = nextConfiguredSourcePageUrl(parser, currentUrl, page, currentInput, currentResult);
+		if (!nextPageUrl || nextPageUrl === currentUrl) break;
+
+		const scrapeResult = await firecrawl.scrape(nextPageUrl, {
+			formats: ["markdown", "html", "links"],
+			timeout: 20000,
+		});
+		if (!scrapeResult.success || !scrapeResult.data) break;
+
+		currentInput = {
+			html: scrapeResult.data.html,
+			markdown: scrapeResult.data.markdown ?? "",
+			links: scrapeResult.data.links ?? [],
+			url: nextPageUrl,
+		};
+		currentResult = await parser.parse(currentInput);
+		for (const opportunity of currentResult.opportunities) {
+			const identity = sourceOpportunityIdentity(opportunity, sourceUrl);
+			if (seen.has(identity)) continue;
+			seen.add(identity);
+			opportunities.push(opportunity);
+			if (opportunities.length >= limitPerSource) break;
+		}
+		currentUrl = nextPageUrl;
+	}
+
+	return {
+		...firstPageResult,
+		opportunities,
+		nextPageUrl: opportunities.length >= limitPerSource ? currentResult.nextPageUrl : undefined,
+	};
+}
+
+function nextConfiguredSourcePageUrl(
+	parser: TenderParser,
+	currentUrl: string,
+	currentPage: number,
+	currentInput: Parameters<TenderParser["parse"]>[0],
+	currentResult: ParseResult
+): string | undefined {
+	const candidate = currentResult.nextPageUrl
+		?? (parser.hasNextPage(currentInput, currentPage) ? parser.getPageUrl(currentUrl, currentPage + 1) : undefined);
+	if (!candidate) return undefined;
+
+	try {
+		const parsed = new URL(candidate, currentUrl);
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return undefined;
+	}
 }
 
 async function parseConfiguredSourceWithBrowserSource(

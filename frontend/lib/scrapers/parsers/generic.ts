@@ -46,6 +46,11 @@ const EXCLUDE_KEYWORDS = [
 	"contact us",
 	"faq",
 	"help",
+	"current tenders",
+	"upcoming tenders",
+	"opened bid details",
+	"annual procurement plan",
+	"electronic public procurement",
 ];
 
 const AFRICAN_COUNTRIES = [

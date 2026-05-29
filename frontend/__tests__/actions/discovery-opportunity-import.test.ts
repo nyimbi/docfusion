@@ -1280,6 +1280,65 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("paginates configured source URLs before applying the source scrape limit", async () => {
+		firecrawlScrapeMock
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					markdown: [
+						"[Current Tenders](https://buyer.example/tenders/current)",
+						"",
+						"[Tender for Digital Records Platform](https://buyer.example/tenders/records)",
+						"",
+						"Deadline: 31 December 2026",
+						"",
+						"[Next](https://buyer.example/tenders?page=2)",
+					].join("\n"),
+					links: ["https://buyer.example/tenders?page=2"],
+					metadata: { title: "Buyer Tenders" },
+				},
+			})
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					markdown: "[RFP for Case Management Platform](https://buyer.example/tenders/case-management)\n\nDeadline: 15 January 2027",
+					links: [],
+					metadata: { title: "Buyer Tenders - Page 2" },
+				},
+			});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://buyer.example/tenders"],
+			sourceScrapeLimit: 2,
+		});
+
+		expect(searchSearxngMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenCalledTimes(2);
+		expect(firecrawlScrapeMock).toHaveBeenNthCalledWith(2, "https://buyer.example/tenders?page=2", expect.any(Object));
+		expect(result.results).toEqual({
+			total: 2,
+			imported: 2,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://buyer.example/tenders",
+				status: "healthy",
+				candidates: 2,
+				imported: 2,
+			}),
+		]);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender for Digital Records Platform",
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP for Case Management Platform",
+		}));
+	});
+
 	it("imports EBRD procurement notices from the source-specific filter endpoint", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

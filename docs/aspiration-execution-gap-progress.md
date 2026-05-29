@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Page Configured Sources Before Capping Candidates
+
+Status: implemented, focused-test verified, typechecked, and live-run.
+
+Purpose: increase broad RFP collection from configured procurement portals by following pagination before applying each source's candidate cap, while keeping generic portal navigation rows out of the opportunity table.
+
+Changes in this slice:
+- Added bounded configured-source pagination for Firecrawl-scraped sources. The importer now follows parser-provided `nextPageUrl` or `hasNextPage`/`getPageUrl` up to `CONFIGURED_SOURCE_MAX_PAGES`, defaulting to 3 and capped at 5.
+- Deduplicated opportunities found across source pages before import, using the same source identity logic as normal configured-source scraping.
+- Tightened the generic parser so portal-menu rows such as `Current Tenders`, `Upcoming Tenders`, opened-bid details, annual procurement-plan publication, and generic electronic-procurement pages are not imported as opportunities.
+- Documented `CONFIGURED_SOURCE_MAX_PAGES` in the opportunity discovery runbook.
+
+Verification:
+- Added regression coverage proving a configured source follows a `Next` page and imports opportunities from page 2 before applying `sourceScrapeLimit`.
+- The same regression proves a generic `Current Tenders` navigation link is ignored while actual tender/RFP links are kept.
+- `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts __tests__/services/default-discovery-sources.test.ts` passed with 42 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live source-only probe `live_source_pagination_probe_20260529` against Tanzania NeST and Zambia ZPPA produced 3 imported configured-source records from ZPPA, 0 failures, and showed Tanzania NeST as empty under the current generic parser/browser path.
+- Live direct ZPPA current-tenders probe `live_zambia_current_tenders_probe_20260529` processed 5 records, imported 2, updated 3, failed 0; the parser tightening now prevents those generic navigation labels from becoming future opportunity rows.
+- Bounded broad live run `live_broad_after_source_pagination_20260529` processed 102 records, imported 2 new opportunities, updated 100, failed 0, created 1 new source-document row, attempted 0 downloads by design, and reported 0 queued parse jobs afterward.
+- Post-run live database snapshot: 3,247 opportunities, 208 RFP documents, 206 completed RFP documents, 0 queued parse jobs, 1,412 RFP requirements, 176 RFP documents with requirements, 247 downloaded source-document rows, 240 discovered source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Public `searx.space` instances remain heavily throttled during broad server-side runs; direct DuckDuckGo fallback recovered some query result sets, but a trusted `SEARXNG_FALLBACK_URLS` pool remains needed for reliable multi-engine breadth.
+- Some configured sources are still empty or failed under current parsers, including Tanzania NeST, USAID business forecast, DevBusiness, PPRA Tanzania, and Uganda EGP; these need source-specific parser/API work rather than more generic scraping.
+
 ### 2026-05-29 - Suppress Generic Intake Rows And Recover TLS-Blocked NRF PDF
 
 Status: implemented, focused-test verified, typechecked, live-run, and parsed.
