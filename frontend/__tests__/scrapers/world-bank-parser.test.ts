@@ -5,6 +5,7 @@ import {
 	parseWorldBankNoticeDetailApiResponse,
 	parseWorldBankNoticeDetailMarkdown,
 	worldBankNoticeApiUrl,
+	worldBankNoticeListFallbackApiUrl,
 	worldBankNoticeListApiUrl,
 	worldBankParser,
 } from "@/lib/scrapers/parsers/world-bank";
@@ -267,6 +268,51 @@ Feedback Survey
 			sourceId: "OP00440843",
 			title: "Support the development of energy management systems and capacity building",
 			tags: ["world-bank", "development-bank", "global-procurement", "api-list"],
+		});
+	});
+
+	it("falls back to the lean public notice list API when the faceted query fails", async () => {
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 500,
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					procnotices: [{
+						id: "OP00447514",
+						bid_description: "Procurement of climate resilience consulting services",
+						project_ctry_name: "Western and Central Africa",
+						project_id: "P178132",
+						project_name: "West Africa Food System Resilience Program",
+						notice_type: "Request for Expression of Interest",
+						notice_status: "Published",
+						notice_lang_name: "English",
+						noticedate: "28-May-2026",
+					}],
+				}),
+			});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await worldBankParser.parse({
+			url: "https://projects.worldbank.org/en/projects-operations/procurement",
+		});
+
+		expect(fetchMock).toHaveBeenNthCalledWith(1, worldBankNoticeListApiUrl(50, 0), expect.objectContaining({
+			headers: { Accept: "application/json" },
+		}));
+		expect(fetchMock).toHaveBeenNthCalledWith(2, worldBankNoticeListFallbackApiUrl(50, 0), expect.objectContaining({
+			headers: { Accept: "application/json" },
+		}));
+		expect(result.opportunities).toHaveLength(1);
+		expect(result.opportunities[0]).toMatchObject({
+			source: "world_bank",
+			sourceId: "OP00447514",
+			title: "Procurement of climate resilience consulting services",
+			category: "Request for Expression of Interest",
+			opportunityType: "eoi",
 		});
 	});
 });

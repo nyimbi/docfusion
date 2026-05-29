@@ -364,6 +364,27 @@ export function worldBankNoticeListApiUrl(rows = 20, offset = 0): string {
 	return url.toString();
 }
 
+export function worldBankNoticeListFallbackApiUrl(rows = 20, offset = 0): string {
+	const url = new URL(WORLD_BANK_NOTICE_LIST_API_BASE_URL);
+	url.searchParams.set("format", "json");
+	url.searchParams.set("apilang", "en");
+	url.searchParams.set("rows", String(rows));
+	url.searchParams.set("os", String(offset));
+	return url.toString();
+}
+
+async function fetchWorldBankJson(url: string): Promise<unknown> {
+	const response = await fetch(url, {
+		headers: {
+			"Accept": "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`World Bank notice list API returned ${response.status}`);
+	}
+	return await response.json();
+}
+
 export async function fetchWorldBankNoticeDetail(noticeId: string): Promise<WorldBankNoticeDetail> {
 	const response = await fetch(worldBankNoticeApiUrl(noticeId), {
 		headers: {
@@ -377,15 +398,17 @@ export async function fetchWorldBankNoticeDetail(noticeId: string): Promise<Worl
 }
 
 export async function fetchWorldBankNoticeList(rows = 20, offset = 0): Promise<OpportunityData[]> {
-	const response = await fetch(worldBankNoticeListApiUrl(rows, offset), {
-		headers: {
-			"Accept": "application/json",
-		},
-	});
-	if (!response.ok) {
-		throw new Error(`World Bank notice list API returned ${response.status}`);
+	try {
+		return parseWorldBankNoticeListApiResponse(await fetchWorldBankJson(worldBankNoticeListApiUrl(rows, offset)));
+	} catch (primaryError) {
+		try {
+			return parseWorldBankNoticeListApiResponse(await fetchWorldBankJson(worldBankNoticeListFallbackApiUrl(rows, offset)));
+		} catch (fallbackError) {
+			const primaryMessage = primaryError instanceof Error ? primaryError.message : String(primaryError);
+			const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+			throw new Error(`World Bank notice list API failed: primary=${primaryMessage}; fallback=${fallbackMessage}`);
+		}
 	}
-	return parseWorldBankNoticeListApiResponse(await response.json());
 }
 
 export function parseWorldBankNoticeDetailMarkdown(markdown: string | undefined): WorldBankNoticeDetail {

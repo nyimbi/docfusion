@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add World Bank Notice API Fallback After Broad Health Refresh
+
+Status: implemented, focused-test verified, typechecked, live-imported, and broad-health informed.
+
+Purpose: keep World Bank configured-source collection healthy when the primary faceted `api/v2/procnotices` query returns a transient or parameter-sensitive HTTP 500.
+
+Changes in this slice:
+- Ran broad default discovery health refresh `live_broad_source_health_refresh_20260529T1310` after the AFDB/USAID/AIIB/CDB source fixes.
+- Added a lean World Bank notice-list API fallback that removes the heavy facet/filter/sort parameters while preserving current notice parsing and award filtering.
+- Preserved the primary richer API query as the first path; the lean query is used only after the primary path fails.
+
+Verification:
+- Broad refresh `live_broad_source_health_refresh_20260529T1310` processed 366 candidates across the default profile, imported 103, updated 263, failed 0, and created 91 source-document rows with downloads disabled.
+- In that broad refresh, AFDB was healthy with 5 candidates, SAM.gov USAID was healthy with 5, AIIB was healthy with 33, CDB was healthy with 13, and the only configured-source health gaps were World Bank projects API 500 and the redundant UNICEF service-contracts page parsing empty while UNICEF tender calendars stayed healthy.
+- `npx vitest run __tests__/scrapers/world-bank-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 49 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB import `live_world_bank_api_fallback_import_20260529T1321` passed with downloads disabled; it processed 10 World Bank candidates, updated 10, failed 0, emitted 0 warnings, reused 10 source-document rows, and marked the World Bank projects source healthy.
+- Post-run live database snapshot: 3,459 total opportunities, 1,748 RFP-typed opportunities, and 53 World Bank opportunities.
+
+Remaining after this slice:
+- Remove or repair the now-redundant UNICEF service-contracts default source, since `https://www.unicef.org/supply/tender-calendars` remains healthy and broader.
+- Continue reducing SearXNG broad-query warnings by relying on curated source APIs for high-value procurement portals and adding trusted fallback search instances when available.
+
 ### 2026-05-29 - Recover AFDB Default Collection With Search-Document Fallback
 
 Status: implemented, focused-test verified, typechecked, live-imported, and pushed through the normal configured-source importer.
