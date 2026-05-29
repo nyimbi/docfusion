@@ -1293,6 +1293,15 @@ function deterministicRecoveryCandidates(
     }
   }
 
+  if (isIomProcurementDocumentUrl(sourceUrl)) {
+    const procurementPage = new URL("/procurement-opportunities", sourceUrl.origin);
+    candidates.push({
+      url: procurementPage.toString(),
+      title: documentTitleForSearch(documentName),
+      content: "IOM procurement opportunity listing for blocked procurement document",
+    });
+  }
+
   return candidates;
 }
 
@@ -1441,7 +1450,7 @@ function buildScrapedSourceDocument(
   documentName: string,
   scraped: SourceRecoveryScrape
 ): FetchedSourceDocument | undefined {
-  const content = cleanExtractedText(scraped.markdown || scraped.html || "");
+  const content = focusScrapedRecoveryContent(scraped.markdown || scraped.html || "", documentName);
   if (
     isChallengeOrErrorPage(content) ||
     !isUsableScrapedSourceContent(content)
@@ -1470,6 +1479,46 @@ function buildScrapedSourceDocument(
     extractionFilename: replaceFileExtension(documentName, ".html"),
     method: sourceDocumentLandingPageMethod(scraped.method),
   };
+}
+
+function isIomProcurementDocumentUrl(sourceUrl: URL): boolean {
+  const host = sourceUrl.hostname.replace(/^www\./, "").toLowerCase();
+  return host === "iom.int"
+    && /\/files\/procurement\//i.test(sourceUrl.pathname)
+    && isLikelyDirectDocumentUrl(sourceUrl);
+}
+
+function focusScrapedRecoveryContent(content: string, documentName: string): string {
+  const lines = content.split(/\n+/).map((line) => cleanExtractedText(line)).filter(Boolean);
+  const cleanedContent = cleanExtractedText(content);
+
+  const title = documentTitleForSearch(documentName).toLowerCase();
+  const tokens = tokenizeDocumentTitle(title);
+  const strongTokens = tokens.filter((token) =>
+    token.length >= 5 || /^\d{5,}$/.test(token) || /^(rfp|itb|eoi|rfq)$/.test(token)
+  );
+  const matchingIndexes = lines
+    .map((line, index) => ({ line: line.toLowerCase(), index }))
+    .filter(({ line }) =>
+      (title.length >= 8 && line.includes(title)) ||
+      strongTokens.some((token) => line.includes(token))
+    )
+    .map(({ index }) => index);
+
+  if (matchingIndexes.length === 0) return cleanedContent;
+
+  const selected = new Set<number>();
+  for (const index of matchingIndexes) {
+    for (let cursor = Math.max(0, index - 1); cursor <= Math.min(lines.length - 1, index + 12); cursor++) {
+      selected.add(cursor);
+    }
+  }
+
+  const focused = [...selected].sort((a, b) => a - b).map((index) => lines[index]).join("\n");
+  if (isUsableScrapedSourceContent(focused)) {
+    return focused;
+  }
+  return cleanedContent;
 }
 
 function browserLikeDocumentHeaders(url: URL): Record<string, string> {

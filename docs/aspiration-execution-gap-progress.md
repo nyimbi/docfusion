@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover Blocked IOM Procurement PDFs From Listing Pages
+
+Status: implemented, unit-verified, live-retried, and parsed.
+
+Purpose: convert IOM procurement PDFs that return HTTP 403 to server-side fetch into usable RFP source text instead of leaving discovered solicitations stuck as failed source documents.
+
+Changes in this slice:
+- Added a deterministic recovery candidate for blocked IOM procurement document URLs: `https://www.iom.int/procurement-opportunities`.
+- Focus recovered listing-page text around the target document title/solicitation number before storing it as an HTML source surrogate, avoiding unrelated procurement guide content when a listing page contains many links.
+
+Verification:
+- Added regression coverage proving a blocked IOM procurement PDF can recover from the IOM procurement listing page and store focused solicitation text without nearby generic guide content.
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 34 tests.
+- Live retry of previously failed document `27f945ce-0607-4881-8e9d-9031cc1e5c28` (`invitation-to-bid_30000024345_0.pdf`) succeeded after direct fetch returned 403, storing `invitation-to-bid_30000024345_0.html` from `https://www.iom.int/procurement-opportunities`.
+- Queued parse drain `queued_parse_after_iom_recovery_20260529` completed 1 parser job and extracted 1 requirement.
+- Post-run live database snapshot: 3,174 opportunities, 185 RFP documents, 183 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,230 RFP requirements, 157 RFP documents with requirements, 508 selected source-document rows, 224 downloaded source-document rows, and 82 failed source-document rows.
+
+Remaining after this slice:
+- Two IOM direct PDFs from the previous batch still failed with 403. Retry them after this change or add more precise listing-section extraction if their listing text remains sparse.
+- The browser service at `http://84.247.181.100:3003` still returns `/v1/scrape` 404 and intermittent `/scrape` failures for some blocked PDFs; repair or replace with CloakBrowser for the stubborn cases.
+
 ### 2026-05-29 - Expand Default RFP Sources Across UN And Multilateral Portals
 
 Status: implemented, unit-verified, typechecked, live-reseeded, and live-intake verified.

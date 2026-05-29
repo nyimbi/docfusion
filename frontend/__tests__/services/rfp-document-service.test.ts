@@ -1321,6 +1321,74 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("recovers blocked IOM procurement PDFs from the procurement listing page", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/invitation-to-bid_30000024345_0.pdf";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "invitation-to-bid_30000024345_0.pdf",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000432", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000532" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("blocked", {
+			status: 403,
+			statusText: "Forbidden",
+			headers: { "content-type": "text/html" },
+		}));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValueOnce({
+			success: true,
+			data: {
+				markdown: [
+					"# Procurement opportunities",
+					"General information for suppliers and procurement notices.",
+					"Guide 2: submit quotations, bids and proposals. This guide explains supplier portal steps.",
+					"Reference documents and supplier conduct guidance are available for vendors.",
+					"Invitation to Bid 30000024345",
+					"International Organization for Migration invites eligible companies to submit bids for procurement of equipment and related services.",
+					"The bidding document includes eligibility requirements, technical specifications, delivery schedule, bid security, clarification procedures, evaluation criteria, and submission deadline.",
+					"Offers must be submitted before the stated deadline and include signed bid forms, financial proposal, company registration, tax documents, and evidence of similar contract experience.",
+					"Late submissions will not be accepted.",
+					"Download: invitation-to-bid_30000024345_0.pdf",
+					"Another archived opportunity follows with unrelated supplier instructions.",
+				].join("\n"),
+				links: [sourceUrl],
+			},
+		});
+
+		const result = await downloadDocument(baseDocument.id, "system");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.iom.int/procurement-opportunities",
+				originalSourceUrl: sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			"https://www.iom.int/procurement-opportunities",
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("Invitation to Bid 30000024345"),
+			metadata: expect.objectContaining({
+				sourceUrl: "https://www.iom.int/procurement-opportunities",
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(insertedValues[0].extractedText).not.toContain("Guide 2: submit quotations");
+	});
+
 	it("tries scraping the original blocked tender page when search recovery has no alternate source", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const sourceUrl = "https://www.dgmarket.com/tender/107625897";
