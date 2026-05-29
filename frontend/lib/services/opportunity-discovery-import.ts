@@ -298,6 +298,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?umucyo\.gov\.rw\/eb\/bav\/selectListAdvertisingListForGU\.do/i,
 	/\/\/(?:www\.)?ghaneps\.gov\.gh\/epps\/quickSearchAction\.do/i,
 	/\/\/eprocure\.zppa\.org\.zm\/epps\/quickSearchAction\.do/i,
+	/\/\/maneps\.mw\/rms\/api\/tender-notices\/active-tenders-search/i,
 	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
 	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
 	/\/\/(?:www\.)?un\.org\/procurement/i,
@@ -462,6 +463,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "umucyo.gov.rw" && safeUrlPathname(sourceUrl).startsWith("/eb/bav/selectListAdvertisingListForGU.do")) sourceId = "umucyo_rwanda";
 	else if (host === "ghaneps.gov.gh" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "ghaneps";
 	else if (host === "eprocure.zppa.org.zm" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "zppa_zambia";
+	else if (host === "maneps.mw" && safeUrlPathname(sourceUrl).startsWith("/rms/api/tender-notices/active-tenders-search")) sourceId = "maneps_malawi";
 	else if (host === "ocds-api.etenders.gov.za" && safeUrlPathname(sourceUrl).startsWith("/api/OCDSReleases")) sourceId = "etenders_sa";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
@@ -480,6 +482,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "umucyo_rwanda"
 		|| parser.sourceId === "ghaneps"
 		|| parser.sourceId === "zppa_zambia"
+		|| parser.sourceId === "maneps_malawi"
 		|| parser.sourceId === "etenders_sa";
 }
 
@@ -864,6 +867,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
 	if (opportunity?.source === "etenders_sa") return "South Africa eTenders";
+	if (opportunity?.source === "maneps_malawi") return "MANEPS Malawi";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -891,6 +895,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
 		...(opportunity?.source === "etenders_sa" ? ["etenders-sa", "south-africa", "national-procurement", "ocds"] : []),
+		...(opportunity?.source === "maneps_malawi" ? ["maneps", "malawi", "national-procurement"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }

@@ -1699,6 +1699,82 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports MANEPS Malawi tenders from the public active-tenders API", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				count: 1,
+				data: [{
+					id: "ac48e846-41c3-4ff3-9755-4361e30739de",
+					objectType: "RFX",
+					name: "Procurement of Blank Number Plate",
+					description: "Procurement of blank number plate",
+					procurementCategory: "Goods",
+					procurementReferenceNumber: "PVHES-0057-3-26",
+					status: "Published",
+					budgetAmount: 22000000,
+					budgetAmountCurrency: "MWK",
+					organizationName: "Plant & Vehicle Hire and Engineering Services",
+					publishedDate: "2026-05-29T17:00:00.000Z",
+					closingDate: "2026-06-03T07:00:00.000Z",
+					tenderProcurementMechanism: {
+						PRProcurementMechanisms: {
+							procurementMethod: "Request for Quotation (RFQ)",
+							procurementType: "Goods",
+							fundingSource: "Internal Revenue",
+							invitationType: "open",
+							marketType: "National",
+						},
+					},
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://maneps.mw/rms/api/tender-notices/active-tenders-search"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://maneps.mw/rms/api/tender-notices/active-tenders-search",
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					Accept: "application/json",
+					"Content-Type": "application/json",
+				}),
+				body: expect.stringContaining("\"includeExpiredTenders\":false"),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Procurement of Blank Number Plate",
+			source: "source-scrape",
+			sourceId: "maneps-ac48e846-41c3-4ff3-9755-4361e30739de",
+			sourcePlatform: "MANEPS Malawi",
+			sourceFile: "source:https://maneps.mw/rms/api/tender-notices/active-tenders-search",
+			countryRegion: "Malawi",
+			opportunityType: "tender",
+			tags: ["external-discovery", "source-scrape", "maneps", "malawi", "national-procurement", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://maneps.mw/rms/api/tender-notices/active-tenders-search",
+					scrapeMethod: "source_api",
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

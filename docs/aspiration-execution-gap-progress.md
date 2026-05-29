@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Malawi MANEPS Active Tender Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand national-procurement collection with Malawi's MANEPS public active-tender endpoint after confirming the older PPDA procurement-notices page currently publishes no tender rows.
+
+Changes in this slice:
+- Added a MANEPS Malawi parser for `https://maneps.mw/rms/api/tender-notices/active-tenders-search`, extracting title, notice/reference ID, procuring entity, category, procurement method/type, publication date, closing date, budget amount/currency, status, portal URL, and source metadata.
+- Added bounded direct pagination with `MANEPS_MAX_PAGES`, defaulting to six 10-record pages and capped at 10 pages, so the source can collect the full current active list without browser rendering or Firecrawl.
+- Routed MANEPS through the direct source-parser path and added it to the broad default configured-source list plus a targeted Malawi search query.
+- Added MANEPS support to the live source-discovery proof script.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/maneps-malawi-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 51 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_maneps_malawi_source_20260529T2322` parsed 53 MANEPS Malawi opportunities via `source_api`.
+- Live DB import `live_maneps_malawi_import_20260529T2322` processed 30 Malawi MANEPS candidates, imported 30, failed 0, emitted 0 warnings, and marked the source healthy with downloads disabled. MANEPS public list records do not expose unauthenticated direct document URLs, so no source-document rows were created in this slice.
+- Post-run live database snapshot: 3,714 total opportunities, 1,775 RFP-typed opportunities, 30 MANEPS Malawi opportunities, 30 ZPPA opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- Increase `MANEPS_MAX_PAGES` for scheduled runs if operators want more than the default six-page active tender window, though the live endpoint currently returned 53 active records.
+- Continue adding source-specific national portals that expose stable public current-tender tables or APIs.
+
 ### 2026-05-29 - Add Zambia ZPPA Current Tender Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

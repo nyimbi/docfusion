@@ -55,6 +55,7 @@ describe("default discovery sources", () => {
 			"site:umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do tender deadline Rwanda",
 			"site:ghaneps.gov.gh/epps/quickSearchAction.do current tenders Ghana deadline",
 			"site:eprocure.zppa.org.zm/epps/quickSearchAction.do current tenders Zambia deadline",
+			"site:maneps.mw/procurement-notice tender closing Malawi deadline",
 			"filetype:pdf \"request for proposals\" \"submission deadline\"",
 			"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 			"filetype:docx \"request for proposals\" procurement",
@@ -90,6 +91,7 @@ describe("default discovery sources", () => {
 			"https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&leftTopFlag=l&recordCountPerPage=50",
 			"https://www.ghaneps.gov.gh/epps/quickSearchAction.do?searchSelect=6",
 			"https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6",
+			"https://maneps.mw/rms/api/tender-notices/active-tenders-search",
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 		]);

@@ -234,6 +234,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host === "umucyo.gov.rw" && new URL(sourceUrl).pathname.startsWith("/eb/bav/selectListAdvertisingListForGU.do")) return getParser("umucyo_rwanda") ?? genericParser;
 	if (host === "ghaneps.gov.gh" && new URL(sourceUrl).pathname.startsWith("/epps/quickSearchAction.do")) return getParser("ghaneps") ?? genericParser;
 	if (host === "eprocure.zppa.org.zm" && new URL(sourceUrl).pathname.startsWith("/epps/quickSearchAction.do")) return getParser("zppa_zambia") ?? genericParser;
+	if (host === "maneps.mw" && new URL(sourceUrl).pathname.startsWith("/rms/api/tender-notices/active-tenders-search")) return getParser("maneps_malawi") ?? genericParser;
 	return genericParser;
 }
 
@@ -249,6 +250,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "umucyo_rwanda"
 		|| parser.sourceId === "ghaneps"
 		|| parser.sourceId === "zppa_zambia"
+		|| parser.sourceId === "maneps_malawi"
 		|| parser.sourceId === "etenders_sa";
 }
 
