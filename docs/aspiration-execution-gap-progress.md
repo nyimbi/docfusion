@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Namibia CPBN Open Bids Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand national-procurement collection with Namibia's Central Procurement Board open-bids page, a reachable public source with current bid rows and closing dates.
+
+Changes in this slice:
+- Added a Namibia CPBN parser for `https://www.cpbn.com.na/index/external/2`, extracting title, CPBN bid ID, reference number, deadline, portal URL, available gated document request labels, and Namibia source metadata.
+- Routed CPBN through the direct source-parser path and added it to the broad default configured-source list plus a targeted Namibia search query.
+- Added CPBN support to the live source-discovery proof script.
+- Kept CPBN's `ajax/download/*` modal links in metadata rather than `documentUrl` because the source requires a bidder contact form before download; this avoids creating failed direct document-download attempts.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/cpbn-namibia-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 52 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_cpbn_namibia_source_20260529T2336` parsed 4 Namibia CPBN opportunities via `source_api`.
+- Live DB import `live_cpbn_namibia_import_20260529T2336` processed 4 Namibia CPBN candidates, imported 4, failed 0, emitted 0 warnings, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,718 total opportunities, 1,775 RFP-typed opportunities, 4 CPBN Namibia opportunities, 30 MANEPS Malawi opportunities, 30 ZPPA opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- CPBN document download requires contact-form submission, so the current collector imports the opportunities and portal URLs but does not attempt direct PDF retrieval.
+- Continue prioritizing higher-volume national portals and public APIs after this reliable but small Namibia source.
+
 ### 2026-05-29 - Add Malawi MANEPS Active Tender Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

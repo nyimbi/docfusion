@@ -1775,6 +1775,69 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports Namibia CPBN open bids from the public bids list", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => `
+				<table id="activeBidsTable"><tbody>
+					<tr><td>
+						<h4 class="card-title"><a href="https://www.cpbn.com.na/index/bid/108">Procurement of Wastewater Treatment Plant Management Services.: W/ONB/CPBN-06/2026</a></h4>
+						<ul><li><strong>Reference number:</strong> W/ONB/CPBN-06/2026 | <strong>Closing Date and Time:</strong> 15th July, 2026 11:00 | <a href="https://www.cpbn.com.na/index/bid/108">More Details</a></li></ul>
+						<div class="card-body"><a href="javascript:void(0)" onclick="openModalRemoteContent('https://www.cpbn.com.na/ajax/download/455')" class="download-link"><span></span>&nbsp;Full Advert.pdf</a></div>
+					</td></tr>
+				</tbody></table>
+			`,
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.cpbn.com.na/index/external/2"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.cpbn.com.na/index/external/2",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "text/html,application/xhtml+xml",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Procurement of Wastewater Treatment Plant Management Services.",
+			source: "source-scrape",
+			sourceId: "cpbn-108",
+			sourcePlatform: "Namibia CPBN",
+			sourceFile: "source:https://www.cpbn.com.na/index/external/2",
+			countryRegion: "Namibia",
+			opportunityType: "tender",
+			documentUrl: undefined,
+			tags: ["external-discovery", "source-scrape", "cpbn", "namibia", "national-procurement", "open-bids"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://www.cpbn.com.na/index/external/2",
+					scrapeMethod: "source_api",
+				}),
+				cpbnNamibia: expect.objectContaining({
+					documentRequests: [{
+						label: "Full Advert.pdf",
+						url: "https://www.cpbn.com.na/ajax/download/455",
+					}],
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

@@ -47,6 +47,7 @@ export const DEFAULT_DISCOVERY_QUERIES = [
 	"site:ghaneps.gov.gh/epps/quickSearchAction.do current tenders Ghana deadline",
 	"site:eprocure.zppa.org.zm/epps/quickSearchAction.do current tenders Zambia deadline",
 	"site:maneps.mw/procurement-notice tender closing Malawi deadline",
+	"site:cpbn.com.na/index/external/2 open bids Namibia closing date",
 	"filetype:pdf \"request for proposals\" \"submission deadline\"",
 	"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 	"filetype:docx \"request for proposals\" procurement",
@@ -90,6 +91,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.ghaneps.gov.gh/epps/quickSearchAction.do?searchSelect=6",
 	"https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6",
 	"https://maneps.mw/rms/api/tender-notices/active-tenders-search",
+	"https://www.cpbn.com.na/index/external/2",
 	"https://www.giz.de/en/regions/africa/ghana/tenders",
 	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;
