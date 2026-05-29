@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Expand Default RFP Sources Across UN And Multilateral Portals
+
+Status: implemented, unit-verified, typechecked, live-reseeded, and live-intake verified.
+
+Purpose: materially increase RFP collection breadth by adding high-yield UN and multilateral procurement sources rather than repeating the same discovery set.
+
+Changes in this slice:
+- Added default procurement search queries for UNOPS, IOM, WFP, WHO, ILO, IFAD, UNHCR, and FAO.
+- Added routine configured-source scraping for live-verified 200-status procurement pages: UNOPS business opportunities, IOM procurement opportunities, WHO procurement, ILO procurement, FAO procurement, and IFAD corporate procurement.
+- Marked the same UN/multilateral procurement pages, plus WFP, IFAD project procurement, and UNHCR bidding-opportunity URLs, as known high-intent procurement portals for search result acceptance.
+- Tightened source-document intake filtering so generic procurement information PDFs such as IOM submission guides, tips, and supplier/conduct documents do not consume RFP parser capacity.
+
+Verification:
+- `npx vitest run __tests__/services/default-discovery-sources.test.ts` passed with 2 tests.
+- `npx vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 4 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live reseed `live_broad_reseed_after_un_source_expansion_20260529`, with downloads disabled, produced 183 candidates, 40 new opportunities, 143 updates, 0 failed imports, and 68 new source-document rows.
+- New configured sources were healthy in the live reseed: UNOPS imported 1, IOM imported 10, WHO imported 9, ILO imported 6, FAO imported 1, and IFAD corporate procurement imported 3.
+- Filtered source-intake dry-run `source_intake_after_un_source_expansion_filtered_dryrun_20260529` selected 5 solicitation-looking PDFs after excluding generic procurement guidance rows.
+- Live intake `source_intake_after_un_source_expansion_live_20260529` selected 5, downloaded 2, failed 3 IOM PDFs with HTTP 403 after recovery attempts, completed 2 parses, and extracted 16 requirements. The successful documents used local HTML text recovery for one IOM RFP and local `pdftotext` for one PDF.
+- Post-run live database snapshot: 3,174 opportunities, 184 RFP documents, 182 completed RFP documents, 0 queued parse jobs, 8 failed parse jobs, 1,229 RFP requirements, 156 RFP documents with requirements, 508 selected source-document rows, 223 downloaded source-document rows, and 83 failed source-document rows.
+
+Remaining after this slice:
+- IOM direct procurement PDFs frequently return 403; add a source-specific IOM/UNGM recovery path or repair the browser scraping endpoint before relying on direct IOM PDF intake.
+- The expanded sources created many source-document rows, but only five passed current direct-document filters. Continue targeted intake improvements for source pages that list documents behind portal links.
+
 ### 2026-05-29 - Recover DuckDuckGo Results When Public SearXNG Fanout Fails
 
 Status: implemented, unit-verified, typechecked, and live-probed.

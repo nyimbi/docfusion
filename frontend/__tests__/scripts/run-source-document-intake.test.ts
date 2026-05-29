@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isRoutineSourceCandidate } from "../../scripts/run-source-document-intake";
+import { isLikelySolicitationSource, isRoutineSourceCandidate } from "../../scripts/run-source-document-intake";
 
 describe("source document intake selection helpers", () => {
 	it("keeps fresh direct documents from normal hosts in routine intake", () => {
@@ -28,5 +28,16 @@ describe("source document intake selection helpers", () => {
 			downloadAttempts: 1,
 			lastError: "HTTP 403: Forbidden",
 		})).toBe(false);
+	});
+
+	it("skips generic procurement guidance documents while keeping actual solicitations", () => {
+		expect(isLikelySolicitationSource({
+			documentName: "guide-2_submit-quotations-bids-proposals.pdf",
+			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/guide-2_submit-quotations-bids-proposals.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "30000022851_request-for-proposal_0.pdf",
+			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
+		})).toBe(true);
 	});
 });

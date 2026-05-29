@@ -220,6 +220,14 @@ const HIGH_INTENT_QUERY_KEYWORDS = [
 
 const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?ungm\.org\/public\/notice/i,
+	/\/\/(?:www\.)?unops\.org\/business-opportunities/i,
+	/\/\/(?:www\.)?iom\.int\/procurement-opportunities/i,
+	/\/\/(?:www\.)?wfp\.org\/procurement/i,
+	/\/\/(?:www\.)?who\.int\/about\/accountability\/procurement/i,
+	/\/\/(?:www\.)?ilo\.org\/about-ilo\/procurement/i,
+	/\/\/(?:www\.)?ifad\.org\/(?:en\/)?(?:project-procurement|corporate-procurement)/i,
+	/\/\/(?:www\.)?unhcr\.org\/.*bidding-opportunities/i,
+	/\/\/(?:www\.)?fao\.org\/unfao\/procurement/i,
 	/\/\/procurement-notices\.undp\.org\//i,
 	/\/\/devbusiness\.un\.org\//i,
 	/\/\/(?:www\.)?worldbank\.org\/.*procurement/i,
