@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover AFDB Default Collection With Search-Document Fallback
+
+Status: implemented, focused-test verified, typechecked, live-imported, and pushed through the normal configured-source importer.
+
+Purpose: make AFDB default source collection productive even when the official AFDB procurement listing returns bot-protection or otherwise empty content to Firecrawl/browser scraping.
+
+Changes in this slice:
+- Added an AFDB-specific configured-source fallback that searches SearXNG for AFDB-funded procurement documents when the official AFDB listing scrape fails or parses empty.
+- The fallback filters for direct PDF/DOC procurement documents, excludes AFDB-hosted protected listing/manual/policy URLs, verifies candidate documents with a ranged public HTTP probe, and imports verified results as AFDB source candidates.
+- Preserved the existing AFDB listing parser and detail-page enrichment for cases where the official listing is scrapeable.
+
+Verification:
+- `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts` passed with 43 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB import `live_afdb_search_fallback_import_20260529T1304` passed through the normal configured-source importer with downloads disabled; it processed 5 AFDB candidates, imported 5 new opportunities, failed 0, emitted 0 warnings, created 5 source-document rows, and marked the AFDB source healthy.
+- During the live run, `search.lindela.io` reported degraded SearXNG engine fanout for some AFDB fallback queries and the client recovered extra results through direct DuckDuckGo HTML fallback.
+- Post-run live database snapshot: 3,356 total opportunities, 1,735 RFP-typed opportunities, and 11 AFDB opportunities.
+
+Remaining after this slice:
+- Run another broad default source-health refresh to confirm AFDB and USAID no longer appear as unhealthy default configured sources.
+- Keep improving source-specific collection for any remaining empty or low-yield configured sources instead of adding more generic scrape retries.
+
 ### 2026-05-29 - Remove Dead USAID Business Forecast From Default Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

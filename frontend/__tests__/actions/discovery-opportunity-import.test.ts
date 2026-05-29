@@ -17,6 +17,7 @@ const fetchUngmOpportunitiesMock = vi.hoisted(() => vi.fn());
 const isUngmUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("ungm.org")));
 const getCloakBrowserEndpointMock = vi.hoisted(() => vi.fn());
 const scrapeWithCloakBrowserMock = vi.hoisted(() => vi.fn());
+const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
 
 vi.mock("@/lib/auth-utils", () => ({
@@ -53,6 +54,10 @@ vi.mock("@/lib/services/ungm-client", () => ({
 vi.mock("@/lib/services/cloakbrowser-scraper-client", () => ({
 	getCloakBrowserEndpoint: getCloakBrowserEndpointMock,
 	scrapeWithCloakBrowser: scrapeWithCloakBrowserMock,
+}));
+
+vi.mock("@/lib/security/public-url", () => ({
+	fetchPublicHttpUrl: fetchPublicHttpUrlMock,
 }));
 
 vi.mock("@/lib/actions/opportunities", () => ({
@@ -147,6 +152,10 @@ beforeEach(() => {
 		success: false,
 		error: "CloakBrowser endpoint is not configured",
 	});
+	fetchPublicHttpUrlMock.mockResolvedValue(new Response("pdf", {
+		status: 200,
+		headers: { "content-type": "application/pdf" },
+	}));
 	downloadDocumentMock.mockResolvedValue({ success: true, documentId: "source-doc-1" });
 	fetchMock.mockResolvedValue({
 		ok: false,
@@ -2587,6 +2596,95 @@ describe("discoverAndImportOpportunities", () => {
 					resultEngine: "firecrawl-source",
 					scrapeMethod: "firecrawl",
 					scrapedWithFirecrawl: true,
+					sourceUrl: "https://www.afdb.org/en/projects-and-operations/procurement",
+				}),
+			}),
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+	});
+
+	it("recovers AFDB configured sources through SearXNG document fallback when the listing is blocked", async () => {
+		const documentUrl = "https://borrower.example/procurement/afdb-reoi-mobile-data-collection.pdf";
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "Security verification required",
+				links: [],
+				metadata: { title: "Just a moment" },
+			},
+		});
+		searchSearxngMock.mockResolvedValue({
+			query: "afdb procurement reoi pdf consulting services",
+			number_of_results: 1,
+			results: [{
+				title: "AfDB REOI - Mobile data collection consulting services",
+				url: documentUrl,
+				content: "African Development Bank request for expressions of interest for consulting services.",
+				engine: "duckduckgo",
+				score: 0.92,
+			}],
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response("pdf", {
+			status: 200,
+			headers: { "content-type": "application/pdf" },
+		}));
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.afdb.org/en/projects-and-operations/procurement"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(result.warnings).toEqual([]);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.afdb.org/en/projects-and-operations/procurement",
+				status: "healthy",
+				candidates: 1,
+				warnings: 0,
+			}),
+		]);
+		expect(searchSearxngMock).toHaveBeenCalledWith(
+			"afdb procurement reoi pdf consulting services",
+			expect.objectContaining({
+				engines: ["google", "duckduckgo", "bing", "brave"],
+				sendAcceptHeader: false,
+			})
+		);
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			documentUrl,
+			expect.objectContaining({
+				headers: expect.objectContaining({ Range: "bytes=0-1023" }),
+				timeoutMs: 15000,
+			}),
+			"AFDB discovery fallback document probe"
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "afdb",
+			sourcePlatform: "African Development Bank",
+			sourceFile: "source:https://www.afdb.org/en/projects-and-operations/procurement",
+			title: "AfDB REOI - Mobile data collection consulting services",
+			category: "Expression of interest",
+			opportunityType: "eoi",
+			rfpLink: documentUrl,
+			documentUrl,
+			tags: expect.arrayContaining(["external-discovery", "source-scrape", "afdb", "development-bank", "regional-procurement", "search-fallback"]),
+			metadata: expect.objectContaining({
+				afdb: expect.objectContaining({
+					discoveryMethod: "searxng-document-search",
+					engine: "duckduckgo",
+				}),
+				discovery: expect.objectContaining({
+					resultEngine: "duckduckgo",
+					scrapeMethod: "source_api",
 					sourceUrl: "https://www.afdb.org/en/projects-and-operations/procurement",
 				}),
 			}),

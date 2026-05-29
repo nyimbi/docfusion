@@ -18,6 +18,7 @@ import { getCloakBrowserEndpoint, scrapeWithCloakBrowser } from "@/lib/services/
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
 import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 import { downloadDocument, type DownloadParseMode, type DownloadParseStatus } from "@/lib/services/rfp-document-service";
+import { fetchPublicHttpUrl } from "@/lib/security/public-url";
 import {
 	getSearxngBaseUrl,
 	searchSearxng,
@@ -271,6 +272,12 @@ const DOCUMENT_LINK_KEYWORDS = [
 	"terms of reference",
 	"tor",
 ];
+const AFDB_SEARCH_FALLBACK_QUERIES = [
+	"afdb procurement reoi pdf consulting services",
+	"afdb project related procurement request for expressions of interest pdf",
+	"afdb procurement request for proposal pdf",
+	"afdb procurement tender pdf consulting",
+];
 
 function sha256Hex(value: string): string {
 	return createHash("sha256").update(value).digest("hex");
@@ -291,6 +298,15 @@ function sourceOpportunityIdentity(opportunity: OpportunityData, sourceUrl: stri
 	const url = opportunity.documentUrl ?? opportunity.rfpLink ?? opportunity.portalUrl;
 	if (url) return normalizeUrlForIdentity(url);
 	return `${normalizeUrlForIdentity(sourceUrl)}#${opportunity.sourceId ?? opportunity.noticeId ?? opportunity.title}`;
+}
+
+function isAfdbSourceUrl(sourceUrl: string): boolean {
+	try {
+		const parsed = new URL(sourceUrl);
+		return /(^|\.)afdb\.org$/i.test(parsed.hostname);
+	} catch {
+		return false;
+	}
 }
 
 function compactText(value: string | undefined | null, maxLength: number): string | undefined {
@@ -1285,6 +1301,13 @@ async function discoverConfiguredSourceCandidates(
 			browserFallback: input.browserFallback ?? true,
 		});
 		if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
+			if (isAfdbSourceUrl(sourceUrl)) {
+				const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+				if (fallbackResult.handled) {
+					candidates.push(...fallbackResult.candidates);
+					continue;
+				}
+			}
 			warnings.push({
 				type: sourceResult.method === "browser_fallback"
 					? "browser_fallback_failed"
@@ -1301,6 +1324,13 @@ async function discoverConfiguredSourceCandidates(
 
 		const { parser, parseResult, scrapeResult } = sourceResult;
 		if (!parseResult.opportunities.length) {
+			if (isAfdbSourceUrl(sourceUrl)) {
+				const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+				if (fallbackResult.handled) {
+					candidates.push(...fallbackResult.candidates);
+					continue;
+				}
+			}
 			warnings.push({
 				type: "source_scrape_empty",
 				query: `source:${sourceUrl}`,
@@ -2152,6 +2182,162 @@ async function discoverUngmCandidates(
 		});
 		return { handled: false, candidates: [] };
 	}
+}
+
+async function discoverAfdbSearchFallbackCandidates(
+	sourceUrl: string,
+	limitPerSource: number,
+	seenUrls: Set<string>,
+	warnings: DiscoveryRunWarning[]
+): Promise<{ handled: boolean; candidates: DiscoveryCandidate[] }> {
+	const candidates: DiscoveryCandidate[] = [];
+	const seenDocuments = new Set<string>();
+	let lastError: string | undefined;
+
+	for (const query of AFDB_SEARCH_FALLBACK_QUERIES) {
+		try {
+			const response = await searchSearxng(query, {
+				engines: ["google", "duckduckgo", "bing", "brave"],
+				sendAcceptHeader: false,
+			});
+			for (const result of response.results) {
+				const opportunity = afdbOpportunityFromSearchResult(result, query);
+				if (!opportunity) continue;
+				const documentUrl = opportunity.documentUrl ?? opportunity.rfpLink;
+				if (!documentUrl) continue;
+
+				const identity = sourceOpportunityIdentity(opportunity, sourceUrl);
+				if (seenDocuments.has(identity) || seenUrls.has(identity)) continue;
+				if (!(await isDownloadableAfdbSearchDocument(documentUrl))) continue;
+
+				seenDocuments.add(identity);
+				seenUrls.add(identity);
+				candidates.push({
+					query: `source:${sourceUrl}`,
+					discoveryMethod: "source_scrape",
+					sourceUrl,
+					opportunity,
+					sourceTotal: response.number_of_results || response.results.length,
+					result: {
+						...result,
+						url: opportunity.portalUrl ?? result.url,
+						content: opportunity.projectSummary ?? result.content,
+						category: opportunity.category ?? result.category,
+					},
+					scrape: {
+						success: true,
+						title: opportunity.title,
+						description: opportunity.projectSummary,
+						markdown: [
+							`# ${opportunity.title}`,
+							`Discovery: AFDB SearXNG document fallback`,
+							`Query: ${query}`,
+							`Document: ${documentUrl}`,
+							opportunity.portalUrl ? `Search result: ${opportunity.portalUrl}` : undefined,
+						].filter(Boolean).join("\n"),
+						links: [documentUrl],
+						method: "source_api",
+						fallbackReason: "AFDB listing scrape returned blocked or empty content",
+					},
+				});
+
+				if (candidates.length >= limitPerSource) {
+					return { handled: true, candidates };
+				}
+			}
+		} catch (error) {
+			lastError = error instanceof Error ? error.message : String(error);
+		}
+	}
+
+	if (candidates.length > 0) return { handled: true, candidates };
+
+	warnings.push({
+		type: lastError ? "source_scrape_failed" : "source_scrape_empty",
+		query: `source:${sourceUrl}`,
+		title: lastError ? "AFDB search fallback failed" : "AFDB search fallback found no documents",
+		url: sourceUrl,
+		message: lastError
+			? `AFDB listing scrape was unusable and SearXNG document fallback failed: ${lastError}`
+			: "AFDB listing scrape was unusable and SearXNG document fallback found no downloadable procurement documents.",
+	});
+	return { handled: true, candidates: [] };
+}
+
+function afdbOpportunityFromSearchResult(result: SearxngResult, query: string): OpportunityData | undefined {
+	const documentUrl = afdbDocumentUrlFromSearchResult(result);
+	if (!documentUrl) return undefined;
+	const title = cleanAfdbSearchTitle(result.title);
+	const haystack = `${title} ${result.content} ${documentUrl}`.toLowerCase();
+	if (!/(reoi|eoi|ifb|spn|request|expression of interest|tender|procurement|consultant|consulting)/iu.test(haystack)) {
+		return undefined;
+	}
+
+	const sourceId = `afdb-search-${sha256Hex(documentUrl).slice(0, 24)}`;
+	const isExpressionOfInterest = /expression of interest|\breoi\b|\beoi\b/iu.test(haystack);
+	return {
+		title,
+		source: "afdb",
+		sourceId,
+		noticeId: sourceId,
+		organization: "African Development Bank",
+		category: isExpressionOfInterest ? "Expression of interest" : "Tender",
+		opportunityType: isExpressionOfInterest ? "eoi" : "tender",
+		portalUrl: result.url,
+		documentUrl,
+		rfpLink: documentUrl,
+		projectSummary: result.content || title,
+		tags: ["afdb", "development-bank", "regional-procurement", "search-fallback"],
+		metadata: {
+			afdb: {
+				discoveryMethod: "searxng-document-search",
+				query,
+				engine: result.engine,
+				score: result.score,
+			},
+		},
+	};
+}
+
+function afdbDocumentUrlFromSearchResult(result: SearxngResult): string | undefined {
+	try {
+		const parsed = new URL(result.url);
+		if (!/\.(pdf|docx?)(?:$|[?#])/iu.test(parsed.pathname)) return undefined;
+		if (/operations?[-_]?procurement[-_]?manual|opm-part|procurement[-_]?policy/iu.test(parsed.pathname)) return undefined;
+		const haystack = `${result.title} ${result.content} ${result.url}`.toLowerCase();
+		if (/(^|\.)afdb\.org$/iu.test(parsed.hostname)) return undefined;
+		if (!/(african development bank|afdb)/iu.test(haystack)) return undefined;
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return undefined;
+	}
+}
+
+async function isDownloadableAfdbSearchDocument(documentUrl: string): Promise<boolean> {
+	try {
+		const response = await fetchPublicHttpUrl(documentUrl, {
+			headers: {
+				"User-Agent": "DocFusion/1.0 opportunity-discovery",
+				Range: "bytes=0-1023",
+			},
+			timeoutMs: 15000,
+		}, "AFDB discovery fallback document probe");
+		if (!response.ok) return false;
+		const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+		return !contentType.includes("text/html");
+	} catch {
+		return false;
+	}
+}
+
+function cleanAfdbSearchTitle(title: string): string {
+	return title
+		.replace(/\s*-\s*African Development Bank\s*$/iu, "")
+		.replace(/\s*\.\.\.\s*$/u, "")
+		.replace(/\s+/gu, " ")
+		.trim()
+		|| "AFDB procurement opportunity";
 }
 
 function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | null {
