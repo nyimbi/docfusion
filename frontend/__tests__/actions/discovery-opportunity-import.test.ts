@@ -1838,6 +1838,79 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports Nigeria NOCOPO published records from the public Open Data handler", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => JSON.stringify({
+				iTotalRecords: 99447,
+				iTotalDisplayRecords: 99421,
+				aaData: [{
+					TotalCount: 99421,
+					ID: 263331,
+					MDA_NAME_ONLY: "FEDERAL COLLEGE OF FORESTRY IBADAN",
+					MDA_Code: "ocds-gyl66f-535011001-000010",
+					pi_Project_Title: "Procurement of Laboratory and ICT Equipment, Workshop, Farm Machinery and Implements",
+					pi_Package_Number: "FCF/24/01",
+					pi_Lot_Number: "LOT 1",
+					DatePublished: "2026-05-29T16:24:34.607",
+					pb_BudgetYear: "2024",
+					pb_Project_State_Item: "OYO",
+					bd_Procurement_Category_FK_Item: "Goods",
+					bd_Procurement_Method_FK_Item: "Open Competitive Bidding",
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://nocopo.bpp.gov.ng/Open-Data"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			expect.stringContaining("https://nocopo.bpp.gov.ng/PublishedRecordHandler.ashx?"),
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "application/json,text/javascript,*/*",
+					Referer: "https://nocopo.bpp.gov.ng/Open-Data",
+					"X-Requested-With": "XMLHttpRequest",
+				}),
+			})
+		);
+		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("sSortDir_0=desc");
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Procurement of Laboratory and ICT Equipment, Workshop, Farm Machinery and Implements",
+			source: "source-scrape",
+			sourceId: "nocopo-ocds-gyl66f-535011001-000010",
+			sourcePlatform: "Nigeria NOCOPO",
+			sourceFile: "source:https://nocopo.bpp.gov.ng/Open-Data",
+			countryRegion: "Nigeria - OYO",
+			opportunityType: "tender",
+			rfpLink: "https://nocopo.bpp.gov.ng/downloadJson.ashx?ty=1&ocid=ocds-gyl66f-535011001-000010",
+			tags: ["external-discovery", "source-scrape", "nocopo", "nigeria", "national-procurement", "open-contracting", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://nocopo.bpp.gov.ng/Open-Data",
+					scrapeMethod: "source_api",
+				}),
+				nocopo: expect.objectContaining({
+					ocid: "ocds-gyl66f-535011001-000010",
+					totalCount: 99421,
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

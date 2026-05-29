@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Nigeria NOCOPO Open Data Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: aggressively expand national-procurement acquisition with Nigeria's NOCOPO Open Data portal, whose public DataTables handler reported 99,421 display records from this environment and supports sorting latest published records first.
+
+Changes in this slice:
+- Added a Nigeria NOCOPO parser for `https://nocopo.bpp.gov.ng/Open-Data`, fetching the unauthenticated `PublishedRecordHandler.ashx` JSON endpoint directly instead of relying on rendered table scraping.
+- Sorted source collection by `DatePublished` descending and bounded default collection with `NOCOPO_MAX_PAGES` and `NOCOPO_PAGE_LENGTH`, so scheduled runs can broaden coverage without attempting the full archive in one pass.
+- Extracted OCID, project title, contracting authority, package/lot, publication date, budget metadata, procurement metadata, state where available, portal search URL, and per-record OCDS JSON download URL.
+- Routed NOCOPO through the source-API path, added it to default configured sources and targeted search queries, and added live proof-script support.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/nocopo-nigeria-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 53 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_nocopo_nigeria_source_20260529T2348` parsed 10 NOCOPO opportunities via `source_api` with `NOCOPO_MAX_PAGES=1` and `NOCOPO_PAGE_LENGTH=10`.
+- Live DB import `live_nocopo_nigeria_import_20260529T2348` processed 30 NOCOPO candidates, imported 30, failed 0, emitted 0 warnings, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,748 total opportunities, 1,775 RFP-typed opportunities, 30 NOCOPO Nigeria opportunities, 4 CPBN Namibia opportunities, 30 MANEPS Malawi opportunities, 30 ZPPA opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- NOCOPO exposes per-record OCDS JSON links rather than direct tender PDFs in the list endpoint; this slice imports the opportunity metadata and JSON link but does not create source-document rows.
+- Consider scheduled deeper NOCOPO runs by raising `NOCOPO_MAX_PAGES` after confirming database/write capacity and deduplication behavior at larger volumes.
+
 ### 2026-05-29 - Add Namibia CPBN Open Bids Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

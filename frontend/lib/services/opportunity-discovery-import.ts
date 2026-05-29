@@ -299,6 +299,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?ghaneps\.gov\.gh\/epps\/quickSearchAction\.do/i,
 	/\/\/eprocure\.zppa\.org\.zm\/epps\/quickSearchAction\.do/i,
 	/\/\/maneps\.mw\/rms\/api\/tender-notices\/active-tenders-search/i,
+	/\/\/(?:www\.)?nocopo\.bpp\.gov\.ng\/(?:Open-Data|PublishedRecordHandler\.ashx)/i,
 	/\/\/(?:www\.)?cpbn\.com\.na\/index\/external\/2/i,
 	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
 	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
@@ -465,6 +466,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "ghaneps.gov.gh" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "ghaneps";
 	else if (host === "eprocure.zppa.org.zm" && safeUrlPathname(sourceUrl).startsWith("/epps/quickSearchAction.do")) sourceId = "zppa_zambia";
 	else if (host === "maneps.mw" && safeUrlPathname(sourceUrl).startsWith("/rms/api/tender-notices/active-tenders-search")) sourceId = "maneps_malawi";
+	else if (host === "nocopo.bpp.gov.ng" && /^\/(?:Open-Data|PublishedRecordHandler\.ashx)/.test(safeUrlPathname(sourceUrl))) sourceId = "nocopo_nigeria";
 	else if (host === "cpbn.com.na" && safeUrlPathname(sourceUrl).startsWith("/index/external/2")) sourceId = "cpbn_namibia";
 	else if (host === "ocds-api.etenders.gov.za" && safeUrlPathname(sourceUrl).startsWith("/api/OCDSReleases")) sourceId = "etenders_sa";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
@@ -485,6 +487,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "ghaneps"
 		|| parser.sourceId === "zppa_zambia"
 		|| parser.sourceId === "maneps_malawi"
+		|| parser.sourceId === "nocopo_nigeria"
 		|| parser.sourceId === "cpbn_namibia"
 		|| parser.sourceId === "etenders_sa";
 }
@@ -871,6 +874,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
 	if (opportunity?.source === "etenders_sa") return "South Africa eTenders";
 	if (opportunity?.source === "maneps_malawi") return "MANEPS Malawi";
+	if (opportunity?.source === "nocopo_nigeria") return "Nigeria NOCOPO";
 	if (opportunity?.source === "cpbn_namibia") return "Namibia CPBN";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
@@ -900,6 +904,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
 		...(opportunity?.source === "etenders_sa" ? ["etenders-sa", "south-africa", "national-procurement", "ocds"] : []),
 		...(opportunity?.source === "maneps_malawi" ? ["maneps", "malawi", "national-procurement"] : []),
+		...(opportunity?.source === "nocopo_nigeria" ? ["nocopo", "nigeria", "national-procurement", "open-contracting"] : []),
 		...(opportunity?.source === "cpbn_namibia" ? ["cpbn", "namibia", "national-procurement"] : []),
 		...(opportunity?.tags ?? []),
 	])];
