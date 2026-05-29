@@ -97,6 +97,11 @@ Verification:
 - Second dry-run `source_doc_intake_gh_zm_batch2_dry_20260530T0127` selected 12 more endpoint notices from the enlarged queue: 6 Zambia ZPPA and 6 Ghana GHANEPS.
 - Second live intake `source_doc_intake_gh_zm_batch2_live_20260530T0128` selected 12, downloaded 12, failed 0, skipped 0, completed 12 parse jobs, timed out 0 parse jobs, and extracted 97 more requirements.
 - Live database verification after both endpoint intake batches: Ghana GHANEPS has 81 opportunities, 81 source-document rows, 10 downloaded RFP documents, 23,442 extracted text characters, and 103 extracted `rfp_requirements`; Zambia ZPPA has 101 opportunities, 100 source-document rows, 10 downloaded RFP documents, 20,864 extracted text characters, and 56 extracted `rfp_requirements`.
+- Third dry-run `source_doc_intake_gh_zm_batch3_dry_20260530T0250` selected 20 additional trusted endpoint notices, split across 10 Zambia ZPPA and 10 Ghana GHANEPS documents.
+- Third live intake `source_doc_intake_gh_zm_batch3_live_20260530T0251` selected 20, downloaded 20, failed 0, skipped 0, completed 20 parse jobs, timed out 0 parse jobs, and extracted 151 requirements.
+- The third live batch used local `pdftotext` for every selected notice endpoint; no Docling fallback was needed.
+- Updated live database verification after the third endpoint intake batch: Ghana GHANEPS has 20 downloaded source documents, 23,115 extracted source-document text characters, and 201 extracted `rfp_requirements`; Zambia ZPPA has 20 downloaded source documents, 19,977 extracted source-document text characters, and 117 extracted `rfp_requirements`.
+- Updated global live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 327 RFP documents with extracted text, 31,583,498 extracted text characters, and 2,407 extracted `rfp_requirements`.
 - Current live opportunity snapshot is 3,947 total opportunities and 1,800 RFP-typed opportunities.
 
 Remaining after this slice:
