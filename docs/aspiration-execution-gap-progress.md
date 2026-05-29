@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Unlock Ghana/Zambia Notice Endpoint Intake
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: make national procurement source-document intake materially broader by accepting trusted Ghana GHANEPS and Zambia ZPPA notice-download endpoints even when the public portals omit file extensions from their PDF URLs.
+
+Changes in this slice:
+- Added trusted direct-document endpoint recognition for GHANEPS and ZPPA `downloadNoticeForAdvSearch.do?resourceId=...` source-document URLs in the intake selector.
+- Added a regression helper proving GHANEPS/ZPPA notice endpoints are intake-supported while Rwanda UMUCYO's repeated advertising-list URL is not treated as a per-opportunity source document.
+- Kept the broader extension-based source-document gate intact for ordinary PDF/DOC/DOCX/HTML/XLS/ZIP records.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 7 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Dry-run `source_doc_intake_gh_zm_endpoint_dry_20260530T0118` selected 8 previously excluded national notice endpoints: 4 Zambia ZPPA and 4 Ghana GHANEPS.
+- Live intake `source_doc_intake_gh_zm_endpoint_live_20260530T0119` selected 8, downloaded 8, failed 0, skipped 0, completed 8 parse jobs, timed out 0 parse jobs, and extracted 62 total requirements.
+- Live database verification after the run: Ghana GHANEPS has 30 source-document rows with 4 downloaded and 4 created RFP documents containing 9,226 extracted text characters; Zambia ZPPA has 30 source-document rows with 4 downloaded and 4 created RFP documents containing 8,922 extracted text characters.
+- Live `rfp_requirements` verification for the 8 created RFP documents: 46 Ghana GHANEPS requirements and 16 Zambia ZPPA requirements.
+- Current live opportunity snapshot remains 3,827 total opportunities and 1,797 RFP-typed opportunities.
+
+Remaining after this slice:
+- Continue bounded Ghana/Zambia endpoint intake in additional batches.
+- Solve Rwanda UMUCYO per-tender detail/document expansion separately; its current source-document rows point to the common advertising-list page, not a durable per-opportunity document.
+
 ### 2026-05-30 - Prove Targeted ESPPRA Source Document Intake
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
@@ -35,6 +59,8 @@ Verification:
 - Fixed live retry `source_doc_intake_esppra_retry_live_20260530T0055` selected 5 ESPPRA PDFs, downloaded 5, failed 0, completed 5 parse jobs, timed out 0 parse jobs, and extracted 66 total requirements.
 - The ESPPRA retry used `local_pdftotext` for every selected PDF before any Docling fallback; extracted text lengths observed in logs ranged from 2,453 to 178,721 characters.
 - Post-run live database snapshot for ESPPRA: 35 opportunity-document rows total, 5 downloaded, 5 with extracted text; the 5 new parsing jobs were all `completed` with 66 total requirements extracted.
+- Follow-up live batch `source_doc_intake_esppra_batch2_live_20260530T0104` selected 8 additional ESPPRA PDFs, downloaded 8, failed 0, completed 8 parse jobs, timed out 0 parse jobs, and extracted 63 more requirements.
+- Updated ESPPRA live database snapshot after the follow-up batch: 35 opportunity-document rows total, 13 downloaded, 13 with extracted text, and 129 requirements extracted across the 13 completed ESPPRA parse jobs.
 
 Remaining after this slice:
 - Continue bounded targeted intake over the remaining ESPPRA PDFs.

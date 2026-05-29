@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	isLikelySolicitationSource,
 	isRoutineSourceCandidate,
+	isSupportedDocumentSource,
 	parseCsvList,
 	scoreSourceDocumentIntakeCandidate,
 } from "../../scripts/run-source-document-intake";
@@ -82,5 +83,20 @@ describe("source document intake selection helpers", () => {
 			"UNGM",
 		]);
 		expect(parseCsvList(undefined)).toEqual([]);
+	});
+
+	it("accepts trusted national notice download endpoints without file extensions", () => {
+		expect(isSupportedDocumentSource({
+			documentName: "downloadNoticeForAdvSearch.do",
+			sourceUrl: "https://www.ghaneps.gov.gh/epps/cft/downloadNoticeForAdvSearch.do?resourceId=2942583",
+		})).toBe(true);
+		expect(isSupportedDocumentSource({
+			documentName: "downloadNoticeForAdvSearch.do",
+			sourceUrl: "https://eprocure.zppa.org.zm/epps/cft/downloadNoticeForAdvSearch.do?resourceId=26822144",
+		})).toBe(true);
+		expect(isSupportedDocumentSource({
+			documentName: "selectListAdvertisingListForGU.do",
+			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100",
+		})).toBe(false);
 	});
 });

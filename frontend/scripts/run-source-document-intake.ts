@@ -20,6 +20,9 @@ const RUN_ID = process.env.SOURCE_DOCUMENT_INTAKE_RUN_ID ?? createProofRunId("so
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "source-document-intake" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
+const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN = /https:\/\/(?:www\.ghaneps\.gov\.gh|eprocure\.zppa\.org\.zm)\/epps\/cft\/downloadNoticeForAdvSearch\.do\?[^#\s]*\bresourceId=\d+\b/i;
+const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
+	"https://(www\\.ghaneps\\.gov\\.gh|eprocure\\.zppa\\.org\\.zm)/epps/cft/downloadNoticeForAdvSearch\\.do\\?[^#[:space:]]*\\mresourceId=[0-9]+\\M";
 const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|\bprocurement[-_\s]?report\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bbidder[-_\s]?instructions\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b|\bsenior[-_\s]?procurement[-_\s]?executive[-_\s]?message\b|\blapse[-_\s]?in[-_\s]?appropriations\b|\bjustification[-_\s]?and[-_\s]?approval\b|\bother[-_\s]?than[-_\s]?full[-_\s]?and[-_\s]?open[-_\s]?competition\b|\btips\.pdf\b|\bconduct[-_\s]?english\.pdf\b|\b(?:supplier|vendor)[-_\s]?(?:code[-_\s]?of[-_\s]?)?conduct\b|\bguide[-_\s]?\d*[-_\s]?submit[-_\s]?quotations[-_\s]?bids[-_\s]?proposals\b|\bentities[-_\s]*[-_\s]?20\d{2}[-_\s]?quarter\b|\bnpm[-_.\s]?no\.?[-_.\s]?\d+(?:[-_.\s]?\d+)?\b)/i;
 const PROTECTED_403_RETRY_HOSTS = new Set(["www.dgmarket.com", "dgmarket.com"]);
 
@@ -194,6 +197,10 @@ async function selectDiscoveredDocuments(
 			ilike(opportunityDocuments.sourceUrl, `%${extension}%`),
 		])
 	);
+	const documentSourceCondition = or(
+		extensionCondition,
+		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN}`
+	);
 	const conditions = [
 		config.retryFailed
 			? inArray(opportunityDocuments.status, ["discovered", "failed"])
@@ -210,7 +217,7 @@ async function selectDiscoveredDocuments(
 			  AND (prior.status = 'downloaded' OR prior.download_attempts > 0)
 		)`,
 		sql`(${schema.opportunities.deadline} is null or ${schema.opportunities.deadline} >= now())`,
-		extensionCondition,
+		documentSourceCondition,
 	];
 	if (config.organizationId) {
 		conditions.push(eq(opportunityDocuments.organizationId, config.organizationId));
@@ -329,6 +336,12 @@ function sourceHost(value: string): string {
 export function isLikelySolicitationSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`;
 	return !NON_SOLICITATION_DOCUMENT_PATTERN.test(haystack);
+}
+
+export function isSupportedDocumentSource(value: { documentName: string; sourceUrl: string }): boolean {
+	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`.toLowerCase();
+	return SUPPORTED_DOCUMENT_PATTERNS.some((extension) => haystack.includes(extension))
+		|| TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN.test(value.sourceUrl);
 }
 
 export function scoreSourceDocumentIntakeCandidate(value: { documentName: string; sourceUrl: string }): number {
