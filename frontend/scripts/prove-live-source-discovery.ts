@@ -227,11 +227,17 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) return getParser("eu_funding_tenders") ?? genericParser;
 	if (host.includes("dgmarket.com")) return getParser("dgmarket") ?? genericParser;
 	if (host.includes("giz.de") && new URL(sourceUrl).pathname.endsWith("/tenders")) return getParser("giz") ?? genericParser;
+	if (host === "nest.go.tz" && new URL(sourceUrl).pathname.includes("/nest-data-portal-api/api/releases")) return getParser("nest_tanzania") ?? genericParser;
 	return genericParser;
 }
 
 function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib" || parser.sourceId === "world_bank";
+	return parser.sourceId === "sam_gov"
+		|| parser.sourceId === "eu_funding_tenders"
+		|| parser.sourceId === "adb"
+		|| parser.sourceId === "aiib"
+		|| parser.sourceId === "world_bank"
+		|| parser.sourceId === "nest_tanzania";
 }
 
 async function writeArtifacts(proof: LiveSourceDiscoveryProof, disposition: EvidenceRecord["disposition"]) {

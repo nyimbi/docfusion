@@ -375,11 +375,17 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("unicef.org")) sourceId = "unicef";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
+	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
 
 function isSourceApiParser(parser: TenderParser): boolean {
-	return parser.sourceId === "sam_gov" || parser.sourceId === "eu_funding_tenders" || parser.sourceId === "adb" || parser.sourceId === "aiib" || parser.sourceId === "world_bank";
+	return parser.sourceId === "sam_gov"
+		|| parser.sourceId === "eu_funding_tenders"
+		|| parser.sourceId === "adb"
+		|| parser.sourceId === "aiib"
+		|| parser.sourceId === "world_bank"
+		|| parser.sourceId === "nest_tanzania";
 }
 
 function isLowValueDiscoveryUrl(url: string | undefined): boolean {
@@ -759,6 +765,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
 	if (opportunity?.source === "giz") return "GIZ";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
+	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -782,6 +789,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
+		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }

@@ -1471,6 +1471,85 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports NeST Tanzania releases from the public OCDS API", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				links: { next: null },
+				releases: [{
+					id: "6eaef89e-e6c9-4b40-8622-f1afc6a61273",
+					ocid: "ocds-mv5oob-122383-3-2025-2026-G-32-S003",
+					date: "2026-05-27T00:00:00Z",
+					tag: ["tender"],
+					buyer: { id: "buyer-1", name: "MWACHAMBIA DISPENSARY" },
+					parties: [{
+						id: "buyer-1",
+						name: "MWACHAMBIA DISPENSARY",
+						address: { region: "SINGIDA", countryName: "TZ" },
+					}],
+					tender: {
+						id: "122383-3/2025/2026/G/32-S003",
+						description: "Supply of Information and Communication Technology Equipment",
+						status: "active",
+						procurementMethod: "open",
+						procurementMethodDetails: "National competitive tendering",
+						procuringEntity: { id: "buyer-1", name: "MWACHAMBIA DISPENSARY" },
+						tenderPeriod: {
+							startDate: "2026-05-27T00:00:00Z",
+							endDate: "2026-06-01T11:30:00Z",
+						},
+						items: [{
+							description: "Network equipment",
+							classification: { scheme: "UNSPSC", id: "43222600", description: "Network service equipment" },
+						}],
+					},
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://nest.go.tz/gateway/nest-data-portal-api/api/releases"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://nest.go.tz/gateway/nest-data-portal-api/api/releases?since=2026-05-27T00%3A00%3A00.000Z",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "application/json",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Supply of Information and Communication Technology Equipment",
+			source: "source-scrape",
+			sourceId: "nest-ocds-mv5oob-122383-3-2025-2026-G-32-S003",
+			sourcePlatform: "NeST Tanzania",
+			sourceFile: "source:https://nest.go.tz/gateway/nest-data-portal-api/api/releases",
+			countryRegion: "Tanzania",
+			opportunityType: "tender",
+			tags: ["external-discovery", "source-scrape", "nest-tanzania", "tanzania", "national-procurement", "ocds", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://nest.go.tz/gateway/nest-data-portal-api/api/releases",
+				}),
+			}),
+		}));
+	});
+
 	it("imports EU Funding & Tenders calls from the SEDIA search endpoint", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

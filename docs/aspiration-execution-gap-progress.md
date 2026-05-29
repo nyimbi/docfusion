@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add NeST Tanzania Source API Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: replace the stale PPRA Tanzania configured source with the public NeST Tanzania OCDS releases API so Tanzania opportunities are collected through a reliable source feed instead of generic scraping of blocked or empty pages.
+
+Changes in this slice:
+- Added a NeST Tanzania source API parser for `https://nest.go.tz/gateway/nest-data-portal-api/api/releases`.
+- The parser adds a rolling two-day `since` cursor when the configured URL has none, follows bounded `links.next` pagination, filters expired/cancelled/complete releases, and emits normalized opportunity records with buyer, notice ID, deadline, direct release URL, region, procurement method, OCDS metadata, and source tags.
+- Routed NeST source URLs through the source API path in both discovery import and live source proof scripts.
+- Replaced the default stale `https://www.ppra.go.tz/tenders` source URL and PPRA search query with the NeST releases API and an indexed NeST JSON search query.
+
+Verification:
+- `npx vitest run __tests__/scrapers/nest-tanzania-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 45 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live source proof `live_nest_tanzania_source_20260529T120156Z` passed; the NeST source API path returned 100 normalized current opportunities and sample direct release URLs without Firecrawl/browser dependency.
+- Live DB import `live_nest_tanzania_import_20260529T1202` passed with downloads disabled; it processed 50 candidates, imported 50 new opportunities, failed 0, emitted 0 warnings, created 50 source-document rows, and marked the NeST source healthy.
+- Post-run live database snapshot: 3,302 total opportunities, 1,722 RFP-typed opportunities, and 50 NeST Tanzania opportunities.
+
+Remaining after this slice:
+- The NeST API is now a high-yield configured source, but public `searx.space` fallback instances are still best-effort because many reject server-side searches with 403/418/429. A trusted `SEARXNG_FALLBACK_URLS` pool remains the reliable fallback-capacity fix.
+- Continue adding source-specific parsers/API paths for other empty configured sources instead of spending time on fine-grained generic parser edits.
+
 ### 2026-05-29 - Trigger SearXNG Fallback On Weak Primary Fan-Out
 
 Status: implemented, focused-test verified, typechecked, and live-probed.
