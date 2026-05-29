@@ -218,6 +218,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
 	if (host === "un.org" && new URL(sourceUrl).pathname.startsWith("/procurement/")) return getParser("un_procurement") ?? genericParser;
+	if (host.includes("iom.int") && new URL(sourceUrl).pathname.startsWith("/procurement-opportunities")) return getParser("iom") ?? genericParser;
 	if (host.includes("unicef.org")) return getParser("unicef") ?? genericParser;
 	if (host.includes("procurement-notices.undp.org")) return getParser("undp") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
@@ -237,6 +238,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "adb"
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
+		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania";
 }
 

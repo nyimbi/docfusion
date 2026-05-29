@@ -1471,6 +1471,75 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports IOM procurement rows with solicitation attachments", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => `
+					<ul class="table-row">
+						<li data-label="Invitation to Bid (ITB) Ref. No. &amp; Title" class="specifics">
+							<h2 class="h5"><a href="/request-proposal-rfp-provision-training-10000-returnee-migrants-guinea-business-and-entrepreneurial-skills">Request for Proposal (RFP) for the Provision of Training for 10,000 returnee migrants in Guinea in business and entrepreneurial skills</a></h2>
+							<h3 class="h2 label">30000026651 (RFP 003/GN10/05/2026)</h3>
+							<div class="data" data-preamble="Attachment">
+								<p><a href="/sites/g/files/tmzbdl2616/files/procurement/30000026651_supplier_0.pdf">30000026651_SUPPLIER</a></p>
+								<p><a href="/sites/g/files/tmzbdl2616/files/procurement/rfp003_1.doc">RFP003_1</a></p>
+								<p>Brief Description</p>
+								<p>Training for returnee migrants in entrepreneurial skills.</p>
+							</div>
+						</li>
+						<li data-label="Details" class="details">
+							<span data-preamble="Category" class="data">Services</span>
+							<span data-preamble="Country" class="data">Guinea</span>
+							<span data-preamble="Publication Date" class="data">2026-05-26 </span>
+							<span data-preamble="Closing Date" class="data">2026-06-24</span>
+						</li>
+					</ul>
+				`,
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.iom.int/procurement-opportunities"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.iom.int/procurement-opportunities",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "text/html,application/xhtml+xml",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Request for Proposal (RFP) for the Provision of Training for 10,000 returnee migrants in Guinea in business and entrepreneurial skills",
+			source: "source-scrape",
+			sourceId: "iom-30000026651-rfp-003-gn10-05-2026",
+			sourcePlatform: "IOM",
+			sourceFile: "source:https://www.iom.int/procurement-opportunities",
+			countryRegion: "Guinea",
+			opportunityType: "rfp",
+			documentUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/rfp003_1.doc",
+			tags: ["external-discovery", "source-scrape", "iom", "un-procurement"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://www.iom.int/procurement-opportunities",
+					scrapeMethod: "source_api",
+				}),
+			}),
+		}));
+	});
+
 	it("imports NeST Tanzania releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

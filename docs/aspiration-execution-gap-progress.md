@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover IOM Procurement Source Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: turn the empty IOM configured source into a reliable direct source path that imports current IOM RFP/RFQ/ITB/EOI opportunities and preserves solicitation attachments for response intake.
+
+Changes in this slice:
+- Added an IOM procurement parser for the Drupal table-card rows on `https://www.iom.int/procurement-opportunities`.
+- The parser extracts title, notice/reference ID, category, country, publication date, closing date, summary text, and document attachments.
+- It ranks attachments so RFP/RFQ/ITB/EOI/TOR documents beat supplier, vendor, conduct-code, declaration, guide, and spreadsheet attachments.
+- Routed IOM through the source API path in discovery import and the live source proof script so collection uses direct public HTML fetch instead of Firecrawl/browser scraping, which returned no opportunities or 403 during live proof.
+
+Verification:
+- `npx vitest run __tests__/scrapers/iom-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 43 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source proof `live_iom_procurement_source_20260529T122410Z` passed; the IOM source API path returned 10 normalized opportunities with sample current 2026 RFP/RFQ records.
+- Live DB import `live_iom_procurement_import_20260529T1224` passed with downloads disabled; it processed 10 candidates, imported 7 new opportunities, updated 3, failed 0, emitted 0 warnings, created 9 source-document rows, reused 1, and marked the IOM source healthy.
+- Post-run live database snapshot: 3,309 total opportunities, 1,724 RFP-typed opportunities, and 10 IOM opportunities.
+
+Remaining after this slice:
+- DevBusiness is now a phase-down/static page and should not be treated as a live configured source unless a replacement feed is found.
+- Continue replacing weak or empty generic sources with source-specific parsers/API paths and keep broad source health runs focused on material collection gains.
+
 ### 2026-05-29 - Add NeST Tanzania Source API Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

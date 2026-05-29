@@ -373,6 +373,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
+	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
@@ -385,6 +386,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "adb"
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
+		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania";
 }
 
@@ -763,6 +765,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
+	if (opportunity?.source === "iom") return "IOM";
 	if (opportunity?.source === "giz") return "GIZ";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
@@ -787,6 +790,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
+		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
