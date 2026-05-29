@@ -283,9 +283,9 @@ function shouldRetryOnFallback(response: SearxngSearchResponse, options: SearchO
   if (response.results.length === 0) return true;
   if (response.unresponsive_engines?.length) {
     if (!options.engines?.length) return false;
-    return responseHasRequestedEngineDegradation(response, options);
+    return responseHasRequestedEngineDegradation(response, options) || missingRequestedResultEngines(response, options).length > 0;
   }
-  return responseHasRequestedEngineMismatch(response, options);
+  return missingRequestedResultEngines(response, options).length > 0;
 }
 
 function responseHasRequestedEngineDegradation(response: SearxngSearchResponse, options: SearchOptions): boolean {
@@ -301,23 +301,43 @@ function describeDegradedSearch(response: SearxngSearchResponse, options: Search
   if (response.results.length === 0 && !response.unresponsive_engines?.length) {
     return `${SEARXNG_BASE_URL} returned no results for ${engines}; trying fallback fanout`;
   }
-  if (response.results.length > 0 && responseHasRequestedEngineMismatch(response, options)) {
+  if (response.results.length > 0 && response.unresponsive_engines?.length && responseHasRequestedEngineDegradation(response, options)) {
+    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but requested engine fanout degraded for ${engines}; degraded engines: ${degraded}`;
+  }
+  const missingEngines = missingRequestedResultEngines(response, options);
+  if (response.results.length > 0 && missingEngines.length > 0 && missingEngines.length === requestedSearchEngines(options).length) {
     const observed = observedResultEngines(response).join(", ") || "unknown engines";
     return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s), but none from requested engines ${engines}; observed engines: ${observed}`;
   }
-  if (response.results.length > 0) {
+  if (response.results.length > 0 && missingEngines.length > 0) {
+    const observed = observedResultEngines(response).join(", ") || "unknown engines";
+    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s), but primary fanout missed requested engines ${missingEngines.join(", ")}; observed engines: ${observed}`;
+  }
+  if (response.results.length > 0 && response.unresponsive_engines?.length) {
     return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but requested engine fanout degraded for ${engines}; degraded engines: ${degraded}`;
   }
   return `${SEARXNG_BASE_URL} returned no results for ${engines}; degraded engines: ${degraded}`;
 }
 
 function responseHasRequestedEngineMismatch(response: SearxngSearchResponse, options: SearchOptions): boolean {
-  const requestedEngines = (options.engines ?? []).map(normalizeEngineName).filter(Boolean);
-  if (!requestedEngines.length || response.results.length === 0) return false;
-  return !response.results.some((result) => {
-    const resultEngine = normalizeEngineName(result.engine);
-    return requestedEngines.some((engine) => resultEngine === engine || resultEngine.startsWith(`${engine} `));
-  });
+  const requestedEngines = requestedSearchEngines(options);
+  const missingEngines = missingRequestedResultEngines(response, options);
+  return missingEngines.length > 0 && missingEngines.length === requestedEngines.length;
+}
+
+function requestedSearchEngines(options: SearchOptions): string[] {
+  return Array.from(new Set((options.engines ?? []).map(normalizeEngineName).filter(Boolean)));
+}
+
+function missingRequestedResultEngines(response: SearxngSearchResponse, options: SearchOptions): string[] {
+  const requestedEngines = requestedSearchEngines(options);
+  if (!requestedEngines.length || response.results.length === 0) return [];
+  return requestedEngines.filter((engine) =>
+    !response.results.some((result) => {
+      const resultEngine = normalizeEngineName(result.engine);
+      return resultEngine === engine || resultEngine.startsWith(`${engine} `);
+    })
+  );
 }
 
 function observedResultEngines(response: SearxngSearchResponse): string[] {

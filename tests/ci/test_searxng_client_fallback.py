@@ -231,6 +231,88 @@ async def test_searxng_client_fans_out_when_requested_engine_is_missing(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_searxng_client_fans_out_when_primary_covers_only_some_requested_engines(monkeypatch):
+	monkeypatch.delenv("SEARXNG_FALLBACK_URLS", raising=False)
+	monkeypatch.setenv("SEARXNG_PUBLIC_FALLBACK_LIMIT", "1")
+	monkeypatch.setenv("SEARXNG_SPACE_INSTANCES_URL", "https://searx.space/data/instances.json")
+
+	def handler(request: httpx.Request) -> httpx.Response:
+		if request.url.host == "primary.example":
+			return httpx.Response(
+				200,
+				json={
+					"query": "rfp",
+					"results": [{
+						"title": "Primary Google RFP",
+						"url": "https://buyer.example/google",
+						"content": "Tender notice",
+						"engine": "google",
+						"score": 2.0,
+					}],
+				},
+			)
+		if request.url.host == "searx.space":
+			return httpx.Response(
+				200,
+				json={
+					"instances": {
+						"https://fallback.example/": {
+							"network_type": "normal",
+							"git_url": "https://github.com/searxng/searxng",
+							"http": {"status_code": 200},
+							"engines": {
+								"bing": {"error_rate": 0},
+								"duckduckgo": {"error_rate": 0},
+							},
+							"timing": {"search": {"success_percentage": 100, "all": {"median": 0.2}}},
+						},
+					},
+				},
+			)
+		if request.url.host == "fallback.example":
+			return httpx.Response(
+				200,
+				json={
+					"query": "rfp",
+					"results": [
+						{
+							"title": "Fallback Bing RFP",
+							"url": "https://buyer.example/bing",
+							"content": "Request for bids.",
+							"engine": "bing",
+							"score": 3.0,
+						},
+						{
+							"title": "Fallback DuckDuckGo RFP",
+							"url": "https://buyer.example/ddg",
+							"content": "Request for proposals.",
+							"engine": "duckduckgo",
+							"score": 2.5,
+						},
+					],
+				},
+			)
+		return httpx.Response(404)
+
+	client = SearXNGClient(base_url="https://primary.example")
+	client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+	try:
+		response = await client.search("rfp", engines=["google", "bing", "duckduckgo"], limit=10)
+	finally:
+		await client.close()
+
+	assert [result.title for result in response.results] == [
+		"Primary Google RFP",
+		"Fallback Bing RFP",
+		"Fallback DuckDuckGo RFP",
+	]
+	assert response.source_instances == ["https://primary.example", "https://fallback.example"]
+	assert response.fallback_from == "https://primary.example"
+	assert "missed requested engines bing, duckduckgo" in (response.fallback_reason or "")
+
+
+@pytest.mark.asyncio
 async def test_searxng_client_recovers_from_primary_failure_with_configured_fallback(monkeypatch):
 	monkeypatch.setenv("SEARXNG_FALLBACK_URLS", "https://fallback.example")
 	monkeypatch.setenv("SEARXNG_PUBLIC_FALLBACKS", "0")

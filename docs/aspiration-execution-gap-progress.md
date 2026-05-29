@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Treat Partial SearXNG Engine Coverage As Failed Fan-Out
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: ensure broad RFP search does not silently narrow to one engine when `search.lindela.io` returns some results but misses other explicitly requested engines.
+
+Changes in this slice:
+- Tightened the TypeScript SearXNG client so a primary response that covers only part of the requested engine set now triggers configured/public fallback fan-out from `searx.space`.
+- Applied the same partial-engine coverage rule to the Python infrastructure SearXNG client.
+- Added regression coverage for primary Google-only results recovering missing Bing and DuckDuckGo coverage through a healthy `searx.space` fallback instance.
+
+Verification:
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 18 tests.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 12 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live probe against `site:ungm.org/Public/Notice Request for Proposal software implementation deadline` with Google, DuckDuckGo, Bing, and Brave requested triggered fallback because `search.lindela.io` reported Google access denied. The client attempted four public `searx.space` instances, all rejected automated search with 403/418/429, then recovered 10 extra results through direct DuckDuckGo HTML fallback and returned 14 merged results.
+
+Remaining after this slice:
+- Public `searx.space` instances are still best-effort because many public nodes reject automated JSON/HTML traffic; reliable production capacity still benefits from a trusted `SEARXNG_FALLBACK_URLS` pool.
+
 ### 2026-05-29 - Recover IOM Procurement Source Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

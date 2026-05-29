@@ -329,9 +329,11 @@ class SearXNGClient:
 		if unresponsive:
 			if not requested_engines:
 				return False
-			degraded = " ".join(self._describe_unresponsive_engine(engine) for engine in unresponsive).lower()
-			return any(engine.lower() in degraded for engine in requested_engines)
-		return self._has_requested_engine_mismatch(payload, requested_engines)
+			return (
+				self._has_requested_engine_degradation(payload, requested_engines)
+				or bool(self._missing_requested_result_engines(payload, requested_engines))
+			)
+		return bool(self._missing_requested_result_engines(payload, requested_engines))
 
 	def _describe_degradation(self, payload: dict[str, Any] | None, requested_engines: list[str] | None) -> str:
 		if payload is None:
@@ -339,32 +341,89 @@ class SearXNGClient:
 		engines = ",".join(requested_engines or []) or "default engines"
 		if not payload.get("results") and not payload.get("unresponsive_engines"):
 			return f"{self.base_url} returned no results for {engines}; trying fallback fanout"
-		if payload.get("results") and self._has_requested_engine_mismatch(payload, requested_engines):
+		degraded = "; ".join(
+			self._describe_unresponsive_engine(engine)
+			for engine in payload.get("unresponsive_engines") or []
+		) or "unknown degradation"
+		if (
+			payload.get("results")
+			and payload.get("unresponsive_engines")
+			and self._has_requested_engine_degradation(payload, requested_engines)
+		):
+			return (
+				f"{self.base_url} returned {len(payload.get('results') or [])} result(s) "
+				f"but requested engine fanout degraded for {engines}; degraded engines: {degraded}"
+			)
+		missing_engines = self._missing_requested_result_engines(payload, requested_engines)
+		if (
+			payload.get("results")
+			and missing_engines
+			and len(missing_engines) == len(self._requested_search_engines(requested_engines))
+		):
 			observed = ", ".join(self._observed_result_engines(payload)) or "unknown engines"
 			return (
 				f"{self.base_url} returned {len(payload.get('results') or [])} result(s), "
 				f"but none from requested engines {engines}; observed engines: {observed}"
 			)
-		degraded = "; ".join(
+		if payload.get("results") and missing_engines:
+			observed = ", ".join(self._observed_result_engines(payload)) or "unknown engines"
+			return (
+				f"{self.base_url} returned {len(payload.get('results') or [])} result(s), "
+				f"but primary fanout missed requested engines {', '.join(missing_engines)}; "
+				f"observed engines: {observed}"
+			)
+		return f"{self.base_url} degraded for {engines}: {degraded}"
+
+	def _has_requested_engine_degradation(
+		self,
+		payload: dict[str, Any],
+		requested_engines: list[str] | None,
+	) -> bool:
+		if not requested_engines:
+			return False
+		degraded = " ".join(
 			self._describe_unresponsive_engine(engine)
 			for engine in payload.get("unresponsive_engines") or []
-		) or "unknown degradation"
-		return f"{self.base_url} degraded for {engines}: {degraded}"
+		).lower()
+		return any(engine.lower() in degraded for engine in requested_engines)
 
 	def _has_requested_engine_mismatch(
 		self,
 		payload: dict[str, Any],
 		requested_engines: list[str] | None,
 	) -> bool:
-		engines = [engine.strip().lower() for engine in requested_engines or [] if engine.strip()]
+		engines = self._requested_search_engines(requested_engines)
+		missing = self._missing_requested_result_engines(payload, requested_engines)
+		return bool(missing) and len(missing) == len(engines)
+
+	def _requested_search_engines(self, requested_engines: list[str] | None) -> list[str]:
+		engines: list[str] = []
+		for engine in requested_engines or []:
+			normalized = engine.strip().lower()
+			if normalized and normalized not in engines:
+				engines.append(normalized)
+		return engines
+
+	def _missing_requested_result_engines(
+		self,
+		payload: dict[str, Any],
+		requested_engines: list[str] | None,
+	) -> list[str]:
+		engines = self._requested_search_engines(requested_engines)
 		results = payload.get("results") or []
 		if not engines or not results:
-			return False
-		for result in results:
-			result_engine = str(result.get("engine") or "").strip().lower()
-			if any(result_engine == engine or result_engine.startswith(f"{engine} ") for engine in engines):
-				return False
-		return True
+			return []
+		missing: list[str] = []
+		for engine in engines:
+			has_result = False
+			for result in results:
+				result_engine = str(result.get("engine") or "").strip().lower()
+				if result_engine == engine or result_engine.startswith(f"{engine} "):
+					has_result = True
+					break
+			if not has_result:
+				missing.append(engine)
+		return missing
 
 	def _observed_result_engines(self, payload: dict[str, Any]) -> list[str]:
 		engines: list[str] = []
