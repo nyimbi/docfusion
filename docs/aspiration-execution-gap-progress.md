@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Prioritize Response-Worthy Source Intake
+
+Status: implemented, focused-test verified, typechecked, live-run, and parsed.
+
+Purpose: spend bounded parser capacity on RFPs, TORs, data/software/policy, consulting, RFQ, and EOI documents before lower-fit commodity supply tenders when both are available in the fresh source-document backlog.
+
+Changes in this slice:
+- Added source-document intake scoring for response-worthy signals such as RFP/request for proposals, TOR/scope of work, RFQ, EOI/ITB, consulting/capacity building, and data/digital/software/policy work.
+- Penalized low-fit commodity/framework supply patterns such as sports balls, football balls, road markings, and drainage PDFs without filtering them out entirely.
+- Kept the existing host-diversity caps and protected-host suppression, but now applies them after response-worthiness sorting.
+
+Verification:
+- Added focused regression coverage proving RFP/data-policy and consulting/capacity-building documents score above commodity supply files.
+- `npx vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 5 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Dry-run `source_intake_priority_second_dryrun_20260529` moved the next batch from sports-ball/commodity-first ordering to response-worthy documents: Smart Africa data-policy RFP, EAC request for proposals/TOR, EIB updated TOR, sealed quotation, RFQ, EOI, and capacity-building documents.
+- Live intake `source_intake_priority_second_live_20260529` selected 5, downloaded 5, failed 0, completed 5 parses, and extracted 39 requirements. Successful documents included Smart Africa Eswatini Data Policy RFP, EAC request-for-proposals/TOR, EIB updated TOR, Namibia sealed quotations, and AAU RFQ.
+- Post-run live database snapshot: 3,240 opportunities, 200 RFP documents, 198 completed RFP documents, 0 queued parse jobs, 1,304 RFP requirements, 168 RFP documents with requirements, 239 downloaded source-document rows, 246 discovered source-document rows, and 77 failed source-document rows.
+
+Remaining after this slice:
+- Continue bounded intake from the still-large fresh backlog; the ranking now improves parser value, but source-specific recovery is still needed for failed protected hosts and HTML-disguised direct document URLs.
+
 ### 2026-05-29 - Broad Reseed After Reader Recovery Adds Fresh Parsed Documents
 
 Status: live-run, downloaded, parsed, and verified.

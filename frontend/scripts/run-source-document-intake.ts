@@ -245,7 +245,14 @@ async function selectDiscoveredDocuments(
 
 	const solicitationCandidates = candidates
 		.filter(isLikelySolicitationSource)
-		.filter((candidate) => config.retryProtectedHosts || isRoutineSourceCandidate(candidate));
+		.filter((candidate) => config.retryProtectedHosts || isRoutineSourceCandidate(candidate))
+		.map((candidate, index) => ({
+			candidate,
+			index,
+			score: scoreSourceDocumentIntakeCandidate(candidate),
+		}))
+		.sort((a, b) => b.score - a.score || a.index - b.index)
+		.map(({ candidate }) => candidate);
 
 	return diversifyCandidates(
 		solicitationCandidates,
@@ -317,6 +324,22 @@ function sourceHost(value: string): string {
 export function isLikelySolicitationSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`;
 	return !NON_SOLICITATION_DOCUMENT_PATTERN.test(haystack);
+}
+
+export function scoreSourceDocumentIntakeCandidate(value: { documentName: string; sourceUrl: string }): number {
+	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`.toLowerCase();
+	let score = 0;
+	if (/\b(rfp|request[-_\s]?for[-_\s]?proposals?)\b/.test(haystack)) score += 80;
+	if (/\b(terms?[-_\s]?of[-_\s]?reference|tor|scope[-_\s]?of[-_\s]?work)\b/.test(haystack)) score += 60;
+	if (/\b(request[-_\s]?for[-_\s]?quotations?|rfq|sealed[-_\s]?quotations?)\b/.test(haystack)) score += 45;
+	if (/\b(expression[-_\s]?of[-_\s]?interest|eoi|invitation[-_\s]?to[-_\s]?bid|itb)\b/.test(haystack)) score += 40;
+	if (/\b(consult(?:ing|ancy|ant)|capacity[-_\s]?building|technical[-_\s]?assistance|advisory)\b/.test(haystack)) score += 35;
+	if (/\b(data|digital|software|ict|information[-_\s]?system|platform|policy|strategy|evaluation|monitoring)\b/.test(haystack)) score += 30;
+	if (/\b(procurement[-_\s]?plan|bid[-_\s]?opportunit|tender)\b/.test(haystack)) score += 20;
+	if (/\.(pdf|docx?|xlsx?)(\?|$)/.test(haystack)) score += 10;
+	if (/\b(supply[-_\s]?and[-_\s]?delivery|framework[-_\s]?agreement|sports?[-_\s]?balls?|football[-_\s]?balls?|road[-_\s]?markings?|drainages?)\b/.test(haystack)) score -= 25;
+	if (/\b(entities[-_\s]?[-_\s]?20\d{2}[-_\s]?quarter|quarter[-_\s]?[1-4])\b/.test(haystack)) score -= 20;
+	return score;
 }
 
 export function isRoutineSourceCandidate(value: {

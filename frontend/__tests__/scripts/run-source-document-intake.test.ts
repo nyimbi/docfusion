@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isLikelySolicitationSource, isRoutineSourceCandidate } from "../../scripts/run-source-document-intake";
+import {
+	isLikelySolicitationSource,
+	isRoutineSourceCandidate,
+	scoreSourceDocumentIntakeCandidate,
+} from "../../scripts/run-source-document-intake";
 
 describe("source document intake selection helpers", () => {
 	it("keeps fresh direct documents from normal hosts in routine intake", () => {
@@ -39,5 +43,23 @@ describe("source document intake selection helpers", () => {
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
 		})).toBe(true);
+	});
+
+	it("prioritizes response-worthy RFP and consulting documents over commodity supply files", () => {
+		const rfpScore = scoreSourceDocumentIntakeCandidate({
+			documentName: "RFP-Eswatini-Data-Policy.pdf",
+			sourceUrl: "https://smartafrica.org/wp-content/uploads/2025/07/RFP-Eswatini-Data-Policy.pdf",
+		});
+		const consultingScore = scoreSourceDocumentIntakeCandidate({
+			documentName: "PRQ20250383-Capacity-Building-for-the-CBT-under-the-Borderlands-project.pdf",
+			sourceUrl: "https://trademarkafrica.com/wp-content/uploads/2025/11/PRQ20250383-Capacity-Building-for-the-CBT-under-the-Borderlands-project.pdf",
+		});
+		const commodityScore = scoreSourceDocumentIntakeCandidate({
+			documentName: "supply-and-delivery-of-football-balls-under-framework-agreement.pdf",
+			sourceUrl: "https://tenders.go.ke/storage/Documents/supply-and-delivery-of-football-balls-under-framework-agreement.pdf",
+		});
+
+		expect(rfpScore).toBeGreaterThan(commodityScore);
+		expect(consultingScore).toBeGreaterThan(commodityScore);
 	});
 });
