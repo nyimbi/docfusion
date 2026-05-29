@@ -404,6 +404,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
+	else if (host === "ocds-api.etenders.gov.za" && safeUrlPathname(sourceUrl).startsWith("/api/OCDSReleases")) sourceId = "etenders_sa";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
@@ -417,7 +418,8 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "cdb"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
-		|| parser.sourceId === "egp_uganda";
+		|| parser.sourceId === "egp_uganda"
+		|| parser.sourceId === "etenders_sa";
 }
 
 function isLowValueDiscoveryUrl(url: string | undefined): boolean {
@@ -800,6 +802,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "giz") return "GIZ";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
+	if (opportunity?.source === "etenders_sa") return "South Africa eTenders";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -826,6 +829,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
+		...(opportunity?.source === "etenders_sa" ? ["etenders-sa", "south-africa", "national-procurement", "ocds"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }

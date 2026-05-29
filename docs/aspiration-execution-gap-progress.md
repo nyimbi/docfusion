@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Replace South Africa eTenders Scrape With OCDS API
+
+Status: implemented, focused-test verified, typechecked, and live-imported.
+
+Purpose: increase reliable RFP collection breadth by replacing generic South Africa eTenders page scraping with the official eTenders OCDS public releases API.
+
+Changes in this slice:
+- Added a South Africa eTenders OCDS parser that queries `https://ocds-api.etenders.gov.za/api/OCDSReleases` with a rolling date window, extracts active releases, deadlines, procuring entities, procurement method details, direct document/download URLs, briefing details, and contact metadata.
+- Routed the eTenders OCDS endpoint through the configured-source source-API path so collection no longer depends on Firecrawl or browser scraping for this high-volume national portal.
+- Replaced the default configured source `https://www.etenders.gov.za/Home/opportunities?id=1` with `https://ocds-api.etenders.gov.za/api/OCDSReleases`.
+- Updated the default eTenders search query to target the OCDS API host.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/etenders-sa-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts __tests__/api/opportunity-discovery-route.test.ts` passed with 55 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source import `live_etenders_sa_ocds_import_20260529T1922` processed 25 South Africa eTenders candidates, imported 25, failed 0, emitted 0 warnings, created 25 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,576 total opportunities, 1,757 RFP-typed opportunities, and 25 South Africa eTenders opportunities.
+
+Remaining after this slice:
+- Continue adding or replacing source-specific collection with proven public APIs for high-yield procurement portals instead of relying on generic scraping where structured feeds exist.
+
 ### 2026-05-29 - Fan Out SearXNG On Default-Engine Degradation
 
 Status: implemented, focused-test verified, typechecked, and live-probed.

@@ -1618,6 +1618,90 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports South Africa eTenders releases from the public OCDS API", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => ({
+				links: { next: null },
+				releases: [{
+					ocid: "ocds-9t57fa-157517",
+					id: "ocds-9t57fa-157517-2026-05-29",
+					date: "2026-05-29T00:00:00Z",
+					tag: ["compiled"],
+					initiationType: "tender",
+					buyer: { id: "167", name: "ESKOM" },
+					tender: {
+						id: "157517",
+						title: "E2966CXMWP",
+						status: "active",
+						category: "Financial service activities, except insurance and pension funding",
+						province: "Gauteng",
+						deliveryLocation: "02 Maxwell Drive - Sunninghill - Johannesburg - 2157",
+						mainProcurementCategory: "services",
+						description: "Funding analysis, lender engagement and credit impact assessment.",
+						procurementMethod: "open",
+						procurementMethodDetails: "Request for Proposal",
+						tenderPeriod: {
+							startDate: "2026-05-29T00:00:00Z",
+							endDate: "2026-06-19T12:00:00Z",
+						},
+						procuringEntity: { id: "167", name: "ESKOM" },
+						documents: [{
+							id: "59d27a99-7b97-49d3-ab8c-c8dc31a17297",
+							documentType: "basic",
+							title: "RFP Letter_NTCSA Sale Final.pdf",
+							url: "https://www.etenders.gov.za/home/Download?blobName=59d27a99.pdf&downloadedFileName=RFP%20Letter.pdf",
+							format: "pdf",
+						}],
+					},
+				}],
+			}),
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://ocds-api.etenders.gov.za/api/OCDSReleases"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://ocds-api.etenders.gov.za/api/OCDSReleases?PageNumber=1&PageSize=100&dateFrom=2026-04-29&dateTo=2026-05-29",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "application/json",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "E2966CXMWP - Funding analysis, lender engagement and credit impact assessment.",
+			source: "source-scrape",
+			sourceId: "etenders-sa-ocds-9t57fa-157517",
+			sourcePlatform: "South Africa eTenders",
+			sourceFile: "source:https://ocds-api.etenders.gov.za/api/OCDSReleases",
+			countryRegion: "South Africa - Gauteng",
+			opportunityType: "rfp",
+			rfpLink: "https://www.etenders.gov.za/home/Download?blobName=59d27a99.pdf&downloadedFileName=RFP%20Letter.pdf",
+			tags: ["external-discovery", "source-scrape", "etenders-sa", "south-africa", "national-procurement", "ocds", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://ocds-api.etenders.gov.za/api/OCDSReleases",
+				}),
+			}),
+		}));
+	});
+
 	it("imports EU Funding & Tenders calls from the SEDIA search endpoint", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,
