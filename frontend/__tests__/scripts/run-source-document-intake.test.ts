@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	isLikelySolicitationSource,
 	isRoutineSourceCandidate,
+	parseCsvList,
 	scoreSourceDocumentIntakeCandidate,
 } from "../../scripts/run-source-document-intake";
 
@@ -73,5 +74,13 @@ describe("source document intake selection helpers", () => {
 
 		expect(rfpScore).toBeGreaterThan(commodityScore);
 		expect(consultingScore).toBeGreaterThan(commodityScore);
+	});
+
+	it("parses source-platform filters for targeted intake runs", () => {
+		expect(parseCsvList(" ESPPRA Eswatini,UNGM,ESPPRA Eswatini ,, ")).toEqual([
+			"ESPPRA Eswatini",
+			"UNGM",
+		]);
+		expect(parseCsvList(undefined)).toEqual([]);
 	});
 });

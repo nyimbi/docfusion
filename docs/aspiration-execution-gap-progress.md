@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Prove Targeted ESPPRA Source Document Intake
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: close the gap between ESPPRA opportunity acquisition and usable RFP content by making source-document intake targetable by source platform, then downloading and parsing ESPPRA tender PDFs through the lightweight local extraction path.
+
+Changes in this slice:
+- Added `SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS` so operators can drain newly added direct sources deliberately without waiting for those documents to outrank the global source-document queue.
+- Added ESPPRA to the document downloader's known invalid-TLS host list, scoped to the public `esppra.co.sz` host, after live intake showed its PDFs fail ordinary TLS verification from this runtime.
+- Preserved the existing routine queue behavior when no source-platform filter is configured.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` passed with 44 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Dry-run `source_doc_intake_esppra_filtered_dry_20260530T0053` selected 5 ESPPRA PDFs only.
+- Initial live run `source_doc_intake_esppra_live_20260530T0053` selected ESPPRA PDFs but failed all 5 direct downloads with `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, proving the downloader needed the same host-scoped TLS fallback as source discovery.
+- Fixed live retry `source_doc_intake_esppra_retry_live_20260530T0055` selected 5 ESPPRA PDFs, downloaded 5, failed 0, completed 5 parse jobs, timed out 0 parse jobs, and extracted 66 total requirements.
+- The ESPPRA retry used `local_pdftotext` for every selected PDF before any Docling fallback; extracted text lengths observed in logs ranged from 2,453 to 178,721 characters.
+- Post-run live database snapshot for ESPPRA: 35 opportunity-document rows total, 5 downloaded, 5 with extracted text; the 5 new parsing jobs were all `completed` with 66 total requirements extracted.
+
+Remaining after this slice:
+- Continue bounded targeted intake over the remaining ESPPRA PDFs.
+- Consider a source-host filter later if platform names are not enough for targeted intake, but avoid adding it until a real source needs it.
+
 ### 2026-05-30 - Add ESPPRA Eswatini Direct Tender Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, live-imported, and live database verified.

@@ -1088,6 +1088,32 @@ describe("RFP document fetch storage", () => {
 		);
 	});
 
+	it("allows invalid TLS for ESPPRA source document downloads", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			sourceUrl: "https://esppra.co.sz/sppra/documents/tenders/Eswatini%20Housing%20Board/1779352533.pdf",
+			documentName: "1779352533.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+			}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result.success).toBe(true);
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			expect.objectContaining({ hostname: "esppra.co.sz" }),
+			expect.objectContaining({
+				allowInvalidTlsForHosts: ["esppra.co.sz"],
+			}),
+			"Document source URL"
+		);
+	});
+
 	it("fetches downloaded RFP bytes from Linode E3 during later text extraction", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
 			...baseDocument,

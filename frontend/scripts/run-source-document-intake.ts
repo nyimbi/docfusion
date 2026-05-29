@@ -72,6 +72,7 @@ type SourceDocumentIntakeProof = {
 		maxPerHost: number;
 		fillMaxPerHost: number;
 		retryProtectedHosts: boolean;
+		sourcePlatforms: string[];
 	};
 	selected: Array<{
 		id: string;
@@ -122,6 +123,7 @@ async function main() {
 				25
 			),
 			retryProtectedHosts: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS === "1",
+			sourcePlatforms: parseCsvList(process.env.SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS),
 		},
 		selected: [],
 		results: [],
@@ -212,6 +214,9 @@ async function selectDiscoveredDocuments(
 	];
 	if (config.organizationId) {
 		conditions.push(eq(opportunityDocuments.organizationId, config.organizationId));
+	}
+	if (config.sourcePlatforms.length > 0) {
+		conditions.push(inArray(schema.opportunities.sourcePlatform, config.sourcePlatforms));
 	}
 
 	const directDocumentRank = sql<number>`case
@@ -495,6 +500,14 @@ function boundedNumber(
 	const parsed = raw === undefined ? defaultValue : Number(raw);
 	if (!Number.isFinite(parsed)) return defaultValue;
 	return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+export function parseCsvList(raw: string | undefined): string[] {
+	if (!raw?.trim()) return [];
+	return [...new Set(raw
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean))];
 }
 
 async function writeArtifacts(

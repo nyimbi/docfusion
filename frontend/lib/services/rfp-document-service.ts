@@ -48,6 +48,7 @@ const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".
 const DOCUMENT_INVALID_TLS_HOSTS = new Set([
   "tenders.go.ke",
   "nrf.ac.za",
+  "esppra.co.sz",
   ...(process.env.SOURCE_DOCUMENT_INVALID_TLS_HOSTS ?? "")
     .split(",")
     .map((host) => host.trim().toLowerCase())
