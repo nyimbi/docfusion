@@ -224,6 +224,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;
 	if (host.includes("caribank.org") && new URL(sourceUrl).pathname.startsWith("/work-with-us/procurement/")) return getParser("cdb") ?? genericParser;
+	if (host === "ceb.mu" && new URL(sourceUrl).pathname.startsWith("/procurement/tender")) return getParser("ceb_mauritius") ?? genericParser;
 	if (host.includes("ebrd.com")) return getParser("ebrd") ?? genericParser;
 	if (host.includes("sam.gov")) return getParser("sam_gov") ?? genericParser;
 	if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) return getParser("eu_funding_tenders") ?? genericParser;
@@ -247,6 +248,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
+		|| parser.sourceId === "ceb_mauritius"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
 		|| parser.sourceId === "umucyo_rwanda"

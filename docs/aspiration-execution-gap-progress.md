@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Mauritius CEB Tender Document Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand direct document acquisition with Mauritius Central Electricity Board's public tender page, which publishes current tender rows, closing dates, press notices, tender documents, and addenda in static HTML.
+
+Changes in this slice:
+- Added a Mauritius CEB parser for `https://ceb.mu/procurement/tender`, extracting title, reference, Mauritius-time deadline, portal URL, direct press-notice/tender-document/update links, remarks, and source metadata.
+- Routed CEB through the source-API parser path so collection does not rely on generic Firecrawl extraction or browser rendering for this source.
+- Preferred direct tender documents over press notices when both are present, while preserving all discovered document/update links in metadata.
+- Added CEB to default configured sources and targeted search queries, and added live proof-script support.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/ceb-mauritius-parser.test.ts __tests__/scrapers/nocopo-nigeria-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 56 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_ceb_mauritius_source_20260529T2354` parsed 13 CEB opportunities via `source_api`.
+- Live DB import `live_ceb_mauritius_import_20260529T2354` processed 13 CEB candidates, imported 13, failed 0, emitted 0 warnings, created 13 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,761 total opportunities, 1,778 RFP-typed opportunities, 30 NOCOPO Nigeria opportunities, 13 CEB Mauritius opportunities, 4 CPBN Namibia opportunities, 30 MANEPS Malawi opportunities, 30 ZPPA opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- Source-document rows were seeded, but document download/parse was disabled for the live import; run source-document intake separately to download and parse the linked PDFs/DOCs with local `pdftotext`/office extraction first and Docling fallback only when needed.
+
 ### 2026-05-29 - Add Nigeria NOCOPO Open Data Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.

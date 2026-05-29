@@ -1911,6 +1911,74 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports Mauritius CEB tenders with direct document URLs", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => `
+				<h4 class="mt-40">OAB-TD-2026-10487 - FRAMEWORK AGREEMENT FOR UNSKILLED WORKS [ <span class="blink small">Updated</span> ]</h4>
+				<dl class="row">
+					<dt>Download:</dt>
+					<dd><ul><li><a href="https://ceb.mu/files/files/tenders/Press%20Notice%20OAB-TD-2026-10487.pdf">Press Notice</a></li></ul></dd>
+					<dt>Reference:</dt>
+					<dd>OAB-TD-2026-10487</dd>
+					<dt>Closing Date:</dt>
+					<dd>Wednesday, June 10, 2026 at 13:30 hours Mauritian Time</dd>
+					<dt>Tender Document:</dt>
+					<dd><li><a data-src="https://ceb.mu/files/files/tenders/OAB-TD-2026-10487%20Bidding%20Documents.doc" href="javascript:;" class="subscribe-download">OAB-TD-2026-10487 Bidding Documents.doc</a></li></dd>
+				</dl>
+			`,
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://ceb.mu/procurement/tender"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://ceb.mu/procurement/tender",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "text/html,application/xhtml+xml",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "OAB-TD-2026-10487 - FRAMEWORK AGREEMENT FOR UNSKILLED WORKS",
+			source: "source-scrape",
+			sourceId: "ceb-mauritius-oab-td-2026-10487",
+			sourcePlatform: "Mauritius CEB",
+			sourceFile: "source:https://ceb.mu/procurement/tender",
+			countryRegion: "Mauritius",
+			opportunityType: "tender",
+			documentUrl: "https://ceb.mu/files/files/tenders/OAB-TD-2026-10487%20Bidding%20Documents.doc",
+			tags: ["external-discovery", "source-scrape", "ceb", "mauritius", "national-procurement", "direct-documents"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://ceb.mu/procurement/tender",
+					scrapeMethod: "source_api",
+				}),
+				cebMauritius: expect.objectContaining({
+					reference: "OAB-TD-2026-10487",
+					documentLinks: [
+						expect.objectContaining({ section: "download" }),
+						expect.objectContaining({ section: "tender_document" }),
+					],
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

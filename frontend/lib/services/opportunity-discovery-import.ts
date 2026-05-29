@@ -285,6 +285,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?afdb\.org\/.*procurement/i,
 	/\/\/(?:www\.)?adb\.org\/business\/.*procurement/i,
 	/\/\/(?:www\.)?caribank\.org\/work-with-us\/procurement/i,
+	/\/\/(?:www\.)?ceb\.mu\/procurement\/tender/i,
 	/\/\/(?:www\.)?aiib\.org\/.*project-procurement/i,
 	/\/\/(?:www\.)?isdb\.org\/project-procurement/i,
 	/\/\/tenders\.go\.ke\//i,
@@ -452,6 +453,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "ungm.org") sourceId = "ungm";
 	else if (host.includes("worldbank.org")) sourceId = "world_bank";
 	else if (host.includes("caribank.org") && safeUrlPathname(sourceUrl).startsWith("/work-with-us/procurement/")) sourceId = "cdb";
+	else if (host === "ceb.mu" && safeUrlPathname(sourceUrl).startsWith("/procurement/tender")) sourceId = "ceb_mauritius";
 	else if (host.includes("ebrd.com")) sourceId = "ebrd";
 	else if (host.includes("sam.gov")) sourceId = "sam_gov";
 	else if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) sourceId = "eu_funding_tenders";
@@ -480,6 +482,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
+		|| parser.sourceId === "ceb_mauritius"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
 		|| parser.sourceId === "egp_uganda"
@@ -862,6 +865,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "ungm") return "UNGM";
 	if (opportunity?.source === "world_bank") return "World Bank";
 	if (opportunity?.source === "cdb") return "Caribbean Development Bank";
+	if (opportunity?.source === "ceb_mauritius") return "Mauritius CEB";
 	if (opportunity?.source === "ebrd") return "EBRD";
 	if (opportunity?.source === "sam_gov") return "SAM.gov";
 	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
@@ -892,6 +896,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
 		...(opportunity?.source === "world_bank" ? ["world-bank", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "cdb" ? ["cdb", "development-bank", "regional-procurement"] : []),
+		...(opportunity?.source === "ceb_mauritius" ? ["ceb", "mauritius", "national-procurement", "direct-documents"] : []),
 		...(opportunity?.source === "ebrd" ? ["ebrd", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "sam_gov" ? ["sam-gov", "us-federal"] : []),
 		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
