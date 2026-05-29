@@ -471,6 +471,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "maneps.mw" && safeUrlPathname(sourceUrl).startsWith("/rms/api/tender-notices/active-tenders-search")) sourceId = "maneps_malawi";
 	else if (host === "nocopo.bpp.gov.ng" && /^\/(?:Open-Data|PublishedRecordHandler\.ashx)/.test(safeUrlPathname(sourceUrl))) sourceId = "nocopo_nigeria";
 	else if (host === "cpbn.com.na" && safeUrlPathname(sourceUrl).startsWith("/index/external/2")) sourceId = "cpbn_namibia";
+	else if (host === "esppra.co.sz" && safeUrlPathname(sourceUrl).startsWith("/sppra/tender.php")) sourceId = "esppra_eswatini";
 	else if (host === "ocds-api.etenders.gov.za" && safeUrlPathname(sourceUrl).startsWith("/api/OCDSReleases")) sourceId = "etenders_sa";
 	else if (host === "nest.go.tz" && safeUrlPathname(sourceUrl).includes("/nest-data-portal-api/api/releases")) sourceId = "nest_tanzania";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
@@ -494,6 +495,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "maneps_malawi"
 		|| parser.sourceId === "nocopo_nigeria"
 		|| parser.sourceId === "cpbn_namibia"
+		|| parser.sourceId === "esppra_eswatini"
 		|| parser.sourceId === "etenders_sa";
 }
 
@@ -886,6 +888,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "maneps_malawi") return "MANEPS Malawi";
 	if (opportunity?.source === "nocopo_nigeria") return "Nigeria NOCOPO";
 	if (opportunity?.source === "cpbn_namibia") return "Namibia CPBN";
+	if (opportunity?.source === "esppra_eswatini") return "ESPPRA Eswatini";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -921,6 +924,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "maneps_malawi" ? ["maneps", "malawi", "national-procurement"] : []),
 		...(opportunity?.source === "nocopo_nigeria" ? ["nocopo", "nigeria", "national-procurement", "open-contracting"] : []),
 		...(opportunity?.source === "cpbn_namibia" ? ["cpbn", "namibia", "national-procurement"] : []),
+		...(opportunity?.source === "esppra_eswatini" ? ["esppra", "eswatini", "national-procurement", "direct-documents"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }

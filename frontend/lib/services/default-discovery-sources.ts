@@ -51,6 +51,7 @@ export const DEFAULT_DISCOVERY_QUERIES = [
 	"site:maneps.mw/procurement-notice tender closing Malawi deadline",
 	"site:nocopo.bpp.gov.ng/Open-Data Nigeria public procurement tender OCID",
 	"site:cpbn.com.na/index/external/2 open bids Namibia closing date",
+	"site:esppra.co.sz/sppra/tender.php Eswatini tender submission deadline",
 	"filetype:pdf \"request for proposals\" \"submission deadline\"",
 	"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 	"filetype:docx \"request for proposals\" procurement",
@@ -98,6 +99,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://maneps.mw/rms/api/tender-notices/active-tenders-search",
 	"https://nocopo.bpp.gov.ng/Open-Data",
 	"https://www.cpbn.com.na/index/external/2",
+	"https://esppra.co.sz/sppra/tender.php",
 	"https://www.giz.de/en/regions/africa/ghana/tenders",
 	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;

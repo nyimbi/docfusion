@@ -239,6 +239,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host === "maneps.mw" && new URL(sourceUrl).pathname.startsWith("/rms/api/tender-notices/active-tenders-search")) return getParser("maneps_malawi") ?? genericParser;
 	if (host === "nocopo.bpp.gov.ng" && /^\/(?:Open-Data|PublishedRecordHandler\.ashx)/.test(new URL(sourceUrl).pathname)) return getParser("nocopo_nigeria") ?? genericParser;
 	if (host === "cpbn.com.na" && new URL(sourceUrl).pathname.startsWith("/index/external/2")) return getParser("cpbn_namibia") ?? genericParser;
+	if (host === "esppra.co.sz" && new URL(sourceUrl).pathname.startsWith("/sppra/tender.php")) return getParser("esppra_eswatini") ?? genericParser;
 	return genericParser;
 }
 
@@ -259,6 +260,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "maneps_malawi"
 		|| parser.sourceId === "nocopo_nigeria"
 		|| parser.sourceId === "cpbn_namibia"
+		|| parser.sourceId === "esppra_eswatini"
 		|| parser.sourceId === "etenders_sa";
 }
 

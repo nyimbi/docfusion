@@ -1838,6 +1838,66 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports ESPPRA Eswatini tenders with direct document URLs", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => `
+				<div class="list-item job-box">
+					<h5 class="text-center text-md-left" style="text-transform: uppercase; color:#f07d2a">Business Continuity Management System</h5>
+					<p style="text-align: justify;"><b>Eswatini Revenue Service</b></p>
+					<p style="text-align: justify;"> ERS/RFP/01/2026 </p>
+					<p style="text-align: justify;"> Procurement Method: Request For Proposal </p>
+					<p style="text-align: justify;"> Tender Upload Date:  Tuesday 19th May 2026 10:13 am</p>
+					<p style="text-align: justify;"> Submission Deadline:  Tuesday 9th June 2026 12:00 pm</p>
+					<a id="26904" href="documents/tenders/Public Service Pension Fund (PSPF)/1779178473.pdf" class="btn" download>Download Tender</a>
+				</div>
+			`,
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://esppra.co.sz/sppra/tender.php"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://esppra.co.sz/sppra/tender.php",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "text/html,application/xhtml+xml",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Business Continuity Management System",
+			source: "source-scrape",
+			sourceId: "esppra-26904",
+			sourcePlatform: "ESPPRA Eswatini",
+			sourceFile: "source:https://esppra.co.sz/sppra/tender.php",
+			countryRegion: "Eswatini",
+			opportunityType: "rfp",
+			documentUrl: "https://esppra.co.sz/sppra/documents/tenders/Public%20Service%20Pension%20Fund%20(PSPF)/1779178473.pdf",
+			tags: ["external-discovery", "source-scrape", "esppra", "eswatini", "national-procurement", "direct-documents", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://esppra.co.sz/sppra/tender.php",
+					scrapeMethod: "source_api",
+				}),
+			}),
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+	});
+
 	it("imports Nigeria NOCOPO published records from the public Open Data handler", async () => {
 		fetchMock.mockResolvedValue({
 			ok: true,

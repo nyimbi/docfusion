@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Add ESPPRA Eswatini Direct Tender Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, live-imported, and live database verified.
+
+Purpose: expand African national procurement coverage with Eswatini's ESPPRA tender page, which publishes current tender cards with procurement methods, submission deadlines, procuring entities, references, and direct PDF tender downloads.
+
+Changes in this slice:
+- Added an ESPPRA Eswatini parser for `https://esppra.co.sz/sppra/tender.php`, extracting title, procuring entity, reference number, procurement method, upload date, submission deadline, direct PDF URL, source identity, and Eswatini source metadata.
+- Added bounded ESPPRA pagination across the public tender list and a specific HTTPS fallback for the ESPPRA host because its public TLS chain is incomplete from this environment.
+- Routed ESPPRA through the source-API parser path so collection does not depend on generic Firecrawl/browser extraction for this source.
+- Added ESPPRA to default configured sources and targeted search queries, and added live source proof-script support.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/esppra-eswatini-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 57 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_esppra_eswatini_source_20260530T0046` parsed 35 ESPPRA opportunities via `source_api`.
+- Live DB import `live_esppra_eswatini_import_20260530T0046` processed 35 ESPPRA candidates, imported 35, failed 0, emitted 0 warnings, created 35 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,827 total opportunities, 1,797 RFP-typed opportunities, 35 ESPPRA Eswatini opportunities including 10 RFP-typed records, and 35 ESPPRA-linked opportunity-document rows.
+
+Remaining after this slice:
+- Run source-document intake over ESPPRA PDFs in a bounded batch so direct tender documents become extracted requirements and response-ready packages.
+- Keep adding direct national sources with public current-tender rows and document links.
+
 ### 2026-05-30 - Expand Configured Source Intake And UNGM Pagination
 
 Status: implemented, focused-test verified, typechecked, live-imported, and live database verified.
