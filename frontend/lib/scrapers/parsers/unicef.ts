@@ -17,6 +17,9 @@ const DEFAULT_CONTACT_EMAIL = "sd.servicecontracting@unicef.org";
 const TABLE_SEPARATOR_PATTERN = /^:?-{3,}:?$/;
 const DOCUMENT_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/www\.unicef\.org\/supply\/media\/[^)]+\.(?:pdf|xlsx?|docx?)[^)]*)\)/gi;
 const CARD_HEADING_PATTERN = /###\s+\[([^\]]+)]\((https?:\/\/www\.unicef\.org\/supply\/[^)]+)\)([\s\S]*?)(?=\n###\s+\[|$)/gi;
+const HTML_TABLE_PATTERN = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
+const HTML_ROW_PATTERN = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+const HTML_CELL_PATTERN = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
 
 function sourceIdFromTitle(title: string): string {
 	const slug = title
@@ -54,6 +57,39 @@ function contactEmail(markdown: string): string {
 	return markdown.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? DEFAULT_CONTACT_EMAIL;
 }
 
+function decodeHtmlEntities(value: string): string {
+	const namedEntities: Record<string, string> = {
+		amp: "&",
+		lt: "<",
+		gt: ">",
+		quot: "\"",
+		apos: "'",
+		nbsp: " ",
+		ndash: "-",
+		mdash: "-",
+		rsquo: "'",
+		lsquo: "'",
+	};
+	return value.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/gi, (entity, name: string) => {
+		if (name.startsWith("#x")) {
+			const codePoint = Number.parseInt(name.slice(2), 16);
+			return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+		if (name.startsWith("#")) {
+			const codePoint = Number.parseInt(name.slice(1), 10);
+			return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+		return namedEntities[name.toLowerCase()] ?? entity;
+	});
+}
+
+function cleanHtmlCell(value: string | undefined): string {
+	return cleanText(decodeHtmlEntities(value
+		?.replace(/<\s*br\s*\/?>/gi, " ")
+		.replace(/<[^>]+>/g, " ")
+		.replace(/\s+/g, " ") ?? ""));
+}
+
 function inferCountryRegion(title: string): string {
 	return /\beast africa\b/i.test(title) ? "East Africa" : "Global";
 }
@@ -82,6 +118,39 @@ function buildServiceSummary(title: string, duration: string | undefined, issuan
 		issuance ? `Estimated tender issuance: ${issuance}.` : undefined,
 		`Prospective suppliers should express interest with UNICEF Supply Division and maintain UNGM registration for the tender process.`,
 	].filter(Boolean).join(" ");
+}
+
+function buildServiceContractOpportunity(
+	title: string,
+	estimatedDuration: string | undefined,
+	estimatedIssuance: string | undefined,
+	sourceUrl: string,
+	email: string
+): OpportunityData {
+	const sourceId = sourceIdFromTitle(title);
+	return {
+		title,
+		source: "unicef",
+		sourceId,
+		noticeId: sourceId,
+		organization: "UNICEF Supply Division",
+		countryRegion: inferCountryRegion(title),
+		category: "Service contract tender calendar",
+		opportunityType: inferOpportunityType(title),
+		portalUrl: sourceUrl,
+		rfpLink: sourceUrl,
+		projectSummary: buildServiceSummary(title, estimatedDuration, estimatedIssuance),
+		submissionMethod: `Express interest by emailing ${email}; suppliers should also be registered on UNGM.`,
+		tags: inferTags(title, ["service-contract"]),
+		metadata: {
+			unicef: {
+				sourcePage: "service-contracts-tender-calendar",
+				estimatedDuration: estimatedDuration ?? null,
+				estimatedIssuance: estimatedIssuance ?? null,
+				contactEmail: email,
+			},
+		},
+	};
 }
 
 function parseServiceContractRows(markdown: string, sourceUrl: string): OpportunityData[] {
@@ -125,31 +194,47 @@ function parseServiceContractRows(markdown: string, sourceUrl: string): Opportun
 		if (!title || /^description of tender$/i.test(title)) continue;
 		const estimatedDuration = cleanText(cells[durationIndex]) || undefined;
 		const estimatedIssuance = cleanText(cells[issuanceIndex]) || undefined;
-		const sourceId = sourceIdFromTitle(title);
+		opportunities.push(buildServiceContractOpportunity(title, estimatedDuration, estimatedIssuance, sourceUrl, email));
+	}
 
-		opportunities.push({
-			title,
-			source: "unicef",
-			sourceId,
-			noticeId: sourceId,
-			organization: "UNICEF Supply Division",
-			countryRegion: inferCountryRegion(title),
-			category: "Service contract tender calendar",
-			opportunityType: inferOpportunityType(title),
-			portalUrl: sourceUrl,
-			rfpLink: sourceUrl,
-			projectSummary: buildServiceSummary(title, estimatedDuration, estimatedIssuance),
-			submissionMethod: `Express interest by emailing ${email}; suppliers should also be registered on UNGM.`,
-			tags: inferTags(title, ["service-contract"]),
-			metadata: {
-				unicef: {
-					sourcePage: "service-contracts-tender-calendar",
-					estimatedDuration: estimatedDuration ?? null,
-					estimatedIssuance: estimatedIssuance ?? null,
-					contactEmail: email,
-				},
-			},
-		});
+	return opportunities;
+}
+
+function parseServiceContractHtmlTables(html: string | undefined, sourceUrl: string): OpportunityData[] {
+	if (!html) return [];
+	const opportunities: OpportunityData[] = [];
+	const email = contactEmail(html);
+
+	for (const tableMatch of html.matchAll(HTML_TABLE_PATTERN)) {
+		const tableHtml = tableMatch[0];
+		if (!/description of tender/i.test(tableHtml)) continue;
+
+		let headers: string[] = [];
+		for (const rowMatch of tableHtml.matchAll(HTML_ROW_PATTERN)) {
+			const cells = [...rowMatch[1].matchAll(HTML_CELL_PATTERN)].map((match) => cleanHtmlCell(match[1]));
+			if (!cells.length) continue;
+
+			if (!headers.length && cells.some((cell) => /description of tender/i.test(cell))) {
+				headers = cells;
+				continue;
+			}
+			if (!headers.length) continue;
+
+			const descriptionIndex = headers.findIndex((header) => /description of tender/i.test(header));
+			const durationIndex = headers.findIndex((header) => /estimated duration|long term agreement|lta\/contract/i.test(header));
+			const issuanceIndex = headers.findIndex((header) => /estimated time|bidding exercise|tender issuance/i.test(header));
+			if (descriptionIndex < 0) continue;
+
+			const title = cleanText(cells[descriptionIndex]);
+			if (!title || /^description of tender$/i.test(title)) continue;
+			opportunities.push(buildServiceContractOpportunity(
+				title,
+				durationIndex >= 0 ? cleanText(cells[durationIndex]) || undefined : undefined,
+				issuanceIndex >= 0 ? cleanText(cells[issuanceIndex]) || undefined : undefined,
+				sourceUrl,
+				email
+			));
+		}
 	}
 
 	return opportunities;
@@ -214,16 +299,19 @@ function parseTenderCalendarCards(markdown: string, sourceUrl: string): Opportun
 	return opportunities;
 }
 
-function parseUnicefMarkdown(markdown: string | undefined, sourceUrl: string): OpportunityData[] {
-	if (!markdown) return [];
+function parseUnicefContent(markdown: string | undefined, html: string | undefined, sourceUrl: string): OpportunityData[] {
 	const kind = pageKind(sourceUrl);
 	const opportunities = kind === "service-contracts"
-		? parseServiceContractRows(markdown, sourceUrl)
+		? [
+			...parseServiceContractRows(markdown ?? "", sourceUrl),
+			...parseServiceContractHtmlTables(html, sourceUrl),
+		]
 		: kind === "tender-calendars"
-			? parseTenderCalendarCards(markdown, sourceUrl)
+			? parseTenderCalendarCards(markdown ?? "", sourceUrl)
 			: [
-				...parseServiceContractRows(markdown, sourceUrl),
-				...parseTenderCalendarCards(markdown, sourceUrl),
+				...parseServiceContractRows(markdown ?? "", sourceUrl),
+				...parseServiceContractHtmlTables(html, sourceUrl),
+				...parseTenderCalendarCards(markdown ?? "", sourceUrl),
 			];
 
 	const seen = new Set<string>();
@@ -241,7 +329,7 @@ export const unicefParser: TenderParser = {
 	requiresJavascript: false,
 	async parse(content: ParseInput): Promise<ParseResult> {
 		return {
-			opportunities: parseUnicefMarkdown(content.markdown, content.url),
+			opportunities: parseUnicefContent(content.markdown, content.html, content.url),
 		};
 	},
 	getPageUrl(baseUrl: string): string {

@@ -32,6 +32,38 @@ Planned procurement exercises for education supplies.
 [Education tender calendar 2026](https://www.unicef.org/supply/media/24816/file/UNICEF-Education-Tender-Calendar-2026.pdf)
 `;
 
+const serviceContractsHtml = `
+<html>
+	<body>
+		<p>Suppliers should express interest by sending an e-mail to <a href="/cdn-cgi/l/email-protection">[email protected]</a>.</p>
+		<table>
+			<thead>
+				<tr>
+					<th>No</th>
+					<th>Description of tender</th>
+					<th>Estimated duration for<br>Long Term Agreement (LTA)/Contract</th>
+					<th>Estimated time of bidding exercise</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>1</td>
+					<td>Institutional Contract - IF Consultant East Africa</td>
+					<td>5 months</td>
+					<td>June</td>
+				</tr>
+				<tr>
+					<td>5</td>
+					<td>LTA for&nbsp;Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB)</td>
+					<td>4 years (2 +1+1)</td>
+					<td>Q3</td>
+				</tr>
+			</tbody>
+		</table>
+	</body>
+</html>
+`;
+
 describe("UNICEF Supply Division parser", () => {
 	it("extracts service-contract tender calendar rows without fake deadlines", async () => {
 		const result = await unicefParser.parse({
@@ -65,6 +97,32 @@ describe("UNICEF Supply Division parser", () => {
 					contactEmail: "sd.servicecontracting@unicef.org",
 				}),
 			},
+		});
+	});
+
+	it("extracts service-contract tender calendar rows from the current HTML table", async () => {
+		const result = await unicefParser.parse({
+			url: "https://www.unicef.org/supply/service-contracts-tender-calendar",
+			markdown: "# Service contracts tender calendar",
+			html: serviceContractsHtml,
+			links: [],
+		});
+
+		expect(result.opportunities).toHaveLength(2);
+		expect(result.opportunities[0]).toMatchObject({
+			title: "Institutional Contract - IF Consultant East Africa",
+			countryRegion: "East Africa",
+			metadata: {
+				unicef: expect.objectContaining({
+					estimatedDuration: "5 months",
+					estimatedIssuance: "June",
+				}),
+			},
+		});
+		expect(result.opportunities[1]).toMatchObject({
+			title: "LTA for Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB)",
+			opportunityType: "tender",
+			tags: ["unicef", "un-procurement", "tender-calendar", "service-contract", "ict"],
 		});
 	});
 

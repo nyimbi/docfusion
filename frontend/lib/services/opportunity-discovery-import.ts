@@ -296,7 +296,15 @@ function normalizeUrlForIdentity(url: string): string {
 
 function sourceOpportunityIdentity(opportunity: OpportunityData, sourceUrl: string): string {
 	const url = opportunity.documentUrl ?? opportunity.rfpLink ?? opportunity.portalUrl;
-	if (url) return normalizeUrlForIdentity(url);
+	if (url) {
+		const normalizedUrl = normalizeUrlForIdentity(url);
+		const normalizedSourceUrl = normalizeUrlForIdentity(sourceUrl);
+		const rowId = opportunity.sourceId ?? opportunity.noticeId;
+		if (rowId && normalizedUrl === normalizedSourceUrl) {
+			return `${normalizedSourceUrl}#${rowId}`;
+		}
+		return normalizedUrl;
+	}
 	return `${normalizeUrlForIdentity(sourceUrl)}#${opportunity.sourceId ?? opportunity.noticeId ?? opportunity.title}`;
 }
 

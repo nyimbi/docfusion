@@ -2366,6 +2366,7 @@ describe("discoverAndImportOpportunities", () => {
 					"| Description of tender | Estimated duration of LTA/Institutional Contract | Estimated time of tender issuance |",
 					"| --- | --- | --- |",
 					"| LTA for Conferencing Telephony Equipment (Ribbon hardware and software) - (ITB) | 4 years (2 +1+1) | Q3 |",
+					"| LTA for Mobile Satellite Devices and Services | 5 years (3+1+1) | Q4 |",
 				].join("\n"),
 				links: [],
 				metadata: { title: "Service contracts tender calendar" },
@@ -2383,8 +2384,8 @@ describe("discoverAndImportOpportunities", () => {
 			formats: ["markdown", "html", "links"],
 		}));
 		expect(result.results).toEqual({
-			total: 1,
-			imported: 1,
+			total: 2,
+			imported: 2,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -2417,6 +2418,14 @@ describe("discoverAndImportOpportunities", () => {
 					sourceUrl: "https://www.unicef.org/supply/service-contracts-tender-calendar",
 				}),
 			}),
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			source: "unicef",
+			sourceId: "unicef-lta-for-mobile-satellite-devices-41a5c25bb6",
+			title: "LTA for Mobile Satellite Devices and Services",
+			sourceFile: "source:https://www.unicef.org/supply/service-contracts-tender-calendar",
+			rfpLink: "https://www.unicef.org/supply/service-contracts-tender-calendar",
+			tags: ["external-discovery", "source-scrape", "unicef", "un-procurement", "tender-calendar", "service-contract", "ict"],
 		}));
 		expect(result.sourceDocumentsCreated).toBe(0);
 	});

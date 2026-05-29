@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Recover Full UNICEF Service-Contracts Calendar Collection
+
+Status: implemented, focused-test verified, typechecked, and live-imported.
+
+Purpose: fix the last empty configured source from the broad refresh without losing UNICEF service-contract coverage.
+
+Changes in this slice:
+- Inspected the live UNICEF service-contracts page and confirmed it still publishes 9 tender-calendar rows, now in an HTML table shape rather than the markdown table shape the parser originally handled.
+- Added UNICEF service-contract HTML table parsing for the current `Description of tender` / estimated duration / bidding exercise table.
+- Fixed configured-source identity for same-page source rows so multiple opportunities with distinct source IDs are not collapsed when they share the same portal URL and have no direct document URL.
+
+Verification:
+- `npx vitest run __tests__/scrapers/unicef-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 46 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB import `live_unicef_service_contracts_full_import_20260529T1327` passed with downloads disabled; it processed 9 UNICEF service-contract candidates, imported 8 new opportunities, updated 1, failed 0, emitted 0 warnings, and marked the source healthy.
+- Post-run live database snapshot: 3,467 total opportunities, 1,748 RFP-typed opportunities, and 18 UNICEF opportunities.
+
+Remaining after this slice:
+- Rerun the broad default source-health profile when practical to verify every configured source is healthy in one run after the World Bank and UNICEF repairs.
+- Continue improving response-readiness and document intake now that broad opportunity collection is materially healthier.
+
 ### 2026-05-29 - Add World Bank Notice API Fallback After Broad Health Refresh
 
 Status: implemented, focused-test verified, typechecked, live-imported, and broad-health informed.
