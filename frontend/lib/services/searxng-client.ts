@@ -280,9 +280,12 @@ async function searchSearxngBase(
 }
 
 function shouldRetryOnFallback(response: SearxngSearchResponse, options: SearchOptions): boolean {
-  if (!response.unresponsive_engines?.length) return false;
-  if (!options.engines?.length) return response.results.length === 0;
-  return responseHasRequestedEngineDegradation(response, options);
+  if (response.results.length === 0) return true;
+  if (response.unresponsive_engines?.length) {
+    if (!options.engines?.length) return false;
+    return responseHasRequestedEngineDegradation(response, options);
+  }
+  return responseHasRequestedEngineMismatch(response, options);
 }
 
 function responseHasRequestedEngineDegradation(response: SearxngSearchResponse, options: SearchOptions): boolean {
@@ -295,10 +298,34 @@ function responseHasRequestedEngineDegradation(response: SearxngSearchResponse, 
 function describeDegradedSearch(response: SearxngSearchResponse, options: SearchOptions): string {
   const engines = options.engines?.join(",") || "default engines";
   const degraded = response.unresponsive_engines?.map(describeUnresponsiveEngine).join("; ") || "unknown degradation";
+  if (response.results.length === 0 && !response.unresponsive_engines?.length) {
+    return `${SEARXNG_BASE_URL} returned no results for ${engines}; trying fallback fanout`;
+  }
+  if (response.results.length > 0 && responseHasRequestedEngineMismatch(response, options)) {
+    const observed = observedResultEngines(response).join(", ") || "unknown engines";
+    return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s), but none from requested engines ${engines}; observed engines: ${observed}`;
+  }
   if (response.results.length > 0) {
     return `${SEARXNG_BASE_URL} returned ${response.results.length} result(s) but requested engine fanout degraded for ${engines}; degraded engines: ${degraded}`;
   }
   return `${SEARXNG_BASE_URL} returned no results for ${engines}; degraded engines: ${degraded}`;
+}
+
+function responseHasRequestedEngineMismatch(response: SearxngSearchResponse, options: SearchOptions): boolean {
+  const requestedEngines = (options.engines ?? []).map(normalizeEngineName).filter(Boolean);
+  if (!requestedEngines.length || response.results.length === 0) return false;
+  return !response.results.some((result) => {
+    const resultEngine = normalizeEngineName(result.engine);
+    return requestedEngines.some((engine) => resultEngine === engine || resultEngine.startsWith(`${engine} `));
+  });
+}
+
+function observedResultEngines(response: SearxngSearchResponse): string[] {
+  return Array.from(new Set(
+    response.results
+      .map((result) => result.engine.trim())
+      .filter(Boolean)
+  ));
 }
 
 function describeUnresponsiveEngine(engine: SearxngUnresponsiveEngine): string {

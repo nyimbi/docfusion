@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Trigger SearXNG Fallback On Weak Primary Fan-Out
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: keep RFP search breadth from collapsing when `search.lindela.io` returns an empty or incorrectly filtered primary response without explicitly reporting `unresponsive_engines`.
+
+Changes in this slice:
+- Updated the TypeScript SearXNG client so zero-result primary responses now trigger configured/public fallback fan-out even when no engine error is reported.
+- Added requested-engine mismatch detection: if a requested-engine search returns results only from other engines, the client fans out to `searx.space` fallbacks and merges usable primary plus fallback results.
+- Applied the same empty-result and requested-engine-mismatch fallback rules to the Python infrastructure SearXNG client.
+- Updated the Python discovery service fallback trigger so empty primary SearXNG responses also try public/configured fallback instances.
+
+Verification:
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 17 tests.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 11 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Live probe against `site:ungm.org/Public/Notice Request for Proposal software implementation deadline` with Google, DuckDuckGo, Bing, and Brave requested showed fallback fan-out reached eight public `searx.space` instances; those public instances rejected the server-side search with 403, 418, or 429, while `search.lindela.io` returned 3 Brave results.
+
+Remaining after this slice:
+- Public `searx.space` fallback is now triggered for more weak-primary cases, but public instances remain too throttled for dependable production breadth. A trusted `SEARXNG_FALLBACK_URLS` pool is still the reliable capacity fix if `search.lindela.io` under-delivers.
+- Continue source-specific collection repairs for high-yield procurement portals such as Tanzania NeST and PPRA Tanzania.
+
 ### 2026-05-29 - Repair Uganda eGP Configured Source
 
 Status: implemented, focused-test verified, typechecked, and live-run.

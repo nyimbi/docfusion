@@ -354,7 +354,7 @@ class DefaultDiscoveryService:
 		return response.json()
 
 	def _should_try_searxng_fallback(self, payload: dict[str, Any]) -> bool:
-		return bool(payload.get("unresponsive_engines"))
+		return bool(payload.get("unresponsive_engines")) or not bool(payload.get("results"))
 
 	async def _fetch_searxng_fallback_payloads(
 		self,
