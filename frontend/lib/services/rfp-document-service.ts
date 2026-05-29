@@ -1294,6 +1294,7 @@ async function tryFetchSourceDocumentUrl(
       error: `Unexpected HTML response while fetching document URL ${url.toString()}`,
     };
   }
+  const filename = filenameForFetchedSourceDocument(documentName, mimeType, url);
   return {
     ok: true,
     document: {
@@ -1301,8 +1302,8 @@ async function tryFetchSourceDocumentUrl(
       mimeType,
       effectiveUrl: url.toString(),
       originalUrl: url.toString(),
-      filename: documentName,
-      extractionFilename: documentName,
+      filename,
+      extractionFilename: filenameForExtraction(filename, mimeType),
       method,
     },
   };
@@ -1919,9 +1920,53 @@ function replaceFileExtension(filename: string, extension: string): string {
   return `${filename.slice(0, -current.length)}${extension}`;
 }
 
+function filenameForFetchedSourceDocument(
+  documentName: string,
+  mimeType: string | null | undefined,
+  sourceUrl: URL
+): string {
+  const queryFilename = filenameFromSourceUrlQuery(sourceUrl);
+  const baseFilename = queryFilename ?? documentName;
+  const mimeExtension = fileExtensionForMimeType(mimeType);
+  if (mimeExtension) return replaceFileExtension(baseFilename, mimeExtension);
+  return baseFilename;
+}
+
+function filenameFromSourceUrlQuery(sourceUrl: URL): string | undefined {
+  for (const key of ["downloadedFileName", "filename", "fileName", "blobName"]) {
+    const value = sourceUrl.searchParams.get(key);
+    if (!value?.trim()) continue;
+    const filename = sanitizeFilename(basename(value));
+    if (filename && extname(filename)) return filename;
+  }
+  return undefined;
+}
+
 function filenameForExtraction(filename: string, mimeType: string | null | undefined): string {
-  if (mimeType && isHtmlMimeType(mimeType)) return replaceFileExtension(filename, ".html");
+  const mimeExtension = fileExtensionForMimeType(mimeType);
+  if (mimeExtension) return replaceFileExtension(filename, mimeExtension);
   return filename;
+}
+
+function fileExtensionForMimeType(mimeType: string | null | undefined): string | undefined {
+  const normalized = mimeType?.split(";")[0]?.trim().toLowerCase();
+  switch (normalized) {
+    case "application/pdf":
+      return ".pdf";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return ".docx";
+    case "application/msword":
+      return ".doc";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return ".xlsx";
+    case "application/vnd.ms-excel":
+      return ".xls";
+    case "text/html":
+    case "application/xhtml+xml":
+      return ".html";
+    default:
+      return undefined;
+  }
 }
 
 function escapeHtml(value: string): string {

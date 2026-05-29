@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Accelerate Broad RFP Queue Intake
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: increase usable RFP acquisition throughput across the broad source-document queue, then remove the concrete bottleneck where direct PDF download URLs discovered as `.html` documents were parsed as HTML and sometimes sent through slow Docling fallback.
+
+Changes in this slice:
+- Updated direct source-document download handling to infer the stored and extraction filename from the HTTP response MIME type and trusted query filename parameters such as `downloadedFileName`, `filename`, `fileName`, and `blobName`.
+- Preserved the lightweight extraction priority by ensuring `application/pdf` responses discovered with `.html` names are extracted as PDFs with local `pdftotext` before any Docling fallback.
+- Added a regression for South Africa eTenders `Download?...downloadedFileName=...pdf` URLs, proving they are queued with a `.pdf` parser filename and do not call Docling when `pdftotext` succeeds.
+
+Verification:
+- Broad dry-run `source_doc_intake_broad_queue_dry_20260530T0205` selected 25 source documents across IOM, South Africa eTenders, AIIB, SAM.gov, AFDB, World Bank, CDB, Kenya PPIP, SADC, ADB, and other configured/source-scrape records.
+- Broad live intake `source_doc_intake_broad_queue_live_20260530T0207` selected 25, downloaded 22, failed 3, skipped 0, completed 17 parse jobs during the wait window, timed out 1 parse wait, and extracted requirements from the completed jobs.
+- The broad live run exercised SearXNG fallback fanout against searx.space instances when `https://search.lindela.io` had degraded requested engines, and also showed the direct DuckDuckGo/fallback recovery path on blocked source-document fetches.
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-service.test.ts` passed with 40 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/searxng-client-config.test.ts` passed with 29 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- South Africa eTenders proof dry-run `source_doc_intake_etenders_pdfname_dry_20260530T0233` selected 4 `Download?...downloadedFileName=...pdf` source documents that were discovered with `.html` names.
+- South Africa eTenders proof live intake `source_doc_intake_etenders_pdfname_live_20260530T0234` selected 4, downloaded 4, failed 0, skipped 0, completed 4 parse jobs, timed out 0 parse jobs, and extracted 56 requirements.
+- The proof live logs showed local `pdftotext` used for `FAPM-R_1.pdf`, `RFQ_Framing_Matereality.pdf`, and `RFQ_Staff_Transport_R.pdf`; no Docling fallback was needed for those wrapper downloads.
+- Updated live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 298 RFP documents with extracted text, 31,205,765 extracted text characters, and 2,135 extracted `rfp_requirements`.
+- Source backlog remains broad after this slice: South Africa eTenders has 10 downloaded source documents and 15 queued selected documents; Ghana GHANEPS 10 downloaded and 71 queued; Zambia ZPPA 10 downloaded and 90 queued; Rwanda UMUCYO 16 downloaded and 80 queued; Kenya PPIP 47 downloaded and 68 queued; Configured Source Scrape 2 downloaded and 186 queued.
+
+Remaining after this slice:
+- Continue bounded broad queue drains, preferring smaller portal-targeted batches for wrapper-heavy hosts.
+- Improve AFDB detail-page recovery separately; multiple AFDB detail URLs still failed with HTTP 403 even after searx.space fallback searches.
+- Tighten low-value source-document ranking for templates, awards, disposals, and routine facilities tenders only where it demonstrably increases requirement yield without reducing acquisition breadth.
+
 ### 2026-05-30 - Unlock Rwanda UMUCYO Detail Document Intake
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.

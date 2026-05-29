@@ -721,6 +721,54 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("uses response MIME and query filename when a PDF download URL was discovered as HTML", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "REQ00121 - Digital Signature Solution.html",
+			sourceUrl: "https://www.etenders.gov.za/home/Download?blobName=9ba501ff.pdf&downloadedFileName=RFQ-Provision%20of%20a%20Digital%20Signature%20Solution_Final.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		execFileMock.mockImplementation((_file, args, _options, callback) => {
+			expect(args).toEqual(expect.arrayContaining(["-layout", "-enc", "UTF-8", "-"]));
+			callback(null, "pdftotext extracted South Africa tender PDF text.", "");
+		});
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
+			parsingJobId: "00000000-0000-4000-8000-000000000501",
+			mimeType: "application/pdf",
+		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: "pdftotext extracted South Africa tender PDF text.",
+			extractedAt: expect.any(Date),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "RFQ-Provision_of_a_Digital_Signature_Solution_Final.pdf",
+			fileType: "pdf",
+			extractedText: "pdftotext extracted South Africa tender PDF text.",
+		});
+	});
+
 	it("falls back to local PDF extraction when pdftotext and DocLing are unavailable during download", async () => {
 		const updates: Record<string, unknown>[] = [];
 		const insertedValues: Record<string, unknown>[] = [];
