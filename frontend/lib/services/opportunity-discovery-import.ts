@@ -229,11 +229,11 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?unhcr\.org\/.*bidding-opportunities/i,
 	/\/\/(?:www\.)?fao\.org\/unfao\/procurement/i,
 	/\/\/procurement-notices\.undp\.org\//i,
-	/\/\/devbusiness\.un\.org\//i,
 	/\/\/(?:www\.)?worldbank\.org\/.*procurement/i,
 	/\/\/tenders\.worldbank\.org\//i,
 	/\/\/(?:www\.)?afdb\.org\/.*procurement/i,
 	/\/\/(?:www\.)?adb\.org\/business\/.*procurement/i,
+	/\/\/(?:www\.)?caribank\.org\/work-with-us\/procurement/i,
 	/\/\/(?:www\.)?aiib\.org\/.*project-procurement/i,
 	/\/\/(?:www\.)?isdb\.org\/project-procurement/i,
 	/\/\/tenders\.go\.ke\//i,
@@ -367,6 +367,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("procurement-notices.undp.org")) sourceId = "undp";
 	else if (host === "ungm.org") sourceId = "ungm";
 	else if (host.includes("worldbank.org")) sourceId = "world_bank";
+	else if (host.includes("caribank.org") && safeUrlPathname(sourceUrl).startsWith("/work-with-us/procurement/")) sourceId = "cdb";
 	else if (host.includes("ebrd.com")) sourceId = "ebrd";
 	else if (host.includes("sam.gov")) sourceId = "sam_gov";
 	else if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) sourceId = "eu_funding_tenders";
@@ -386,6 +387,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "adb"
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
+		|| parser.sourceId === "cdb"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania";
 }
@@ -759,6 +761,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "undp") return "UNDP";
 	if (opportunity?.source === "ungm") return "UNGM";
 	if (opportunity?.source === "world_bank") return "World Bank";
+	if (opportunity?.source === "cdb") return "Caribbean Development Bank";
 	if (opportunity?.source === "ebrd") return "EBRD";
 	if (opportunity?.source === "sam_gov") return "SAM.gov";
 	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
@@ -784,6 +787,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "undp" ? ["undp", "un-procurement"] : []),
 		...(opportunity?.source === "ungm" ? ["ungm", "un-procurement"] : []),
 		...(opportunity?.source === "world_bank" ? ["world-bank", "development-bank", "global-procurement"] : []),
+		...(opportunity?.source === "cdb" ? ["cdb", "development-bank", "regional-procurement"] : []),
 		...(opportunity?.source === "ebrd" ? ["ebrd", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "sam_gov" ? ["sam-gov", "us-federal"] : []),
 		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
@@ -1089,7 +1093,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

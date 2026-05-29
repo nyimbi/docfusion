@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Replace Phased-Down DevBusiness Source With CDB Procurement
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: remove a guaranteed-empty configured source after UN Development Business ceased website activity and replace it with a live procurement source from the UNDB successor portal list.
+
+Changes in this slice:
+- Removed the default DevBusiness query and configured source URL because `https://devbusiness.un.org` is now a phase-down page, not a live opportunity feed.
+- Added Caribbean Development Bank current procurement notices to the default source URL and indexed query set.
+- Added a CDB source parser that extracts current notice titles, countries, sectors, procurement types, deadlines, and direct notice URLs from the static HTML table without Firecrawl/browser dependence.
+- Routed CDB through the source API path in the discovery importer and live source proof script.
+
+Verification:
+- `npx vitest run __tests__/scrapers/cdb-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 45 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source proof `live_cdb_procurement_source_20260529T124017Z` passed through the source API path and returned 13 current CDB opportunities.
+- Live DB import `live_cdb_procurement_import_20260529T1240` passed with downloads disabled; it processed 13 candidates, imported 13 new opportunities, failed 0, emitted 0 warnings, created 13 source-document rows, and marked the CDB source healthy.
+- Post-run live database snapshot: 3,322 total opportunities, 1,731 RFP-typed opportunities, and 13 CDB opportunities.
+
+Remaining after this slice:
+- IDB, IFAD, and GCF replacement candidates remain blocked or portal-heavy from this environment; add them only if a reliable public API or browser path is proven.
+
 ### 2026-05-29 - Treat Partial SearXNG Engine Coverage As Failed Fan-Out
 
 Status: implemented, focused-test verified, typechecked, and live-probed.
