@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Expand Configured Source Intake And UNGM Pagination
+
+Status: implemented, focused-test verified, typechecked, live-imported, and live database verified.
+
+Purpose: make broad configured-source collection materially less shallow by allowing higher per-source intake, paging UNGM beyond its single 50-row public endpoint response, and preserving national source labels for Ghana/Zambia/Rwanda imports instead of collapsing them under a generic source-scrape platform.
+
+Changes in this slice:
+- Raised the default configured-source scrape limit from 25 to 50 and widened explicit configured-source/live preset caps to 200 for operator-driven broad collection runs.
+- Added paginated UNGM public notice collection so source imports can request more than the endpoint's 50-row page size while still bounding the page count.
+- Added source-platform names and national-procurement tags for Rwanda UMUCYO, Ghana GHANEPS, and Zambia ZPPA records.
+- Updated live discovery import defaults so ad hoc broad-source runs use the larger source window without changing search-query fan-out.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/ungm-client.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-presets.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 61 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live UNGM import `live_ungm_paginated_import_20260530T0038` requested a 120-record source window, imported 15 currently active UNGM notices, failed 0, and emitted 0 warnings.
+- Live regional source relabel/import `live_regional_source_relabel_import_20260530T0039` processed 108 Ghana/Zambia/Rwanda candidates, imported 2, updated 106, failed 0, emitted 0 warnings, and created 2 new source-document rows.
+- Post-run live database snapshot: 3,792 total opportunities, 1,787 RFP-typed opportunities, 111 UNGM opportunities, 30 Ghana GHANEPS opportunities, 31 Zambia ZPPA opportunities, 48 Rwanda UMUCYO opportunities, 17 African Union opportunities, 30 MANEPS Malawi opportunities, 13 Mauritius CEB opportunities, 30 Nigeria NOCOPO opportunities, and 25 South Africa eTenders opportunities.
+
+Remaining after this slice:
+- Continue adding source-specific national and multilateral parsers where public APIs or stable tender tables exist; the importer now supports larger configured-source batches for those sources.
+- Continue source-document intake against direct-document sources so newly collected notices become parsed requirements and response-ready packages.
+
 ### 2026-05-29 - Add African Union Bid Document Collection
 
 Status: implemented and live-proof verified.

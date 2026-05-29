@@ -102,7 +102,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.giz.de/en/regions/africa/south-africa/tenders",
 ] as const;
 
-export const DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT = 25;
+export const DEFAULT_DISCOVERY_SOURCE_SCRAPE_LIMIT = 50;
 export const DEFAULT_DISCOVERY_SCRAPE_TOP_RESULTS = true;
 export const DEFAULT_DISCOVERY_SCRAPE_LIMIT = 5;
 export const DEFAULT_DISCOVERY_BROWSER_FALLBACK = true;

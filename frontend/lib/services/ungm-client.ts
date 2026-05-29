@@ -42,6 +42,7 @@ export interface UngmFetchOptions {
 	now?: Date;
 	enrichDetails?: boolean;
 	detailLimit?: number;
+	maxPages?: number;
 }
 
 export class UngmNoticeSearchError extends Error {
@@ -59,7 +60,9 @@ export class UngmNoticeSearchError extends Error {
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_LIMIT = 25;
 const DEFAULT_DETAIL_LIMIT = 5;
-const MAX_LIMIT = 50;
+const MAX_PAGE_SIZE = 50;
+const DEFAULT_MAX_PAGES = 4;
+const MAX_PAGES = 10;
 const MONTH_ABBREVIATIONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export function isUngmUrl(sourceUrl: string): boolean {
@@ -93,13 +96,13 @@ function parseStringList(value: string | null): string[] {
 		.filter(Boolean);
 }
 
-function buildSearchPayload(sourceUrl: URL, limit: number, now: Date): UngmNoticeSearchPayload {
+function buildSearchPayload(sourceUrl: URL, pageIndex: number, pageSize: number, now: Date): UngmNoticeSearchPayload {
 	const activeOnly = sourceUrl.searchParams.get("active")?.toLowerCase() !== "false";
 	const today = formatUngmSearchDate(now);
 
 	return {
-		PageIndex: Math.max(Number(sourceUrl.searchParams.get("page") ?? 0), 0),
-		PageSize: Math.min(Math.max(limit, 1), MAX_LIMIT),
+		PageIndex: pageIndex,
+		PageSize: pageSize,
 		Title: sourceUrl.searchParams.get("title") ?? "",
 		Description: sourceUrl.searchParams.get("description") ?? "",
 		Reference: sourceUrl.searchParams.get("reference") ?? "",
@@ -124,6 +127,18 @@ function buildSearchPayload(sourceUrl: URL, limit: number, now: Date): UngmNotic
 
 function buildSearchUrl(sourceUrl: URL): string {
 	return new URL("/Public/Notice/Search", sourceUrl.origin).toString();
+}
+
+function boundedInteger(value: number | undefined, defaultValue: number, min: number, max?: number): number {
+	const parsed = value === undefined ? defaultValue : Math.trunc(value);
+	const finite = Number.isFinite(parsed) ? parsed : defaultValue;
+	const lowerBounded = Math.max(finite, min);
+	return max === undefined ? lowerBounded : Math.min(lowerBounded, max);
+}
+
+function requestedPageIndex(sourceUrl: URL): number {
+	const parsed = Number(sourceUrl.searchParams.get("page") ?? 0);
+	return Number.isFinite(parsed) ? Math.max(Math.trunc(parsed), 0) : 0;
 }
 
 function extractSearchTotal(html: string): number | undefined {
@@ -212,40 +227,55 @@ export async function fetchUngmOpportunities(
 	options: UngmFetchOptions = {}
 ): Promise<UngmFetchResult> {
 	const parsed = new URL(sourceUrl);
-	const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
+	const limit = boundedInteger(options.limit, DEFAULT_LIMIT, 1);
+	const maxPages = boundedInteger(options.maxPages, DEFAULT_MAX_PAGES, 1, MAX_PAGES);
 	const searchUrl = buildSearchUrl(parsed);
-	const payload = buildSearchPayload(parsed, limit, options.now ?? new Date());
-	const response = await fetchPublicHttpUrl(searchUrl, {
-		method: "POST",
-		headers: {
-			Accept: "text/html, */*; q=0.01",
-			"Content-Type": "application/json",
-			Referer: new URL("/Public/Notice", parsed.origin).toString(),
-			"User-Agent": "DocFusion/1.0 opportunity-discovery",
-			"X-Requested-With": "XMLHttpRequest",
-		},
-		body: JSON.stringify(payload),
-		timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-	}, "UNGM notice search URL");
+	const now = options.now ?? new Date();
+	const opportunities: OpportunityData[] = [];
+	let total: number | undefined;
+	let pageIndex = requestedPageIndex(parsed);
 
-	if (!response.ok) {
-		throw new UngmNoticeSearchError(response.status, response.headers.get("retry-after"));
+	for (let page = 0; page < maxPages && opportunities.length < limit; page++) {
+		const pageSize = Math.min(MAX_PAGE_SIZE, limit - opportunities.length);
+		const payload = buildSearchPayload(parsed, pageIndex, pageSize, now);
+		const response = await fetchPublicHttpUrl(searchUrl, {
+			method: "POST",
+			headers: {
+				Accept: "text/html, */*; q=0.01",
+				"Content-Type": "application/json",
+				Referer: new URL("/Public/Notice", parsed.origin).toString(),
+				"User-Agent": "DocFusion/1.0 opportunity-discovery",
+				"X-Requested-With": "XMLHttpRequest",
+			},
+			body: JSON.stringify(payload),
+			timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+		}, "UNGM notice search URL");
+
+		if (!response.ok) {
+			throw new UngmNoticeSearchError(response.status, response.headers.get("retry-after"));
+		}
+
+		const html = await response.text();
+		total ??= extractSearchTotal(html);
+		const pageOpportunities = parseUngmSearchHtml(html, parsed.origin);
+		if (pageOpportunities.length === 0) break;
+		opportunities.push(...pageOpportunities);
+		if (total !== undefined && opportunities.length >= total) break;
+		if (pageOpportunities.length < pageSize) break;
+		pageIndex++;
 	}
-
-	const html = await response.text();
-	const opportunities = parseUngmSearchHtml(html, parsed.origin);
 	const detailLimit = options.enrichDetails === false
 		? 0
-		: Math.min(Math.max(options.detailLimit ?? DEFAULT_DETAIL_LIMIT, 0), opportunities.length);
+		: Math.min(Math.max(options.detailLimit ?? DEFAULT_DETAIL_LIMIT, 0), opportunities.length, limit);
 
 	return {
 		searchUrl,
 		opportunities: await enrichUngmOpportunities(
-			opportunities,
+			opportunities.slice(0, limit),
 			parsed.origin,
 			options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
 			detailLimit
 		),
-		total: extractSearchTotal(html),
+		total,
 	};
 }

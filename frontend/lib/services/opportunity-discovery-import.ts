@@ -878,6 +878,9 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "iom") return "IOM";
 	if (opportunity?.source === "giz") return "GIZ";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
+	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
+	if (opportunity?.source === "ghaneps") return "Ghana GHANEPS";
+	if (opportunity?.source === "zppa_zambia") return "Zambia ZPPA";
 	if (opportunity?.source === "nest_tanzania") return "NeST Tanzania";
 	if (opportunity?.source === "etenders_sa") return "South Africa eTenders";
 	if (opportunity?.source === "maneps_malawi") return "MANEPS Malawi";
@@ -910,6 +913,9 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
+		...(opportunity?.source === "umucyo_rwanda" ? ["umucyo", "rwanda", "national-procurement"] : []),
+		...(opportunity?.source === "ghaneps" ? ["ghaneps", "ghana", "national-procurement"] : []),
+		...(opportunity?.source === "zppa_zambia" ? ["zppa", "zambia", "national-procurement"] : []),
 		...(opportunity?.source === "nest_tanzania" ? ["nest-tanzania", "tanzania", "national-procurement", "ocds"] : []),
 		...(opportunity?.source === "etenders_sa" ? ["etenders-sa", "south-africa", "national-procurement", "ocds"] : []),
 		...(opportunity?.source === "maneps_malawi" ? ["maneps", "malawi", "national-procurement"] : []),
@@ -2571,7 +2577,7 @@ export async function executeOpportunityDiscoveryImport(
 	const queries = normalizeDiscoveryQueries(input);
 	const sourceUrls = normalizeSourceUrls(input);
 	const limitPerQuery = Math.min(Math.max(input.limitPerQuery ?? 10, 1), 50);
-	const sourceScrapeLimit = Math.min(Math.max(input.sourceScrapeLimit ?? limitPerQuery, 0), 50);
+	const sourceScrapeLimit = Math.min(Math.max(input.sourceScrapeLimit ?? limitPerQuery, 0), 200);
 	const updateExisting = input.updateExisting ?? true;
 	const downloadParseMode = input.downloadParseMode;
 	const downloadLimit = input.downloadDiscoveredDocuments

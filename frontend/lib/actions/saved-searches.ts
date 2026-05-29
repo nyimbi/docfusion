@@ -333,7 +333,7 @@ function normalizeDiscoveryPresetInput(input: DiscoveryImportInput): DiscoveryIm
 		normalized.sourceUrls = [...new Set(input.sourceUrls.map((url) => url.trim()).filter(Boolean))];
 	}
 	if (input.sourceScrapeLimit !== undefined) {
-		normalized.sourceScrapeLimit = normalizeBoundedNumber(input.sourceScrapeLimit, 0, 50);
+		normalized.sourceScrapeLimit = normalizeBoundedNumber(input.sourceScrapeLimit, 0, 200);
 	}
 	if (input.scrapeLimit !== undefined) {
 		normalized.scrapeLimit = normalizeBoundedNumber(input.scrapeLimit, 0, 10);

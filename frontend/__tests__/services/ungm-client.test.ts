@@ -96,6 +96,63 @@ describe("UNGM client", () => {
 		]);
 	});
 
+	it("paginates UNGM search when the requested limit exceeds one public endpoint page", async () => {
+		fetchPublicHttpUrlMock.mockReset();
+		fetchPublicHttpUrlMock
+			.mockResolvedValueOnce(new Response(`
+				${Array.from({ length: 50 }, (_, index) => {
+					const id = 300001 + index;
+					return `
+						<div role="row" data-noticeid="${id}" class="tableRow dataRow notice-table">
+							<div role="cell"></div>
+							<div role="cell"><span class="ungm-title">First page RFP ${index + 1}</span><a href="/Public/Notice/${id}">Open</a></div>
+							<div role="cell"><span>26-May-2026 15:30 (GMT -4.00)</span></div>
+							<div role="cell"><span>13-May-2026</span></div>
+							<div role="cell"><span>UNDP</span></div>
+							<div role="cell"><span>Request for proposal</span></div>
+							<div role="cell"><span>UNDP-${index + 1}</span></div>
+							<div role="cell"><span>Kenya</span></div>
+						</div>
+					`;
+				}).join("")}
+				<script>var noticeTotal = "75";</script>
+			`, { status: 200 }))
+			.mockResolvedValueOnce(new Response(`
+				<div role="row" data-noticeid="300999" class="tableRow dataRow notice-table">
+					<div role="cell"></div>
+					<div role="cell"><span class="ungm-title">Second page RFP</span><a href="/Public/Notice/300999">Open</a></div>
+					<div role="cell"><span>27-May-2026 15:30 (GMT -4.00)</span></div>
+					<div role="cell"><span>14-May-2026</span></div>
+					<div role="cell"><span>UNICEF</span></div>
+					<div role="cell"><span>Request for proposal</span></div>
+					<div role="cell"><span>UNICEF-002</span></div>
+					<div role="cell"><span>Uganda</span></div>
+				</div>
+				<script>var noticeTotal = "75";</script>
+			`, { status: 200 }));
+
+		const result = await fetchUngmOpportunities("https://www.ungm.org/Public/Notice", {
+			enrichDetails: false,
+			limit: 75,
+			maxPages: 2,
+			now: new Date(2026, 4, 26, 10, 0, 0),
+			timeoutMs: 1000,
+		});
+
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(1, "https://www.ungm.org/Public/Notice/Search", expect.objectContaining({
+			body: expect.stringContaining("\"PageIndex\":0"),
+		}), "UNGM notice search URL");
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(2, "https://www.ungm.org/Public/Notice/Search", expect.objectContaining({
+			body: expect.stringContaining("\"PageIndex\":1"),
+		}), "UNGM notice search URL");
+		expect(JSON.parse(fetchPublicHttpUrlMock.mock.calls[0][1].body)).toMatchObject({ PageSize: 50 });
+		expect(JSON.parse(fetchPublicHttpUrlMock.mock.calls[1][1].body)).toMatchObject({ PageSize: 25 });
+		expect(result.total).toBe(75);
+		expect(result.opportunities).toHaveLength(51);
+		expect(result.opportunities[0]?.sourceId).toBe("300001");
+		expect(result.opportunities[50]?.sourceId).toBe("300999");
+	});
+
 	it("throws a typed error for unavailable public notice search responses", async () => {
 		fetchPublicHttpUrlMock.mockReset();
 		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response("temporarily unavailable", {

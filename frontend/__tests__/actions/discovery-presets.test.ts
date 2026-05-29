@@ -127,7 +127,7 @@ describe("discovery presets", () => {
 					queries: ["ICT tender Kenya", "RFP Uganda"],
 					limitPerQuery: 50,
 					sourceUrls: ["https://buyer.example/tenders"],
-					sourceScrapeLimit: 50,
+					sourceScrapeLimit: 99,
 					countryRegion: "East Africa",
 					category: "ICT",
 					engines: ["bing", "wikipedia"],

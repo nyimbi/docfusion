@@ -2076,6 +2076,60 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports Ghana GHANEPS tenders with the national source platform label", async () => {
+		fetchMock.mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () => `
+				<table id="T01"><tbody>
+					<tr>
+						<td>1</td>
+						<td style="display:block; text-align:left">
+							<a href="/epps/cft/prepareViewCfTWS.do?resourceId=2961470">Consultancy Service for the preparation of a comprehensive risk assessment report</a>
+						</td>
+						<td>MINISTRY OF FINANCE</td>
+						<td></td>
+						<td>Mon Jun 29 10:00:00 GMT 2026</td>
+						<td>Quality and Cost Based Selection</td>
+						<td>Bid Submission</td>
+						<td><a href="/epps/cft/downloadNoticeForAdvSearch.do?resourceId=2961470"><img src="/epps/images/acrobat.gif" /></a></td>
+						<td>Fri May 29 09:15:00 GMT 2026</td>
+					</tr>
+				</tbody></table>
+			`,
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.ghaneps.gov.gh/epps/quickSearchAction.do?searchSelect=6"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Consultancy Service for the preparation of a comprehensive risk assessment report",
+			source: "source-scrape",
+			sourceId: "ghaneps-2961470",
+			sourcePlatform: "Ghana GHANEPS",
+			countryRegion: "Ghana",
+			opportunityType: "rfp",
+			documentUrl: "https://www.ghaneps.gov.gh/epps/cft/downloadNoticeForAdvSearch.do?resourceId=2961470",
+			tags: ["external-discovery", "source-scrape", "ghaneps", "ghana", "national-procurement", "source-api"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					scrapeMethod: "source_api",
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));
