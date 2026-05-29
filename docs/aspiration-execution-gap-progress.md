@@ -64,6 +64,25 @@ Remaining after this slice:
 - IOM direct procurement PDFs frequently return 403; add a source-specific IOM/UNGM recovery path or repair the browser scraping endpoint before relying on direct IOM PDF intake.
 - The expanded sources created many source-document rows, but only five passed current direct-document filters. Continue targeted intake improvements for source pages that list documents behind portal links.
 
+### 2026-05-29 - Extend SearXNG Fanout to Python Infrastructure Client
+
+Status: implemented and focused-test verified.
+
+Purpose: ensure Python workflows that use `SearXNGClient` also fan out to `searx.space` public instances when `search.lindela.io` fails or reports degraded requested engines.
+
+Changes in this slice:
+- Added configured `SEARXNG_FALLBACK_URLS` and public `https://searx.space/data/instances.json` fallback discovery to the Python infrastructure SearXNG client.
+- Filtered public instances for healthy HTTP status, normal network type, SearXNG git metadata, search success, and requested-engine error rates before fanout.
+- Merged primary and fallback results with URL dedupe, preserved fallback provenance on `SearchResponse`, and accepted the existing workflow `limit` argument instead of letting that call path fail.
+
+Verification:
+- Added Python regression coverage for degraded-primary public searx.space fanout and primary-failure configured fallback recovery.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 8 tests.
+- `git diff --check` passed.
+
+Remaining after this slice:
+- Public searx.space instances are still best-effort and may throttle server-side traffic; `SEARXNG_FALLBACK_URLS` should be populated with trusted, known-good SearXNG instances when reliable multi-engine breadth is required.
+
 ### 2026-05-29 - Recover DuckDuckGo Results When Public SearXNG Fanout Fails
 
 Status: implemented, unit-verified, typechecked, and live-probed.
