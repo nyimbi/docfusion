@@ -502,6 +502,75 @@ describe("RFP document fetch storage", () => {
 		expect(processRfpParsingJob).not.toHaveBeenCalled();
 	});
 
+	it("posts Rwanda UMUCYO detail URLs and stores the decoded invitation HTML", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "selectAdvertisingDtlInfo.do",
+			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do?tendReferNo=000008%2FC%2FNCB%2F2025%2F2026%2F4900000000&tendStageCd=O&tendTypeCd=C",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		const invitation = [
+			"<h1>Section 1. Letter of Invitation</h1>",
+			"<p>Request for Proposal for supervision consulting services under Rwanda UMUCYO.</p>",
+			"<p>The Client invites eligible consultants to submit technical and financial proposals.</p>",
+			"<p>Terms of reference, proposal forms, evaluation criteria, procurement rules, bid validity,",
+			"submission deadline, tender fee, tender security, contract terms, and clarification process are included.</p>",
+			"<p>A consultant will be selected under Quality and Cost Based Selection procedures.</p>",
+		].join(" ");
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(
+			`<html><body><input type="hidden" id="eBBAVInvitVO.contnt" value="${invitation}"><h4>Tender Document/RFP</h4></body></html>`,
+			{
+				status: 500,
+				headers: { "content-type": "text/html;charset=UTF-8" },
+			}
+		));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			"https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do",
+			expect.objectContaining({
+				method: "POST",
+				body: expect.stringContaining("tendReferNo=000008%2FC%2FNCB%2F2025%2F2026%2F4900000000"),
+			}),
+			"UMUCYO tender detail URL"
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "text/html",
+			extractedText: expect.stringContaining("Quality and Cost Based Selection"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "selectAdvertisingDtlInfo.html",
+			fileType: "html",
+			extractedText: expect.stringContaining("Rwanda UMUCYO"),
+			metadata: expect.objectContaining({
+				ingestWorkflow: expect.objectContaining({
+					sourceOpportunityDocumentId: baseDocument.id,
+				}),
+			}),
+		});
+	});
+
 	it("extracts and queues a supported RFP document from a downloaded ZIP package", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];

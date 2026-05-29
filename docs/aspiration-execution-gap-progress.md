@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Unlock Rwanda UMUCYO Detail Document Intake
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: close the Rwanda UMUCYO acquisition gap where discovered opportunities were real but their source-document rows pointed to the shared advertising list instead of durable per-tender RFP/detail content.
+
+Changes in this slice:
+- Changed the UMUCYO parser to seed deterministic per-tender detail URLs for `selectAdvertisingDtlInfo.do` using the tender reference, stage, and type from the public advertising table.
+- Added UMUCYO detail endpoints to source-document intake eligibility while keeping the shared `selectListAdvertisingListForGU.do` list page excluded.
+- Taught source-document download to POST UMUCYO detail parameters, accept the portal's detail HTML even when the portal emits a misleading HTTP 500 status, and store a visible HTML surrogate containing the decoded invitation/RFP body.
+- Preserved lightweight extraction by routing stored UMUCYO detail pages through local HTML text extraction before any Docling fallback.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/umucyo-rwanda-parser.test.ts __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` passed with 49 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source import `live_umucyo_detail_source_import_20260530T0148` processed 48 UMUCYO candidates, updated 48, failed 0, emitted 0 warnings, marked the source healthy, and created 48 new per-tender detail source-document rows.
+- Dry-run `source_doc_intake_umucyo_detail_dry_20260530T0149` selected 6 UMUCYO detail HTML source documents, including IFMIS data engineering, AI/ML engineering, and AI/ML infrastructure opportunities.
+- Live intake `source_doc_intake_umucyo_detail_live_20260530T0150` selected 6, downloaded 6, failed 0, skipped 0, completed 6 parse jobs, timed out 0 parse jobs, and extracted 62 total requirements.
+- The live intake used `local_html_text` for every selected UMUCYO detail document; no Docling fallback was needed.
+- Live database verification after the run: Rwanda UMUCYO has 48 opportunities, 96 source-document rows including 48 per-tender detail rows, 6 downloaded RFP documents, 24,257 extracted text characters, and 62 extracted `rfp_requirements`.
+- Current live opportunity snapshot remains 3,947 total opportunities and 1,800 RFP-typed opportunities.
+
+Remaining after this slice:
+- Continue bounded UMUCYO detail intake across the remaining detail rows.
+- Consider promoting UMUCYO pagination beyond the current first 50-record public page only after deciding how to bound the portal's 38,000-row advertising archive.
+
 ### 2026-05-30 - Unlock Ghana/Zambia Notice Endpoint Intake
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.

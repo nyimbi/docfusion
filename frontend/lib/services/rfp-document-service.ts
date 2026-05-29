@@ -136,6 +136,7 @@ interface StoredFetchedRfpDocument {
 
 type SourceDocumentFetchMethod =
   | "direct"
+  | "umucyo_detail_html"
   | "searxng_direct"
   | "firecrawl_link"
   | "firecrawl_landing_page_html"
@@ -1119,6 +1120,16 @@ async function fetchSourceDocument(
   sourceUrl: URL,
   documentName: string
 ): Promise<FetchedSourceDocument> {
+  if (isUmucyoTenderDetailUrl(sourceUrl)) {
+    const detail = await fetchUmucyoTenderDetailDocument(sourceUrl, documentName);
+    if (detail.ok) return detail.document;
+    logger.warn("[RFP Document Service] UMUCYO detail fetch failed; trying generic source recovery", {
+      sourceUrl: sourceUrl.toString(),
+      status: detail.status,
+      error: detail.error,
+    });
+  }
+
   const direct = await tryFetchSourceDocumentUrl(sourceUrl, documentName, "direct");
   if (direct.ok) return direct.document;
 
@@ -1141,6 +1152,108 @@ async function fetchSourceDocument(
 type SourceFetchAttempt =
   | { ok: true; document: FetchedSourceDocument }
   | { ok: false; status?: number; error: string };
+
+function isUmucyoTenderDetailUrl(url: URL): boolean {
+  return url.hostname.toLowerCase() === "www.umucyo.gov.rw"
+    && url.pathname === "/eb/bav/selectAdvertisingDtlInfo.do"
+    && Boolean(url.searchParams.get("tendReferNo"));
+}
+
+async function fetchUmucyoTenderDetailDocument(
+  url: URL,
+  documentName: string
+): Promise<SourceFetchAttempt> {
+  const form = new URLSearchParams();
+  const tendReferNo = url.searchParams.get("tendReferNo");
+  const tendStageCd = url.searchParams.get("tendStageCd") || "O";
+  const tendTypeCd = url.searchParams.get("tendTypeCd") || "";
+  if (!tendReferNo) {
+    return { ok: false, error: "UMUCYO tender detail URL is missing tendReferNo" };
+  }
+  form.set("tendReferNo", tendReferNo);
+  form.set("tendStageCd", tendStageCd);
+  if (tendTypeCd) form.set("tendTypeCd", tendTypeCd);
+  form.set("currentPageNo", "1");
+  form.set("searchConditions", "/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&leftTopFlag=l&recordCountPerPage=50");
+
+  const response = await fetchPublicHttpUrl(url.origin + url.pathname, {
+    method: "POST",
+    body: form.toString(),
+    headers: {
+      ...browserLikeDocumentHeaders(url),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    timeoutMs: SOURCE_DOCUMENT_FETCH_TIMEOUT_MS,
+  }, "UMUCYO tender detail URL");
+
+  const rawHtml = await response.text();
+  const html = buildUmucyoTenderDetailHtml(rawHtml, url);
+  const text = cleanExtractedText(html.replace(/<[^>]+>/g, " "));
+  if (!HTML_RFP_TEXT_SIGNAL.test(text) || text.length < MIN_HTML_EXTRACTED_TEXT_LENGTH) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `UMUCYO tender detail did not include usable RFP text: HTTP ${response.status}`,
+    };
+  }
+
+  const filename = replaceFileExtension(documentName, ".html");
+  const buffer = Buffer.from(html, "utf8");
+  assertSourceDocumentBufferSize(buffer);
+  return {
+    ok: true,
+    document: {
+      buffer,
+      mimeType: "text/html",
+      effectiveUrl: url.toString(),
+      originalUrl: url.toString(),
+      filename,
+      extractionFilename: filename,
+      method: "umucyo_detail_html",
+    },
+  };
+}
+
+function buildUmucyoTenderDetailHtml(rawHtml: string, url: URL): string {
+  const invitationHtml = extractUmucyoInvitationHtml(rawHtml);
+  const visibleDetail = rawHtml
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ");
+  return [
+    "<!doctype html><html><head><meta charset=\"utf-8\">",
+    `<title>Rwanda UMUCYO tender detail ${escapeHtml(url.searchParams.get("tendReferNo") ?? "")}</title>`,
+    "</head><body>",
+    "<main>",
+    invitationHtml ? `<section><h1>Invitation and RFP Content</h1>${invitationHtml}</section>` : "",
+    `<section><h1>UMUCYO Detail Page</h1>${visibleDetail}</section>`,
+    "</main>",
+    "</body></html>",
+  ].join("");
+}
+
+function extractUmucyoInvitationHtml(rawHtml: string): string | undefined {
+  const match = rawHtml.match(/<input\b[^>]*(?:id|name)=["']eBBAVInvitVO\.contnt["'][^>]*\bvalue=(["'])([\s\S]*?)\1/i);
+  const value = match?.[2];
+  if (!value?.trim()) return undefined;
+  return decodeHtmlEntities(value);
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&lsquo;/gi, "'")
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&ldquo;/gi, "\"")
+    .replace(/&rdquo;/gi, "\"")
+    .replace(/&ndash;/gi, "-")
+    .replace(/&mdash;/gi, "-")
+    .replace(/&deg;/gi, " degrees ");
+}
 
 async function tryFetchSourceDocumentUrl(
   url: URL,

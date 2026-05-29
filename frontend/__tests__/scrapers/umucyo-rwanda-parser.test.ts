@@ -56,6 +56,9 @@ describe("Rwanda UMUCYO advertising parser", () => {
 		expect(opportunities[0]?.deadline).toEqual(new Date(2026, 5, 29, 10, 30));
 		expect(opportunities[0]?.publishedDate).toEqual(new Date(2026, 4, 29));
 		expect(opportunities[0]?.portalUrl).toContain("#000002%2FG%2FICB%2F2025%2F2026%2F1200001000");
+		expect(opportunities[0]?.documentUrl).toBe(
+			"https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do?tendReferNo=000002%2FG%2FICB%2F2025%2F2026%2F1200001000&tendStageCd=O&tendTypeCd=G"
+		);
 		expect(opportunities[1]).toMatchObject({
 			category: "Consultant Services - National Competitive Bidding",
 			opportunityType: "rfp",

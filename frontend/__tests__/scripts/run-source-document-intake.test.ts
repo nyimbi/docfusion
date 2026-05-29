@@ -99,4 +99,15 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100",
 		})).toBe(false);
 	});
+
+	it("accepts Rwanda UMUCYO per-tender detail endpoints without accepting the shared list page", () => {
+		expect(isSupportedDocumentSource({
+			documentName: "selectAdvertisingDtlInfo.do",
+			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do?tendReferNo=000008%2FC%2FNCB%2F2025%2F2026%2F4900000000&tendStageCd=O&tendTypeCd=C",
+		})).toBe(true);
+		expect(isSupportedDocumentSource({
+			documentName: "selectListAdvertisingListForGU.do",
+			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&recordCountPerPage=50",
+		})).toBe(false);
+	});
 });

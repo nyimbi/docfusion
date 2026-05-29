@@ -120,6 +120,18 @@ function portalUrlFor(sourceUrl: string, internalReference: string): string {
 	return `${base.split("#")[0]}#${encodeURIComponent(internalReference)}`;
 }
 
+export function umucyoTenderDetailUrl(fields: {
+	internalReference: string;
+	stageCode: string;
+	typeCode: string;
+}): string {
+	const url = new URL("/eb/bav/selectAdvertisingDtlInfo.do", UMUCYO_BASE_URL);
+	url.searchParams.set("tendReferNo", fields.internalReference);
+	url.searchParams.set("tendStageCd", fields.stageCode);
+	url.searchParams.set("tendTypeCd", fields.typeCode);
+	return url.toString();
+}
+
 function opportunityFromRow(rowHtml: string, sourceUrl: string): OpportunityData | undefined {
 	const fields = radioValue(rowHtml);
 	if (!fields) return undefined;
@@ -136,6 +148,7 @@ function opportunityFromRow(rowHtml: string, sourceUrl: string): OpportunityData
 	const method = methodLabel(parsed.methodCode);
 	const tenderType = tenderTypeLabel(parsed.typeCode);
 	const portalUrl = portalUrlFor(sourceUrl, parsed.internalReference);
+	const documentUrl = umucyoTenderDetailUrl(parsed);
 
 	return {
 		title: parsed.title,
@@ -149,8 +162,8 @@ function opportunityFromRow(rowHtml: string, sourceUrl: string): OpportunityData
 		publishedDate: parseRwandaDateTime(advertisedAt),
 		deadline: parseRwandaDateTime(deadlineText || parsed.deadline),
 		portalUrl,
-		documentUrl: portalUrl,
-		rfpLink: portalUrl,
+		documentUrl,
+		rfpLink: documentUrl,
 		projectSummary: [
 			`Status: ${status || "Published"}`,
 			`Tender method: ${method}`,

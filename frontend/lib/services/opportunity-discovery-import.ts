@@ -954,7 +954,21 @@ function safeUrlPathname(url: string): string {
 	}
 }
 
+function isUmucyoTenderDetailUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url);
+		return parsed.hostname.toLowerCase() === "www.umucyo.gov.rw"
+			&& parsed.pathname === "/eb/bav/selectAdvertisingDtlInfo.do"
+			&& Boolean(parsed.searchParams.get("tendReferNo"));
+	} catch {
+		return false;
+	}
+}
+
 function discoveredSourceDocumentName(url: string, opportunityTitle: string): string {
+	if (isUmucyoTenderDetailUrl(url)) {
+		return `${opportunityTitle.slice(0, 450)}.html`;
+	}
 	const path = safeUrlPathname(url);
 	const filename = path.split("/").filter(Boolean).pop();
 	if (filename && /\.[a-z0-9]{2,5}$/i.test(filename)) {
@@ -964,6 +978,7 @@ function discoveredSourceDocumentName(url: string, opportunityTitle: string): st
 }
 
 function discoveredSourceDocumentType(url: string): "rfp" | "attachment" {
+	if (isUmucyoTenderDetailUrl(url)) return "rfp";
 	const path = safeUrlPathname(url);
 	return /\.(pdf|docx?|html?)$/i.test(path) || /(rfp|tender|bid|solicitation)/i.test(url)
 		? "rfp"
