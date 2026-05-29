@@ -16,6 +16,24 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Profile And Probe Remaining Protected Source Documents
+
+Status: live-profiled and partially recovered.
+
+Purpose: choose the next RFP intake target from live failure evidence after the IOM recovery work, instead of making finer edits without material collection impact.
+
+Findings:
+- Failed source-document rows by host: DGMarket 44 total with 1 high-intent row, UNICEF 23 total with 23 high-intent rows, AFDB 5 total with 1 high-intent row, and IOM 1 high-intent row remaining.
+- A bounded UNICEF retry attempted one representative row per unique failed UNICEF media-file URL: medical devices tender calendar, nutrition bid plan, medicines tender calendar, and education tender calendar.
+- The UNICEF nutrition bid plan recovered from a UNICEF Supply Division landing page and stored `UNICEF-Nutrition-Bid-Plan-4Q-2024-2025.html`; queued parse drain `queued_parse_after_unicef_nutrition_recovery_20260529` completed but extracted 0 requirements.
+- The medical devices, medicines, and education tender-calendar rows still failed because Firecrawl/browser recovery returned unusable or blocked source content and CloakBrowser is not configured.
+
+Current live counts after this probe:
+- 188 RFP documents, 186 completed RFP documents, 0 queued parse jobs, 1,239 RFP requirements, 159 RFP documents with requirements, 227 downloaded source-document rows, and 79 failed source-document rows.
+
+Next target:
+- Repair protected UNICEF landing-page extraction or configure CloakBrowser before spending more routine retries on UNICEF calendars; the existing browser service is still insufficient for these pages.
+
 ### 2026-05-29 - Recover Blocked IOM Procurement PDFs From Listing Pages
 
 Status: implemented, unit-verified, live-retried, and parsed.
