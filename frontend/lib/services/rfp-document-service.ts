@@ -45,7 +45,14 @@ import { logger } from "@/lib/utils/logger";
 const DOCUMENT_STORAGE_PATH = process.env.DOCUMENT_STORAGE_PATH || "./storage/rfp-documents";
 const MAX_FILE_SIZE_MB = 100; // Maximum file size to download
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".doc", ".xlsx", ".xls", ".zip", ".rar", ".html", ".htm"];
-const DOCUMENT_INVALID_TLS_HOSTS = new Set(["tenders.go.ke"]);
+const DOCUMENT_INVALID_TLS_HOSTS = new Set([
+  "tenders.go.ke",
+  "nrf.ac.za",
+  ...(process.env.SOURCE_DOCUMENT_INVALID_TLS_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+]);
 const MIN_EXTRACTED_TEXT_LENGTH = 10;
 const MIN_HTML_EXTRACTED_TEXT_LENGTH = 450;
 const MIN_HTML_EXTRACTED_WORD_COUNT = 40;
@@ -864,8 +871,12 @@ export async function downloadDocument(
 }
 
 function invalidTlsHostsForDocumentSource(sourceUrl: URL): string[] | undefined {
-  const host = sourceUrl.hostname.replace(/^www\./, "").toLowerCase();
-  return DOCUMENT_INVALID_TLS_HOSTS.has(host) ? [host] : undefined;
+  const hostname = sourceUrl.hostname.toLowerCase();
+  const hostWithoutWww = hostname.replace(/^www\./, "");
+  if (!DOCUMENT_INVALID_TLS_HOSTS.has(hostname) && !DOCUMENT_INVALID_TLS_HOSTS.has(hostWithoutWww)) {
+    return undefined;
+  }
+  return Array.from(new Set([hostname, hostWithoutWww]));
 }
 
 /**

@@ -40,6 +40,18 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/guide-2_submit-quotations-bids-proposals.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "bidder-instructions-goods-en.pdf",
+			sourceUrl: "https://www.cbd.int/doc/procurement/bidder-instructions-goods-en.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Entities - 2021 Quarter 1.pdf",
+			sourceUrl: "https://ocpo.treasury.gov.za/Suppliers_Area/Tender%20-%20Bid%20Opportunities/Entities%20-%202021%20Quarter%201.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "NPM-No.-122-2013.pdf",
+			sourceUrl: "https://www.gppb.gov.ph/wp-content/uploads/2023/07/NPM-No.-122-2013.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
 		})).toBe(true);

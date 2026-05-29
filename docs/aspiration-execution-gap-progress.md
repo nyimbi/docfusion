@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Suppress Generic Intake Rows And Recover TLS-Blocked NRF PDF
+
+Status: implemented, focused-test verified, typechecked, live-run, and parsed.
+
+Purpose: keep source-document intake focused on documents that can produce requirements, while preserving broad recovery when `search.lindela.io` has degraded engine fan-out and public sources have host-specific fetch issues.
+
+Changes in this slice:
+- Suppressed generic non-solicitation source documents from intake selection, including bidder-instruction PDFs, quarterly entity listing PDFs, and GPPB NPM memo PDFs.
+- Kept actual ITB/RFP/RFQ source documents eligible; the filter removes known generic guidance/listing/memo rows rather than low-fit but real tender documents.
+- Added a narrow invalid-TLS allowlist for `nrf.ac.za`, with `SOURCE_DOCUMENT_INVALID_TLS_HOSTS` support for future evidence-backed host additions, while preserving public URL validation and DNS pinning.
+- Documented the host-scoped TLS exception control in the opportunity discovery runbook.
+
+Verification:
+- `npx vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 5 tests.
+- `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 15 tests.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 8 tests.
+- `npx vitest run __tests__/services/rfp-document-service.test.ts` passed with 37 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --check` passed.
+- Dry-run `source_intake_filter_generic_dryrun_20260529b` confirmed `bidder-instructions-goods-en.pdf`, `Entities - 2021 Quarter 1.pdf`, and `NPM-No.-122-2013.pdf` no longer enter the selected intake batch.
+- Live intake `source_intake_filter_generic_live_20260529` selected 2, downloaded 1, failed 1, completed 1 parse, and extracted 10 requirements from `itb2023-0073-jibril.pdf` using local `pdftotext`.
+- Live retry `source_intake_retry_nrf_tls_live_20260529` recovered an IOM 403 row through the search/scrape path, reached public `searx.space` fallback instances during recovery, stored an HTML source surrogate, completed parsing, and extracted 33 requirements.
+- Live retry `source_intake_retry_nrf_tls_live_20260529b` reached public `searx.space` fallback fan-out for a degraded GTAI recovery query, then recovered the previously TLS-failed NRF PDF directly with local `pdftotext`, completed parsing, and extracted 11 requirements.
+- Post-run live database snapshot: 3,240 opportunities, 208 RFP documents, 206 completed RFP documents, 0 queued parse jobs, 1,412 RFP requirements, 176 RFP documents with requirements, 247 downloaded source-document rows, 239 discovered source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Public `searx.space` fallback fan-out is active and sometimes recovers breadth, but many public instances still return 403/429; a trusted `SEARXNG_FALLBACK_URLS` pool remains the reliable path when `search.lindela.io` engine fan-out degrades.
+- The GTAI HTML-disguised PDF still failed after search/scrape recovery and should be handled as a source-specific follow-up only if its opportunity value justifies more work.
+
 ### 2026-05-29 - Prioritize Response-Worthy Source Intake
 
 Status: implemented, focused-test verified, typechecked, live-run, and parsed.

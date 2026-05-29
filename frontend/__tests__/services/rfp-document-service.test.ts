@@ -1037,7 +1037,7 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
-	it("allows invalid TLS only for Kenya PPIP source document downloads", async () => {
+	it("allows invalid TLS for Kenya PPIP source document downloads", async () => {
 		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
 			...baseDocument,
 			sourceUrl: "https://tenders.go.ke/storage/Documents/registration.pdf",
@@ -1057,6 +1057,32 @@ describe("RFP document fetch storage", () => {
 			expect.objectContaining({ hostname: "tenders.go.ke" }),
 			expect.objectContaining({
 				allowInvalidTlsForHosts: ["tenders.go.ke"],
+			}),
+			"Document source URL"
+		);
+	});
+
+	it("allows invalid TLS for known procurement hosts with incomplete certificate chains", async () => {
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			sourceUrl: "https://www.nrf.ac.za/wp-content/uploads/2025/07/NRF-RIISA-INFO-09-2025-26_Final.pdf",
+			documentName: "NRF-RIISA-INFO-09-2025-26_Final.pdf",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+			}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result.success).toBe(true);
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			expect.objectContaining({ hostname: "www.nrf.ac.za" }),
+			expect.objectContaining({
+				allowInvalidTlsForHosts: ["www.nrf.ac.za", "nrf.ac.za"],
 			}),
 			"Document source URL"
 		);
