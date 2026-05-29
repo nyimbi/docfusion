@@ -232,6 +232,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host === "ocds-api.etenders.gov.za" && new URL(sourceUrl).pathname.startsWith("/api/OCDSReleases")) return getParser("etenders_sa") ?? genericParser;
 	if (host === "nest.go.tz" && new URL(sourceUrl).pathname.includes("/nest-data-portal-api/api/releases")) return getParser("nest_tanzania") ?? genericParser;
 	if (host === "umucyo.gov.rw" && new URL(sourceUrl).pathname.startsWith("/eb/bav/selectListAdvertisingListForGU.do")) return getParser("umucyo_rwanda") ?? genericParser;
+	if (host === "ghaneps.gov.gh" && new URL(sourceUrl).pathname.startsWith("/epps/quickSearchAction.do")) return getParser("ghaneps") ?? genericParser;
 	return genericParser;
 }
 
@@ -245,6 +246,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
 		|| parser.sourceId === "umucyo_rwanda"
+		|| parser.sourceId === "ghaneps"
 		|| parser.sourceId === "etenders_sa";
 }
 

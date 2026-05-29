@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add Ghana GHANEPS Current Tender Collection
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
+
+Purpose: expand national-procurement collection with Ghana GHANEPS current tenders, a public portal that returned 81 current tenders from this environment and exposes notice PDF links in the list table.
+
+Changes in this slice:
+- Added a Ghana GHANEPS parser for `quickSearchAction.do?searchSelect=6`, extracting title, resource ID, procuring entity, submission deadline, procedure, status, publication date, portal URL, and notice PDF URL.
+- Added bounded direct pagination with `GHANEPS_MAX_PAGES`, defaulting to 3 pages and capped at 10, so the source can collect more than the first visible page without generic scraping.
+- Routed GHANEPS through the direct source-parser path and added it to the broad default configured-source list plus targeted Ghana search query.
+- Added GHANEPS support to the live source-discovery proof script.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/ghaneps-parser.test.ts __tests__/scrapers/umucyo-rwanda-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 52 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_ghaneps_source_20260529T2257` parsed 30 GHANEPS opportunities via `source_api` across the configured page window.
+- Live DB import `live_ghaneps_import_20260529T2257` processed 30 Ghana GHANEPS candidates, imported 30, failed 0, emitted 0 warnings, created 30 source-document rows, and marked the source healthy with downloads disabled.
+- Post-run live database snapshot: 3,654 total opportunities, 1,765 RFP-typed opportunities, 30 GHANEPS opportunities, and 48 Rwanda UMUCYO opportunities.
+
+Remaining after this slice:
+- Increase `GHANEPS_MAX_PAGES` for scheduled runs if operators want all currently advertised GHANEPS pages instead of the default bounded first 30 records.
+- Continue adding source-specific national portals that expose stable public current-tender tables or APIs.
+
 ### 2026-05-29 - Add Rwanda UMUCYO Advertising Collection
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live-imported.
