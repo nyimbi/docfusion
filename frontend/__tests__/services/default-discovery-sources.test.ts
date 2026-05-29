@@ -51,7 +51,7 @@ describe("default discovery sources", () => {
 			"site:usaid.gov \"Request for Proposal\" Africa",
 			"site:etenders.gov.za \"request for bid\"",
 			"site:ppra.go.tz tenders \"request for proposal\"",
-			"site:egpuganda.go.ug tender \"request for proposals\"",
+			"site:egpuganda.go.ug/bid-notices tender deadline",
 			"filetype:pdf \"request for proposals\" \"submission deadline\"",
 			"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
 			"filetype:docx \"request for proposals\" procurement",
@@ -86,7 +86,7 @@ describe("default discovery sources", () => {
 			"https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal",
 			"https://www.etenders.gov.za/Home/opportunities?id=1",
 			"https://www.ppra.go.tz/tenders",
-			"https://egpuganda.go.ug/notices",
+			"https://egpuganda.go.ug/bid-notices",
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 		]);

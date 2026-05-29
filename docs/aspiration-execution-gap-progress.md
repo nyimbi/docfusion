@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Repair Uganda eGP Configured Source
+
+Status: implemented, focused-test verified, typechecked, and live-run.
+
+Purpose: turn the stale Uganda eGP configured source from an empty `/notices` scrape into a healthy public bid-notices source that imports current opportunities.
+
+Changes in this slice:
+- Replaced the default Uganda eGP source URL with `https://egpuganda.go.ug/bid-notices`, where the public bid table is currently available.
+- Added a Uganda eGP source-specific parser for static bid-notice table rows, extracting notice URL, reference, procuring entity, category, published date, deadline, and source tags.
+- Routed Uganda eGP source-scrape records through the dedicated parser and platform metadata instead of the generic parser.
+- Narrowed the Uganda eGP high-intent search query to the active `/bid-notices` path.
+
+Verification:
+- Confirmed SearXNG fallback fan-out remains active for both TypeScript and Python clients: `npx vitest run __tests__/services/searxng-client-config.test.ts` passed with 15 tests, and `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 8 tests.
+- Added regression coverage for the Uganda eGP parser extracting table rows with organizations and deadlines.
+- `npx vitest run __tests__/actions/discovery-opportunity-import.test.ts __tests__/scrapers/egp-uganda-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/searxng-client-config.test.ts` passed with 58 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live source-only probe `live_egp_uganda_parser_probe_20260529` against `https://egpuganda.go.ug/bid-notices`, with downloads disabled, processed 5 records, imported 5 new opportunities, failed 0, emitted 0 warnings, and marked the source healthy.
+- Post-run live database snapshot: 3,252 opportunities, 208 RFP documents, 206 completed RFP documents, 0 queued parse jobs, 1,412 RFP requirements, 176 RFP documents with requirements, 247 downloaded source-document rows, 240 discovered source-document rows, and 76 failed source-document rows.
+
+Remaining after this slice:
+- Public `searx.space` fallback fan-out is verified in code/tests but still best-effort in live broad runs; trusted `SEARXNG_FALLBACK_URLS` instances remain the reliable way to add fallback breadth if `search.lindela.io` degrades.
+- Other configured source gaps remain, especially Tanzania NeST and PPRA Tanzania, which need source-specific API or browser parsing rather than generic scraping.
+
 ### 2026-05-29 - Page Configured Sources Before Capping Candidates
 
 Status: implemented, focused-test verified, typechecked, and live-run.

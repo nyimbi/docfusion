@@ -241,7 +241,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?usaid\.gov\/business-forecast/i,
 	/\/\/(?:www\.)?etenders\.gov\.za\//i,
 	/\/\/(?:www\.)?ppra\.go\.tz\/tenders/i,
-	/\/\/egpuganda\.go\.ug\//i,
+	/\/\/egpuganda\.go\.ug\/(?:bid-notices|index\/)/i,
 	/\/\/(?:www\.)?ebrd\.com\/.*procurement/i,
 	/\/\/(?:www\.)?comesa\.int\/category\/open-tenders/i,
 	/\/\/(?:www\.)?un\.org\/procurement/i,
@@ -374,6 +374,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
+	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	return sourceId ? getParser(sourceId) ?? genericParser : genericParser;
 }
 
@@ -757,6 +758,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
 	if (opportunity?.source === "giz") return "GIZ";
+	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	return discoveryMethod === "source_scrape" ? "Configured Source Scrape" : "SearXNG";
 }
 
@@ -779,6 +781,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
+		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.tags ?? []),
 	])];
 }
