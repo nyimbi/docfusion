@@ -140,6 +140,56 @@ type SourceDocumentDownloadOutcome = {
 	parsingError?: string;
 };
 
+function persistenceRetryAttempts(): number {
+	const parsed = Number(process.env.DISCOVERY_IMPORT_DB_RETRY_ATTEMPTS ?? DEFAULT_PERSISTENCE_RETRY_ATTEMPTS);
+	if (!Number.isFinite(parsed)) return DEFAULT_PERSISTENCE_RETRY_ATTEMPTS;
+	return Math.min(5, Math.max(1, Math.trunc(parsed)));
+}
+
+function persistenceRetryDelayMs(): number {
+	const parsed = Number(process.env.DISCOVERY_IMPORT_DB_RETRY_DELAY_MS ?? DEFAULT_PERSISTENCE_RETRY_DELAY_MS);
+	if (!Number.isFinite(parsed)) return DEFAULT_PERSISTENCE_RETRY_DELAY_MS;
+	return Math.min(5_000, Math.max(0, Math.trunc(parsed)));
+}
+
+function persistenceErrorText(error: unknown): string {
+	if (error instanceof Error) {
+		const cause = "cause" in error ? (error as { cause?: unknown }).cause : undefined;
+		return [
+			error.name,
+			error.message,
+			typeof cause === "object" && cause ? JSON.stringify(cause) : String(cause ?? ""),
+		].join(" ");
+	}
+	return String(error);
+}
+
+function isRetryablePersistenceError(error: unknown): boolean {
+	const text = persistenceErrorText(error);
+	return /\b(ECONNREFUSED|ECONNRESET|ETIMEDOUT|EPIPE|ENETUNREACH|57P01|57P02|57P03|53300|08000|08003|08006)\b/i.test(text)
+		|| /connection terminated|connection timeout|terminating connection|server closed the connection|database system is starting up|too many connections/i.test(text);
+}
+
+async function sleep(ms: number): Promise<void> {
+	if (ms <= 0) return;
+	await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withPersistenceRetry<T>(operation: () => Promise<T>): Promise<T> {
+	const attempts = persistenceRetryAttempts();
+	for (let attempt = 1; attempt <= attempts; attempt += 1) {
+		try {
+			return await operation();
+		} catch (error) {
+			if (attempt >= attempts || !isRetryablePersistenceError(error)) {
+				throw error;
+			}
+			await sleep(persistenceRetryDelayMs() * attempt);
+		}
+	}
+	throw new Error("Persistence retry exhausted unexpectedly");
+}
+
 interface SourceCandidateImportOutcome {
 	sourceUrl: string;
 	status: SourceCandidateImportStatus;
@@ -260,6 +310,8 @@ const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
 const DEFAULT_CONFIGURED_SOURCE_MAX_PAGES = 3;
+const DEFAULT_PERSISTENCE_RETRY_ATTEMPTS = 3;
+const DEFAULT_PERSISTENCE_RETRY_DELAY_MS = 500;
 const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
 const MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE = 6;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
@@ -2575,9 +2627,9 @@ export async function executeOpportunityDiscoveryImport(
 
 	const totalRecords = candidates.length + searchFailures.length;
 	const importConfig = importConfigWithWarnings(baseImportConfig, warnings);
-	const importId = actionOverride
-		? await createImportRecord("searxng-discovery", totalRecords, importConfig, userId, actionOverride.organizationId)
-		: await createImportRecord("searxng-discovery", totalRecords, importConfig, userId);
+	const importId = await withPersistenceRetry(() => actionOverride
+		? createImportRecord("searxng-discovery", totalRecords, importConfig, userId, actionOverride.organizationId)
+		: createImportRecord("searxng-discovery", totalRecords, importConfig, userId));
 
 	const importResults: ImportResultsSummary = {
 		total: totalRecords,
@@ -2755,11 +2807,9 @@ export async function executeOpportunityDiscoveryImport(
 		errors: allErrors.filter((e) => e.status === "failed"),
 		config: importConfigWithWarnings(baseImportConfig, warnings, sourceHealth),
 	} as const;
-	if (actionOverride) {
-		await updateImportRecord(importId, completedImportResults, userId, actionOverride.organizationId);
-	} else {
-		await updateImportRecord(importId, completedImportResults, userId);
-	}
+	await withPersistenceRetry(() => actionOverride
+		? updateImportRecord(importId, completedImportResults, userId, actionOverride.organizationId)
+		: updateImportRecord(importId, completedImportResults, userId));
 
 	return {
 		importId,

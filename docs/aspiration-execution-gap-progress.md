@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Retry Discovery Import Persistence After Broad Collection
+
+Status: implemented, focused-test verified, typechecked, and live-failure characterized.
+
+Purpose: avoid discarding expensive broad RFP discovery work when candidate collection succeeds but transient Postgres connectivity fails at import-record creation or completion update time.
+
+Changes in this slice:
+- Added bounded retry around discovery import-record creation and completion update persistence calls.
+- Limited retry behavior to transient connection-style database failures such as `ECONNREFUSED`, reset/timeout, server-closed connection, startup, too-many-connections, and related Postgres transient connection codes.
+- Added environment controls for retry attempts and delay so live operators can tune the persistence cushion without changing source collection behavior.
+- Added regression coverage proving candidate discovery proceeds after a transient import-record creation failure and completion status can recover after a transient update failure.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts` passed with 46 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/searxng-client-config.test.ts` passed with 19 tests, including searx.space fallback fan-out coverage.
+- `uv run pytest tests/ci/test_searxng_client_fallback.py tests/ci/test_discovery_service_contract.py -q` passed with 13 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live broad source-only retry produced 118 candidates, then exhausted the new database retry window because Postgres continued returning `ECONNREFUSED`; the retry protects transient blips but cannot overcome sustained database unreachability.
+- Forced-primary-failure live SearXNG probe with `SEARXNG_URL=http://127.0.0.1:9` discovered public fallback candidates from `https://searx.space/data/instances.json`, attempted two public SearXNG instances, and recovered 10 procurement-oriented results through direct DuckDuckGo HTML after the public instances returned 403/429.
+
+Remaining after this slice:
+- Check or stabilize db.lindela.io/Postgres reachability for long broad discovery runs; the importer now retries transient persistence failures, but reliable broad collection still needs the database reachable when writing the import record.
+- Keep `search.lindela.io` as the primary search path and use searx.space public fan-out as best-effort resilience; public instances are useful for breadth but are often rate-limited against server-side search traffic.
+
 ### 2026-05-29 - Replace South Africa eTenders Scrape With OCDS API
 
 Status: implemented, focused-test verified, typechecked, and live-imported.

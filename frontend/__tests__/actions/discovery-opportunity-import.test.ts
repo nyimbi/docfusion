@@ -241,6 +241,87 @@ describe("discoverAndImportOpportunities", () => {
 		}), "user-1");
 	});
 
+	it("retries transient import-record creation failures after discovery has produced candidates", async () => {
+		process.env.DISCOVERY_IMPORT_DB_RETRY_DELAY_MS = "0";
+		createImportRecordMock
+			.mockRejectedValueOnce(new Error("connect ECONNREFUSED 88.80.188.224:5432"))
+			.mockResolvedValueOnce("import-1");
+		searchSearxngMock.mockResolvedValue({
+			results: [{
+				title: "Request for Proposals: Records platform",
+				url: "https://example.org/tenders/records-platform",
+				content: "RFP for records platform implementation.",
+				engine: "bing",
+				score: 8.5,
+				category: "general",
+			}],
+		});
+		selectResultsQueue.push([]);
+
+		try {
+			const result = await discoverAndImportOpportunities({
+				query: "records platform rfp",
+				limitPerQuery: 5,
+				engines: ["bing"],
+			});
+
+			expect(result.importId).toBe("import-1");
+			expect(result.results).toMatchObject({
+				total: 1,
+				imported: 1,
+				failed: 0,
+			});
+			expect(createImportRecordMock).toHaveBeenCalledTimes(2);
+			expect(createOpportunityMock).toHaveBeenCalledTimes(1);
+			expect(updateImportRecordMock).toHaveBeenCalledWith("import-1", expect.objectContaining({
+				importedRecords: 1,
+				status: "completed",
+			}), "user-1");
+		} finally {
+			delete process.env.DISCOVERY_IMPORT_DB_RETRY_DELAY_MS;
+		}
+	});
+
+	it("retries transient import-record completion update failures", async () => {
+		process.env.DISCOVERY_IMPORT_DB_RETRY_DELAY_MS = "0";
+		updateImportRecordMock
+			.mockRejectedValueOnce(new Error("Connection terminated unexpectedly"))
+			.mockResolvedValueOnce(undefined);
+		searchSearxngMock.mockResolvedValue({
+			results: [{
+				title: "Request for Proposals: Case workflow platform",
+				url: "https://example.org/tenders/case-workflow",
+				content: "RFP for workflow platform implementation.",
+				engine: "bing",
+				score: 8.5,
+				category: "general",
+			}],
+		});
+		selectResultsQueue.push([]);
+
+		try {
+			const result = await discoverAndImportOpportunities({
+				query: "workflow platform rfp",
+				limitPerQuery: 5,
+				engines: ["bing"],
+			});
+
+			expect(result.importId).toBe("import-1");
+			expect(result.results).toMatchObject({
+				total: 1,
+				imported: 1,
+				failed: 0,
+			});
+			expect(updateImportRecordMock).toHaveBeenCalledTimes(2);
+			expect(updateImportRecordMock).toHaveBeenLastCalledWith("import-1", expect.objectContaining({
+				importedRecords: 1,
+				status: "completed",
+			}), "user-1");
+		} finally {
+			delete process.env.DISCOVERY_IMPORT_DB_RETRY_DELAY_MS;
+		}
+	});
+
 	it("updates existing discovered opportunities and can enrich top results with Firecrawl", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [
