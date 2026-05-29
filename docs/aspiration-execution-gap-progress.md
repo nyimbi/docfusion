@@ -32,9 +32,12 @@ Verification:
 - `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
 - Dry-run `source_doc_intake_gh_zm_endpoint_dry_20260530T0118` selected 8 previously excluded national notice endpoints: 4 Zambia ZPPA and 4 Ghana GHANEPS.
 - Live intake `source_doc_intake_gh_zm_endpoint_live_20260530T0119` selected 8, downloaded 8, failed 0, skipped 0, completed 8 parse jobs, timed out 0 parse jobs, and extracted 62 total requirements.
-- Live database verification after the run: Ghana GHANEPS has 30 source-document rows with 4 downloaded and 4 created RFP documents containing 9,226 extracted text characters; Zambia ZPPA has 30 source-document rows with 4 downloaded and 4 created RFP documents containing 8,922 extracted text characters.
-- Live `rfp_requirements` verification for the 8 created RFP documents: 46 Ghana GHANEPS requirements and 16 Zambia ZPPA requirements.
-- Current live opportunity snapshot remains 3,827 total opportunities and 1,797 RFP-typed opportunities.
+- Deep live source import `live_gh_zm_deep_source_import_20260530T0124` used `GHANEPS_MAX_PAGES=10`, `ZPPA_MAX_PAGES=10`, and a 200-record source window; it processed 181 candidates, imported 120 new opportunities, updated 61, failed 0, emitted 0 warnings, and created 120 new source-document rows with downloads disabled.
+- The deep source import marked both sources healthy: Ghana GHANEPS returned 81 candidates with 51 imported and 30 updated; Zambia ZPPA returned 100 candidates with 69 imported and 31 updated.
+- Second dry-run `source_doc_intake_gh_zm_batch2_dry_20260530T0127` selected 12 more endpoint notices from the enlarged queue: 6 Zambia ZPPA and 6 Ghana GHANEPS.
+- Second live intake `source_doc_intake_gh_zm_batch2_live_20260530T0128` selected 12, downloaded 12, failed 0, skipped 0, completed 12 parse jobs, timed out 0 parse jobs, and extracted 97 more requirements.
+- Live database verification after both endpoint intake batches: Ghana GHANEPS has 81 opportunities, 81 source-document rows, 10 downloaded RFP documents, 23,442 extracted text characters, and 103 extracted `rfp_requirements`; Zambia ZPPA has 101 opportunities, 100 source-document rows, 10 downloaded RFP documents, 20,864 extracted text characters, and 56 extracted `rfp_requirements`.
+- Current live opportunity snapshot is 3,947 total opportunities and 1,800 RFP-typed opportunities.
 
 Remaining after this slice:
 - Continue bounded Ghana/Zambia endpoint intake in additional batches.
