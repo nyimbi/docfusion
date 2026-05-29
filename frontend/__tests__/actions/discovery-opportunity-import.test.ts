@@ -1979,6 +1979,103 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports African Union bids with direct bid-document URLs", async () => {
+		fetchMock
+			.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				text: async () => `
+					<table class="views-table sticky-enabled cols-4">
+						<tbody>
+							<tr class="odd">
+								<td class="views-field views-field-field-date active views-align-left">
+									<span class="date-display-single">July 02, 2026</span>
+								</td>
+								<td class="views-field views-field-title views-align-left">
+									<a href="/en/bids/20260522/supply-delivery-installation-and-training-enterprise-aigpu-enables-high-performance">Supply, Delivery, Installation and Training of an Enterprise AI/GPU-Enables High-Performance Computing Server</a>
+								</td>
+								<td class="views-field views-field-field-tags-documents">
+									<a href="/en/procurement-bids">Procurement/ Bids</a>
+								</td>
+								<td class="views-field views-field-field-text-bidnumber views-align-left">ET-AUC-545691-GO-</td>
+							</tr>
+						</tbody>
+					</table>
+				`,
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				text: async () => `
+					<div class="field field-name-field-date field-type-date field-label-hidden">
+						<span class="date-display-range">
+							<span class="date-display-start" content="2026-05-22T15:18:00+03:00">May 22, 2026</span>
+							to <span class="date-display-end" content="2026-07-02T15:00:00+03:00">July 02, 2026</span>
+						</span>
+					</div>
+					<div class="panel-separator"></div>
+					<div class="field field-name-field-text-bidnumber field-type-text field-label-above">
+						<div class="field-label">Bid number:&nbsp;</div>
+						<div class="field-items"><div class="field-item even">ET-AUC-545691-GO-RFB</div></div>
+					</div>
+					<div class="panel-separator"></div>
+					<div class="field field-name-field-file field-type-file field-label-hidden">
+						<div class="field-items"><div class="field-item even">
+							<span class="file"><a href="https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf" type="application/pdf">Bid Document</a></span>
+						</div></div>
+					</div>
+				`,
+			});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://au.int/en/bids"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://au.int/en/bids",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "text/html,application/xhtml+xml",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Supply, Delivery, Installation and Training of an Enterprise AI/GPU-Enables High-Performance Computing Server",
+			source: "source-scrape",
+			sourceId: "african-union-supply-delivery-installat-7a4372edda",
+			sourcePlatform: "African Union",
+			sourceFile: "source:https://au.int/en/bids",
+			countryRegion: "Africa",
+			opportunityType: "tender",
+			documentUrl: "https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf",
+			rfpLink: "https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf",
+			tags: ["external-discovery", "source-scrape", "african-union", "auc", "regional-procurement", "direct-documents"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://au.int/en/bids",
+					scrapeMethod: "source_api",
+				}),
+				africanUnion: expect.objectContaining({
+					bidNumber: "ET-AUC-545691-GO-RFB",
+					documentLinks: [expect.objectContaining({
+						url: "https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf",
+					})],
+				}),
+			}),
+		}));
+	});
+
 	it("imports South Africa eTenders releases from the public OCDS API", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-05-29T12:00:00Z"));

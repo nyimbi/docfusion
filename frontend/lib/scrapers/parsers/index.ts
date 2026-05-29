@@ -11,6 +11,7 @@ export * from "./types";
 // Import parsers to trigger self-registration
 import "./afdb";
 import "./adb";
+import "./african-union";
 import "./aiib";
 import "./cdb";
 import "./ceb-mauritius";
@@ -41,6 +42,7 @@ import "./zppa-zambia";
 // Re-export for direct access
 export { afdbParser } from "./afdb";
 export { adbParser } from "./adb";
+export { africanUnionParser } from "./african-union";
 export { aiibParser } from "./aiib";
 export { cdbParser } from "./cdb";
 export { cebMauritiusParser } from "./ceb-mauritius";

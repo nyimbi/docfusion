@@ -446,6 +446,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	let sourceId: string | undefined;
 	if (host.includes("afdb.org")) sourceId = "afdb";
 	else if (host.includes("adb.org")) sourceId = "adb";
+	else if (host === "au.int" && safeUrlPathname(sourceUrl).startsWith("/en/bids")) sourceId = "african_union";
 	else if (host.includes("aiib.org") && safeUrlPathname(sourceUrl).includes("/project-procurement/")) sourceId = "aiib";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
 	else if (host === "un.org" && safeUrlPathname(sourceUrl).startsWith("/procurement/")) sourceId = "un_procurement";
@@ -479,6 +480,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 	return parser.sourceId === "sam_gov"
 		|| parser.sourceId === "eu_funding_tenders"
 		|| parser.sourceId === "adb"
+		|| parser.sourceId === "african_union"
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
@@ -859,6 +861,7 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
 	if (opportunity?.source === "afdb") return "African Development Bank";
 	if (opportunity?.source === "adb") return "Asian Development Bank";
+	if (opportunity?.source === "african_union") return "African Union";
 	if (opportunity?.source === "aiib") return "Asian Infrastructure Investment Bank";
 	if (opportunity?.source === "kenya_ppip") return "Kenya PPIP";
 	if (opportunity?.source === "undp") return "UNDP";
@@ -890,6 +893,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		"source-scrape",
 		...(opportunity?.source === "afdb" ? ["afdb", "development-bank", "regional-procurement"] : []),
 		...(opportunity?.source === "adb" ? ["adb", "development-bank", "institutional-procurement"] : []),
+		...(opportunity?.source === "african_union" ? ["african-union", "auc", "regional-procurement", "direct-documents"] : []),
 		...(opportunity?.source === "aiib" ? ["aiib", "development-bank", "project-procurement"] : []),
 		...(opportunity?.source === "kenya_ppip" ? ["kenya-ppip"] : []),
 		...(opportunity?.source === "undp" ? ["undp", "un-procurement"] : []),

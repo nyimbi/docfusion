@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-29 - Add African Union Bid Document Collection
+
+Status: implemented and live-proof verified.
+
+Purpose: aggressively expand regional RFP acquisition with African Union bid notices that are server-rendered, current, and carry direct PDF bid-document links.
+
+Changes in this slice:
+- Added an African Union parser for `https://au.int/en/bids`, extracting bid title, bid number, visible/list deadline, detail-page publication/deadline dates, source URL, and direct bid-document PDF links.
+- Routed AU bids through the source-API parser path so collection uses deterministic HTML fetches and detail-page enrichment rather than generic search snippets.
+- Added AU bids to default configured sources and targeted search queries, and added live proof-script support.
+- Fixed AU source IDs to key on the bid notice page slug rather than bid number alone after live import showed several current AU notices reuse the same bid-number prefix.
+
+Verification:
+- `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/african-union-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 56 tests.
+- `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Live source proof `live_african_union_source_20260530T0017` parsed 14 AU opportunities via `source_api`.
+- Initial live import `live_african_union_import_20260530T0018` processed 14 AU candidates, imported 10, updated 4, failed 0, emitted 0 warnings, created 14 source-document rows, downloaded 14 AU PDFs, and used local `pdftotext` for the PDFs before any Docling path.
+- Corrected-source-ID live import `live_african_union_import_distinct_20260530T0022` processed all 14 AU candidates again with downloads disabled, imported the 4 previously collapsed notices, updated 10, failed 0, emitted 0 warnings, and marked AU healthy.
+- Post-run live database snapshot: 3,775 total opportunities, 1,784 RFP-typed opportunities, 17 `African Union` source-platform opportunities including 14 current AU bid notices, 30 NOCOPO Nigeria opportunities, and 13 CEB Mauritius opportunities. AU source-document rows now total 23, with 19 downloaded and 16 extracted.
+
+Remaining after this slice:
+- The live DB still has three older `African Union` source-platform sample rows (`SW-*`) from prior work; leave them unless a deliberate data-cleanup pass is requested.
+- Continue bounded source-document intake/response-package backfill over the newly downloaded AU PDFs so the bid-document text turns into requirements and response drafts.
+
 ### 2026-05-29 - Prove Live RFP Document Download And Parse Intake
 
 Status: live-proof verified.

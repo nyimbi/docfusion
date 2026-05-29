@@ -214,6 +214,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	const host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
 	if (host.includes("afdb.org")) return getParser("afdb") ?? genericParser;
 	if (host.includes("adb.org")) return getParser("adb") ?? genericParser;
+	if (host === "au.int" && new URL(sourceUrl).pathname.startsWith("/en/bids")) return getParser("african_union") ?? genericParser;
 	if (host.includes("aiib.org") && new URL(sourceUrl).pathname.includes("/project-procurement/")) return getParser("aiib") ?? genericParser;
 	if (host.includes("comesa.int")) return getParser("comesa") ?? genericParser;
 	if (host.includes("tenders.go.ke")) return getParser("kenya_ppip") ?? genericParser;
@@ -245,6 +246,7 @@ function isSourceApiParser(parser: ReturnType<typeof parserForSourceUrl>): boole
 	return parser.sourceId === "sam_gov"
 		|| parser.sourceId === "eu_funding_tenders"
 		|| parser.sourceId === "adb"
+		|| parser.sourceId === "african_union"
 		|| parser.sourceId === "aiib"
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
