@@ -107,6 +107,10 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do?tendReferNo=000008%2FC%2FNCB%2F2025%2F2026%2F4900000000&tendStageCd=O&tendTypeCd=C",
 		})).toBe(true);
 		expect(isSupportedDocumentSource({
+			documentName: "Digital records management platform.html",
+			sourceUrl: "https://nest.go.tz/gateway/nest-data-portal-api/api/releases/ocds-mv5oob-122383-3-2025-2026-G-32-S003/6eaef89e-e6c9-4b40-8622-f1afc6a61273",
+		})).toBe(true);
+		expect(isSupportedDocumentSource({
 			documentName: "selectListAdvertisingListForGU.do",
 			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&recordCountPerPage=50",
 		})).toBe(false);
@@ -120,6 +124,10 @@ describe("source document intake selection helpers", () => {
 		expect(isDirectDocumentIntakeSource({
 			documentName: "selectAdvertisingDtlInfo.do",
 			sourceUrl: "https://www.umucyo.gov.rw/eb/bav/selectAdvertisingDtlInfo.do?tendReferNo=000008%2FC%2FNCB%2F2025%2F2026%2F4900000000&tendStageCd=O&tendTypeCd=C",
+		})).toBe(true);
+		expect(isDirectDocumentIntakeSource({
+			documentName: "Digital records management platform.html",
+			sourceUrl: "https://nest.go.tz/gateway/nest-data-portal-api/api/releases/ocds-mv5oob-122383-3-2025-2026-G-32-S003/6eaef89e-e6c9-4b40-8622-f1afc6a61273",
 		})).toBe(true);
 		expect(isSupportedDocumentSource({
 			documentName: "AMI - Mali - technical assistance.html",

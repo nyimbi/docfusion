@@ -137,6 +137,7 @@ interface StoredFetchedRfpDocument {
 type SourceDocumentFetchMethod =
   | "direct"
   | "umucyo_detail_html"
+  | "nest_release_json"
   | "searxng_direct"
   | "firecrawl_link"
   | "firecrawl_landing_page_html"
@@ -1120,6 +1121,16 @@ async function fetchSourceDocument(
   sourceUrl: URL,
   documentName: string
 ): Promise<FetchedSourceDocument> {
+  if (isNestTanzaniaReleaseUrl(sourceUrl)) {
+    const release = await fetchNestTanzaniaReleaseDocument(sourceUrl, documentName);
+    if (release.ok) return release.document;
+    logger.warn("[RFP Document Service] NeST Tanzania release fetch failed; trying generic source recovery", {
+      sourceUrl: sourceUrl.toString(),
+      status: release.status,
+      error: release.error,
+    });
+  }
+
   if (isUmucyoTenderDetailUrl(sourceUrl)) {
     const detail = await fetchUmucyoTenderDetailDocument(sourceUrl, documentName);
     if (detail.ok) return detail.document;
@@ -1157,6 +1168,156 @@ function isUmucyoTenderDetailUrl(url: URL): boolean {
   return url.hostname.toLowerCase() === "www.umucyo.gov.rw"
     && url.pathname === "/eb/bav/selectAdvertisingDtlInfo.do"
     && Boolean(url.searchParams.get("tendReferNo"));
+}
+
+function isNestTanzaniaReleaseUrl(url: URL): boolean {
+  return url.hostname.toLowerCase() === "nest.go.tz"
+    && /^\/gateway\/nest-data-portal-api\/api\/releases\/[^/]+\/[^/]+\/?$/i.test(url.pathname);
+}
+
+async function fetchNestTanzaniaReleaseDocument(
+  url: URL,
+  documentName: string
+): Promise<SourceFetchAttempt> {
+  const response = await fetchPublicHttpUrl(url, {
+    headers: {
+      ...browserLikeDocumentHeaders(url),
+      Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+    },
+    timeoutMs: SOURCE_DOCUMENT_FETCH_TIMEOUT_MS,
+  }, "NeST Tanzania OCDS release URL");
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+
+  const raw = await response.text();
+  let release: unknown;
+  try {
+    release = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      status: response.status,
+      error: "NeST Tanzania release endpoint did not return valid JSON",
+    };
+  }
+
+  const html = buildNestTanzaniaReleaseHtml(release, url);
+  const text = cleanExtractedText(html.replace(/<[^>]+>/g, " "));
+  if (!HTML_RFP_TEXT_SIGNAL.test(text) || text.length < MIN_HTML_EXTRACTED_TEXT_LENGTH) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `NeST Tanzania release did not include usable tender text: HTTP ${response.status}`,
+    };
+  }
+
+  const filename = replaceFileExtension(documentName, ".html");
+  const buffer = Buffer.from(html, "utf8");
+  assertSourceDocumentBufferSize(buffer);
+  return {
+    ok: true,
+    document: {
+      buffer,
+      mimeType: "text/html",
+      effectiveUrl: url.toString(),
+      originalUrl: url.toString(),
+      filename,
+      extractionFilename: filename,
+      method: "nest_release_json",
+    },
+  };
+}
+
+function buildNestTanzaniaReleaseHtml(release: unknown, url: URL): string {
+  const root = asRecord(release);
+  const tender = asRecord(root.tender);
+  const buyer = asRecord(root.buyer);
+  const procuringEntity = asRecord(tender.procuringEntity);
+  const tenderPeriod = asRecord(tender.tenderPeriod);
+  const rows = [
+    ["OCID", stringValue(root.ocid)],
+    ["Release ID", stringValue(root.id)],
+    ["Tender ID", stringValue(tender.id)],
+    ["Title", stringValue(tender.description)],
+    ["Status", stringValue(tender.status)],
+    ["Procurement method", stringValue(tender.procurementMethodDetails) || stringValue(tender.procurementMethod)],
+    ["Buyer", stringValue(buyer.name)],
+    ["Procuring entity", stringValue(procuringEntity.name)],
+    ["Start date", stringValue(tenderPeriod.startDate)],
+    ["Submission deadline", stringValue(tenderPeriod.endDate)],
+  ].filter(([, value]) => value);
+  const items = arrayValue(tender.items)
+    .map((item) => asRecord(item))
+    .map((item) => ({
+      description: stringValue(item.description) || stringValue(asRecord(item.classification).description),
+      quantity: stringValue(item.quantity),
+      unit: stringValue(asRecord(item.unit).name),
+    }))
+    .filter((item) => item.description);
+  const parties = arrayValue(root.parties)
+    .map((party) => asRecord(party))
+    .map((party) => ({
+      name: stringValue(party.name),
+      role: arrayValue(party.roles).map(stringValue).filter(Boolean).join(", "),
+      region: stringValue(asRecord(party.address).region),
+    }))
+    .filter((party) => party.name);
+
+  return [
+    "<!doctype html><html><head><meta charset=\"utf-8\">",
+    `<title>NeST Tanzania tender ${escapeHtml(stringValue(tender.id) || stringValue(root.ocid) || url.pathname)}</title>`,
+    "</head><body><main>",
+    "<h1>NeST Tanzania tender release source document</h1>",
+    "<p>This page stores the public OCDS tender release from NeST Tanzania for RFP and tender requirement extraction.</p>",
+    rows.length > 0 ? [
+      "<section><h2>Tender summary</h2><dl>",
+      ...rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`),
+      "</dl></section>",
+    ].join("") : "",
+    items.length > 0 ? [
+      "<section><h2>Requested items and scope</h2><ul>",
+      ...items.map((item) => `<li>${escapeHtml([
+        item.description,
+        item.quantity ? `Quantity: ${item.quantity}` : undefined,
+        item.unit ? `Unit: ${item.unit}` : undefined,
+      ].filter(Boolean).join("; "))}</li>`),
+      "</ul></section>",
+    ].join("") : "",
+    parties.length > 0 ? [
+      "<section><h2>Parties</h2><ul>",
+      ...parties.map((party) => `<li>${escapeHtml([
+        party.name,
+        party.role ? `Role: ${party.role}` : undefined,
+        party.region ? `Region: ${party.region}` : undefined,
+      ].filter(Boolean).join("; "))}</li>`),
+      "</ul></section>",
+    ].join("") : "",
+    "<section><h2>Original OCDS JSON</h2>",
+    `<pre>${escapeHtml(JSON.stringify(release, null, 2))}</pre>`,
+    "</section>",
+    "</main></body></html>",
+  ].join("");
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return cleanExtractedText(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
 }
 
 async function fetchUmucyoTenderDetailDocument(

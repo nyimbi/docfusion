@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Unlock NeST Tanzania OCDS Release Intake
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: aggressively expand national RFP/tender acquisition by converting NeST Tanzania's selected but previously undownloaded OCDS release API rows into parser-ready source documents without using browser scraping or Docling.
+
+Changes in this slice:
+- Added NeST Tanzania OCDS release API URLs to the trusted direct-document endpoint set used by source-document intake, so `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1` can drain NeST rows.
+- Added a NeST-specific document fetch path that retrieves the public release JSON, renders tender summary, requested items, parties, and original OCDS JSON into a stored HTML surrogate, and routes it through local HTML text extraction.
+- Documented NeST's direct-only source-document intake path in the opportunity discovery runbook.
+
+Verification:
+- Focused regression `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` passed with 50 tests.
+- Typecheck `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- NeST dry-run `source_doc_intake_nest_direct_dry_20260530T0424` selected 10 NeST OCDS release endpoints under `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1`, proving NeST is no longer skipped by direct-only intake.
+- NeST live proof `source_doc_intake_nest_direct_live_20260530T0426` selected 10, downloaded 10, failed 0, skipped 0, completed 10 parser jobs, timed out 0 parser jobs, and extracted 43 requirements.
+- NeST live scale-up `source_doc_intake_nest_direct_live_20260530T0430` selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and extracted 75 requirements.
+- Both live NeST runs used `local_html_text` on the rendered OCDS HTML surrogates; no Docling fallback was needed for these source documents.
+- Updated live database snapshot after the NeST drains: 3,947 total opportunities, 1,800 RFP-typed opportunities, 453 RFP documents with extracted text, 36,718,764 extracted text characters, and 3,269 extracted `rfp_requirements`.
+- Source queue verification after the NeST drains: NeST Tanzania moved to 35 downloaded selected documents and 15 selected documents still queued under the attempts cap.
+
+Remaining after this slice:
+- Drain the remaining 15 NeST selected release rows if broad coverage is prioritized, but treat NeST as reliable and lower response-value than Ghana/Zambia/Rwanda/Kenya because the current feed is commodity-heavy.
+- Continue higher-yield national/direct drains across Ghana GHANEPS, Zambia ZPPA, Rwanda UMUCYO, Kenya PPIP, ESPPRA Eswatini, and UN/UNDP direct rows.
+
 ### 2026-05-30 - Add Direct-Only Source Document Intake Drain
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.

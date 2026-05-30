@@ -571,6 +571,104 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("renders NeST Tanzania OCDS release URLs as parseable HTML source documents", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Digital records management platform.html",
+			sourceUrl: "https://nest.go.tz/gateway/nest-data-portal-api/api/releases/ocds-mv5oob-122383-3-2025-2026-G-32-S003/6eaef89e-e6c9-4b40-8622-f1afc6a61273",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(JSON.stringify({
+			ocid: "ocds-mv5oob-122383-3-2025-2026-G-32-S003",
+			id: "6eaef89e-e6c9-4b40-8622-f1afc6a61273",
+			buyer: { name: "Tanzania Digital Services Agency" },
+			tender: {
+				id: "122383-3/2025/2026/G/32-S003",
+				description: "Request for proposals for a digital records management platform and related implementation services",
+				status: "active",
+				procurementMethod: "open",
+				procurementMethodDetails: "National competitive tender for information system implementation services",
+				tenderPeriod: {
+					startDate: "2026-05-27T00:00:00Z",
+					endDate: "2026-06-10T10:00:00Z",
+				},
+				procuringEntity: { name: "Tanzania Digital Services Agency" },
+				items: [
+					{
+						description: "Configure records management workflows, migration, training, reporting, support, security controls, and acceptance testing",
+						quantity: 1,
+						unit: { name: "Lot" },
+						classification: { description: "Information technology consultation services" },
+					},
+					{
+						description: "Deliver procurement documentation, proposal compliance matrix, implementation schedule, and service level requirements",
+						quantity: 1,
+						unit: { name: "Lot" },
+						classification: { description: "Software maintenance and support" },
+					},
+				],
+			},
+			parties: [
+				{
+					name: "Tanzania Digital Services Agency",
+					roles: ["procuringEntity"],
+					address: { region: "Dar es Salaam" },
+				},
+			],
+		}), {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			new URL("https://nest.go.tz/gateway/nest-data-portal-api/api/releases/ocds-mv5oob-122383-3-2025-2026-G-32-S003/6eaef89e-e6c9-4b40-8622-f1afc6a61273"),
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: expect.stringContaining("application/json"),
+				}),
+			}),
+			"NeST Tanzania OCDS release URL"
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "text/html",
+			extractedText: expect.stringContaining("digital records management platform"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "Digital records management platform.html",
+			fileType: "html",
+			extractedText: expect.stringContaining("Submission deadline"),
+			metadata: expect.objectContaining({
+				ingestWorkflow: expect.objectContaining({
+					sourceOpportunityDocumentId: baseDocument.id,
+					downloadMethod: "nest_release_json",
+				}),
+			}),
+		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+	});
+
 	it("extracts and queues a supported RFP document from a downloaded ZIP package", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];
