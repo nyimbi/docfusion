@@ -528,6 +528,8 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "gtai.de" && /^\/en\/(?:trade\/tenders|meta\/search\/kfw-tenders)/.test(safeUrlPathname(sourceUrl))) sourceId = "gtai_kfw";
 	else if (host === "rti.org" && safeUrlPathname(sourceUrl).startsWith("/current-opportunities")) sourceId = "rti";
 	else if (host === "abtglobal.com" && safeUrlPathname(sourceUrl).startsWith("/doing-business-with-abt/commercial-opportunities")) sourceId = "abt_global";
+	else if (host === "fhi360.org" && safeUrlPathname(sourceUrl).startsWith("/partner-us-business-opportunities")) sourceId = "fhi360";
+	else if (host === "solicitations.fhi360.org" && safeUrlPathname(sourceUrl).startsWith("/Solicitation.aspx")) sourceId = "fhi360";
 	else if (host === "thepalladiumgroup.com" && /^(?:\/tenders|\/tender\/)/.test(safeUrlPathname(sourceUrl))) sourceId = "palladium";
 	else if (host === "jhpiego.org" && safeUrlPathname(sourceUrl).startsWith("/work-with-us")) sourceId = "jhpiego";
 	else if (host === "intdev.tetratech.com.au" && safeUrlPathname(sourceUrl).startsWith("/partner-with-us")) sourceId = "tetra_tech_intdev";
@@ -922,12 +924,15 @@ function shouldAttachPageWideDocumentLinks(candidate: DiscoveryCandidate): boole
 }
 
 function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
-	const gizLinks = opportunity?.metadata?.giz && typeof opportunity.metadata.giz === "object"
-		? (opportunity.metadata.giz as { documentLinks?: unknown }).documentLinks
-		: undefined;
-	if (!Array.isArray(gizLinks)) return [];
+	const metadataLinks = ["giz", "fhi360"].flatMap((key) => {
+		const metadata = opportunity?.metadata?.[key];
+		if (!metadata || typeof metadata !== "object") return [];
+		const links = (metadata as { documentLinks?: unknown }).documentLinks;
+		return Array.isArray(links) ? links : [];
+	});
+	if (metadataLinks.length === 0) return [];
 
-	return gizLinks
+	return metadataLinks
 		.map((link): DiscoveryDocumentLink | undefined => {
 			if (!link || typeof link !== "object") return undefined;
 			const { url, label } = link as { url?: unknown; label?: unknown };
@@ -971,6 +976,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "spc") return "Pacific Community";
 	if (opportunity?.source === "rti") return "RTI International";
 	if (opportunity?.source === "abt_global") return "Abt Global";
+	if (opportunity?.source === "fhi360") return "FHI 360";
 	if (opportunity?.source === "palladium") return "Palladium";
 	if (opportunity?.source === "jhpiego") return "Jhpiego";
 	if (opportunity?.source === "tetra_tech_intdev") return "Tetra Tech International Development";
@@ -1014,6 +1020,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "plan_international" ? ["plan-international", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "spc" ? ["spc", "pacific-community", "regional-procurement", "source-documents"] : []),
+		...(opportunity?.source === "fhi360" ? ["fhi360", "donor-implementer", "source-documents"] : []),
 		...(opportunity?.source === "palladium" ? ["palladium", "donor-implementer", "source-documents"] : []),
 		...(opportunity?.source === "jhpiego" ? ["jhpiego", "donor-implementer"] : []),
 		...(opportunity?.source === "tetra_tech_intdev" ? ["tetra-tech-intdev", "donor-implementer", "source-documents"] : []),
@@ -1337,7 +1344,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "tetra_tech_intdev"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "tetra_tech_intdev"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

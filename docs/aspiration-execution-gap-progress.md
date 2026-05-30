@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add FHI 360 Source-Backed Solicitation Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand donor/implementer RFP acquisition with FHI 360's official solicitation feed, including package document capture, so the platform collects current FHI RFP/RFQ/RFA opportunities directly instead of relying on degraded search fanout.
+
+Changes in this slice:
+- Added an FHI 360 solicitations parser for `https://solicitations.fhi360.org/Solicitation.aspx`, including RFP/RFQ/RFA extraction, issue/closing date parsing, expired-entry filtering, stable source IDs, and solicitation/attachment/modification document links.
+- Registered FHI 360 as a source-backed donor/NGO acquisition source and kept a targeted FHI search query in the default and aggressive discovery query sets.
+- Routed FHI configured source URLs through the dedicated parser, labeled imported opportunities as source platform `FHI 360`, and preserved package document links from parser metadata so attachments are not lost.
+- Corrected the configured source away from the FHI marketing page after live proof showed that page no longer reliably exposes the solicitation table; the official solicitation endpoint does.
+
+Live runs:
+- `live_discovery_import_fhi360_solicitations_20260531T` imported 5 new FHI 360 opportunities, failed 0, created 14 source-document rows, downloaded 10 documents during acquisition, and recorded healthy source health with 5 candidates and 0 warnings.
+- `source_document_intake_fhi360_20260531T` selected the remaining 4 FHI source documents, downloaded 4, failed 0, completed 4 parses, failed 0 parses, timed out 0 parses, and extracted 30 requirements in that drain pass.
+- The document service used lightweight local extraction paths for the FHI documents: `local_pdftotext`, `local_docx_parse`, and `local_xlsx_parse`. Docling fallback was not needed.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/fhi360-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 76 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_fhi360_solicitations_20260531T/live-discovery-import.json`.
+- Source-document intake proof artifact: `.omx/logs/platform-completion/source-document-intake-source_document_intake_fhi360_20260531T/source-document-intake.json`.
+
+Remaining after this slice:
+- The 5 FHI opportunities now need the same bounded response-package backfill, requirement acceptance, and readiness pass used for RTI/Abt and Tetra Tech.
+- The first FHI live proof against `https://www.fhi360.org/partner-us-business-opportunities/` correctly failed with zero candidates; keep the configured acquisition source on `https://solicitations.fhi360.org/Solicitation.aspx`.
+
 ### 2026-05-31 - Promote Tetra Tech Source-Backed RFPs to Review-Ready Response Packages
 
 Status: live-proved.

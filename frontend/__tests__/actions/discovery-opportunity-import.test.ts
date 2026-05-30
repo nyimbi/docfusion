@@ -3019,6 +3019,57 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes FHI 360 configured source through its solicitation parser and preserves package documents", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<hr />
+			<p class="rteindent1">
+				<b><span id="MainContent_lvRFP_lblTitle_0">Support to Strengthen Community-Based Surveillance Activities</span></b><br />
+				RFP No.: <span id="MainContent_lvRFP_lblNumber_0">2026-016-Indonesia-CBS_RFP_02</span><br />
+				Issue date: <span id="MainContent_lvRFP_lblIssue_0">15 May, 2099</span><br />
+				Closing date: <span id="MainContent_lvRFP_lblClose_0">10 Jun, 2099</span><br />
+			</p>
+			<p class="rteindent1">
+				<b>Solicitation file(s):</b><br />
+				<a href="/Files/STRIDES%20Tender%20for%20GHS%20Indonesia.pdf">STRIDES - Tender for GHS Indonesia.pdf</a>
+				<a href="/Files/Attachment%20A%20Budget%20Proposal.xlsx">Attachment A-Budget Proposal.xlsx</a>
+			</p>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://solicitations.fhi360.org/Solicitation.aspx"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Support to Strengthen Community-Based Surveillance Activities",
+			source: "fhi360",
+			sourcePlatform: "FHI 360",
+			sourceFile: "source:https://solicitations.fhi360.org/Solicitation.aspx",
+			rfpLink: "https://solicitations.fhi360.org/Files/STRIDES%20Tender%20for%20GHS%20Indonesia.pdf",
+			tags: ["external-discovery", "source-scrape", "fhi360", "donor-implementer", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://solicitations.fhi360.org/Solicitation.aspx",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
