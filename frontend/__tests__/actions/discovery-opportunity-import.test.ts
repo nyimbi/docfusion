@@ -426,6 +426,45 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("paginates search engines when broad acquisition requests deeper result pages", async () => {
+		searchSearxngMock.mockImplementation(async (_query: string, options: { engines?: string[]; page?: number }) => {
+			const engine = options.engines?.[0] ?? "searxng";
+			const page = options.page ?? 1;
+			return {
+				results: [
+					{
+						title: `${engine} page ${page} Request for Proposals: Case platform`,
+						url: `https://${engine}.example.org/tenders/case-platform-page-${page}`,
+						content: "RFP for a case platform with a submission deadline.",
+						engine,
+						score: 10,
+						category: "general",
+					},
+				],
+			};
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "case platform RFP",
+			engines: ["google"],
+			searchPages: 2,
+			limitPerQuery: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
+		expect(searchSearxngMock).toHaveBeenCalledTimes(2);
+		expect(searchSearxngMock).toHaveBeenNthCalledWith(1, "case platform RFP", expect.objectContaining({
+			engines: ["google"],
+			page: undefined,
+		}));
+		expect(searchSearxngMock).toHaveBeenNthCalledWith(2, "case platform RFP", expect.objectContaining({
+			engines: ["google"],
+			page: 2,
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("runs SearXNG engine fanout concurrently for broad RFP collection throughput", async () => {
 		const startedEngines: string[] = [];
 		let resolveGoogle: ((value: unknown) => void) | undefined;
@@ -2462,6 +2501,64 @@ describe("discoverAndImportOpportunities", () => {
 			title: "RFP for Records Platform",
 			sourceFile: "source:https://buyer.example/tenders",
 		}));
+	});
+
+	it("times out a stalled configured source and continues to later sources", async () => {
+		process.env.CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS = "5";
+		firecrawlScrapeMock
+			.mockImplementationOnce(() => new Promise(() => undefined))
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					markdown: "[RFP for Case Platform](https://buyer.example/tenders/case)\n\nDeadline: 31 December 2026",
+					links: ["https://buyer.example/tenders/case"],
+					metadata: { title: "Buyer Tenders" },
+				},
+			});
+		selectResultsQueue.push([]);
+
+		try {
+			const result = await discoverAndImportOpportunities({
+				sourceUrls: ["https://slow.example/tenders", "https://buyer.example/tenders"],
+				sourceScrapeLimit: 5,
+				downloadDiscoveredDocuments: false,
+			});
+
+			expect(result.results).toEqual({
+				total: 1,
+				imported: 1,
+				updated: 0,
+				skipped: 0,
+				failed: 0,
+			});
+			expect(result.warnings).toEqual([
+				expect.objectContaining({
+					type: "source_scrape_failed",
+					query: "source:https://slow.example/tenders",
+					message: expect.stringContaining("Configured source discovery timed out"),
+				}),
+			]);
+			expect(result.sourceHealth).toEqual([
+				expect.objectContaining({
+					sourceUrl: "https://slow.example/tenders",
+					status: "failed",
+					candidates: 0,
+					warningTypes: { source_scrape_failed: 1 },
+				}),
+				expect.objectContaining({
+					sourceUrl: "https://buyer.example/tenders",
+					status: "healthy",
+					candidates: 1,
+					imported: 1,
+				}),
+			]);
+			expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+				title: "RFP for Case Platform",
+				sourceFile: "source:https://buyer.example/tenders",
+			}));
+		} finally {
+			delete process.env.CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS;
+		}
 	});
 
 	it("imports Ghana GHANEPS tenders with the national source platform label", async () => {

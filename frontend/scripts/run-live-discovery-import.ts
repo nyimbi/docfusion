@@ -79,6 +79,7 @@ function discoveryImportOrganizationId(): string {
 function liveDiscoveryImportInput(): DiscoveryImportInput {
 	return withDefaultDiscoveryRuntimeOptions({
 		limitPerQuery: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_LIMIT_PER_QUERY, 10, 1, 50),
+		searchPages: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_SEARCH_PAGES, 1, 1, 5),
 		sourceScrapeLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_SOURCE_SCRAPE_LIMIT, 50, 0, 200),
 		scrapeLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_SCRAPE_LIMIT, 5, 0, 20),
 		browserFallbackLimit: boundedNumber(process.env.LIVE_DISCOVERY_IMPORT_BROWSER_FALLBACK_LIMIT, 5, 0, 20),

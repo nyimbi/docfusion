@@ -68,6 +68,7 @@ function parseDiscoveryInput(body: DiscoveryRequestBody): DiscoveryImportInput {
 		timeRange: optionalString(body.timeRange, "timeRange") as DiscoveryImportInput["timeRange"],
 		categories: optionalStringArray(body.categories, "categories"),
 		engines: optionalStringArray(body.engines, "engines"),
+		searchPages: optionalNumber(body.searchPages, "searchPages"),
 		countryRegion: optionalString(body.countryRegion, "countryRegion"),
 		category: optionalString(body.category, "category"),
 		updateExisting: optionalBoolean(body.updateExisting, "updateExisting"),

@@ -14,6 +14,7 @@ const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
 const SEARXNG_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
 const DEFAULT_SEARXNG_FALLBACK_LIMIT = 2;
 const DUCKDUCKGO_HTML_BASE_URL = "https://html.duckduckgo.com";
+const GOOGLE_HTML_BASE_URL = "https://www.google.com";
 
 export function getSearxngBaseUrl(): string {
   return SEARXNG_BASE_URL;
@@ -193,6 +194,30 @@ export async function searchSearxng(
       sourceInstances,
       SEARXNG_BASE_URL,
       fallbackReason
+    );
+  }
+
+  const directGoogle = await searchDirectGoogleFallback(query, options);
+  if (directGoogle.results.length > 0) {
+    const includePrimaryResults = primary.ok && primary.response.results.length > 0;
+    const mergedResponses = includePrimaryResults
+      ? [primary.response, directGoogle]
+      : [directGoogle];
+    const sourceInstances = includePrimaryResults
+      ? [SEARXNG_BASE_URL, GOOGLE_HTML_BASE_URL]
+      : [GOOGLE_HTML_BASE_URL];
+
+    logger.warn("[SearXNG] Used direct Google HTML fallback after SearXNG fallback fanout failed", {
+      query,
+      primaryBaseUrl: SEARXNG_BASE_URL,
+      fallbackReason,
+      resultCount: directGoogle.results.length,
+    });
+    return withFallbackProvenance(
+      mergeSearxngResponses(query, mergedResponses),
+      sourceInstances,
+      SEARXNG_BASE_URL,
+      `${fallbackReason}; searx.space fallback fanout produced no usable Google results, recovered with Google HTML`
     );
   }
 
@@ -498,6 +523,74 @@ function shouldPreferDirectDuckduckgoBeforePublicFallback(options: SearchOptions
   return shouldUseDirectDuckduckgoFallback(options);
 }
 
+async function searchDirectGoogleFallback(
+  query: string,
+  options: SearchOptions
+): Promise<SearxngSearchResponse> {
+  if (!shouldUseDirectGoogleFallback(options)) {
+    return {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  }
+
+  const url = new URL(`${GOOGLE_HTML_BASE_URL}/search`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("num", "10");
+  url.searchParams.set("hl", options.language?.startsWith("en") ? "en" : (options.language || "en"));
+  url.searchParams.set("pws", "0");
+  if (options.page && options.page > 1) {
+    url.searchParams.set("start", String((options.page - 1) * 10));
+  }
+
+  try {
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(30000),
+      headers: {
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
+        "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+      },
+    });
+    if (!response.ok) {
+      logger.warn("[SearXNG] Direct Google fallback failed", {
+        query,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      return {
+        query,
+        number_of_results: 0,
+        results: [],
+      };
+    }
+
+    const parsed = parseGoogleHtmlBody(await response.text(), query);
+    return parsed ?? {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  } catch (error) {
+    logger.warn("[SearXNG] Direct Google fallback failed", {
+      query,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      query,
+      number_of_results: 0,
+      results: [],
+    };
+  }
+}
+
+function shouldUseDirectGoogleFallback(options: SearchOptions): boolean {
+  if (process.env.GOOGLE_DIRECT_FALLBACKS === "0") return false;
+  if (!options.engines?.length) return true;
+  return options.engines.some((engine) => normalizeEngineName(engine) === "google");
+}
+
 function duckduckgoTimeRangeParam(timeRange: SearchOptions["time_range"]): string | undefined {
   switch (timeRange) {
     case "day":
@@ -541,6 +634,35 @@ function parseDuckduckgoHtmlBody(body: string, query: string): SearxngSearchResp
     number_of_results: results.length,
     results,
     sourceInstance: DUCKDUCKGO_HTML_BASE_URL,
+  };
+}
+
+function parseGoogleHtmlBody(body: string, query: string): SearxngSearchResponse | undefined {
+  if (!/<html[\s>]/i.test(body) && !/<a\b/i.test(body)) return undefined;
+  const results: SearxngResult[] = [];
+  const seen = new Set<string>();
+  const linkPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = linkPattern.exec(body)) && results.length < 30) {
+    const url = normalizeGoogleResultUrl(decodeHtmlEntities(match[1] ?? ""));
+    if (!url || seen.has(url) || isGoogleInternalResultUrl(url)) continue;
+    const title = stripHtml(match[2] ?? "");
+    if (!title || /^(cached|similar|translate this page)$/i.test(title)) continue;
+    seen.add(url);
+    results.push({
+      title,
+      url,
+      content: "",
+      engine: "google",
+      score: Math.max(0.1, 1 - results.length / 100),
+    });
+  }
+
+  return {
+    query,
+    number_of_results: results.length,
+    results,
+    sourceInstance: GOOGLE_HTML_BASE_URL,
   };
 }
 
@@ -813,6 +935,30 @@ function normalizeDuckduckgoResultUrl(rawUrl: string): string | undefined {
     return url.toString();
   } catch {
     return undefined;
+  }
+}
+
+function normalizeGoogleResultUrl(rawUrl: string): string | undefined {
+  try {
+    const url = new URL(rawUrl, GOOGLE_HTML_BASE_URL);
+    if (url.hostname.endsWith("google.com") && url.pathname === "/url") {
+      return normalizeGoogleResultUrl(url.searchParams.get("q") ?? url.searchParams.get("url") ?? "");
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function isGoogleInternalResultUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return /(^|\.)google\.[a-z.]+$/i.test(parsed.hostname)
+      || parsed.hostname === "webcache.googleusercontent.com";
+  } catch {
+    return true;
   }
 }
 

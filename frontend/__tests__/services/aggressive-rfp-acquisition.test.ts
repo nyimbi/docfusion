@@ -35,6 +35,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		const [run] = buildAggressiveRfpAcquisitionInputs({
 			campaignIds: ["document_search"],
 			limitPerQuery: 7,
+			searchPages: 2,
 			sourceScrapeLimit: 0,
 			scrapeLimit: 3,
 			browserFallbackLimit: 2,
@@ -50,6 +51,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(run.input.sourceUrls).toEqual([]);
 		expect(run.input.engines).toEqual(["google", "duckduckgo", "bing", "brave"]);
 		expect(run.input.searchEngineFanout).toBe(true);
+		expect(run.input.searchPages).toBe(2);
 		expect(run.input.scrapeTopResults).toBe(true);
 		expect(run.input.downloadLimit).toBe(5);
 	});
@@ -58,6 +60,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		const [run] = buildAggressiveRfpAcquisitionInputs({
 			campaignIds: ["africa_national"],
 			limitPerQuery: 9,
+			searchPages: 1,
 			sourceScrapeLimit: 40,
 			scrapeLimit: 4,
 			browserFallbackLimit: 4,
@@ -81,6 +84,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		const [run] = buildAggressiveRfpAcquisitionInputs({
 			campaignIds: ["global_public_sector"],
 			limitPerQuery: 5,
+			searchPages: 2,
 			sourceScrapeLimit: 20,
 			scrapeLimit: 2,
 			browserFallbackLimit: 2,
@@ -113,6 +117,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		const [regional, donor] = buildAggressiveRfpAcquisitionInputs({
 			campaignIds: ["global_regional_search", "donor_ngo_search"],
 			limitPerQuery: 4,
+			searchPages: 2,
 			sourceScrapeLimit: 15,
 			scrapeLimit: 2,
 			browserFallbackLimit: 2,

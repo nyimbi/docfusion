@@ -13,6 +13,7 @@ export type AggressiveRfpAcquisitionCampaign = {
 export type AggressiveRfpAcquisitionOptions = {
 	campaignIds?: string[];
 	limitPerQuery: number;
+	searchPages: number;
 	sourceScrapeLimit: number;
 	scrapeLimit: number;
 	browserFallbackLimit: number;
@@ -271,6 +272,7 @@ export function buildAggressiveRfpAcquisitionInputs(
 				sourceUrls: hasSources ? campaign.sourceUrls : [],
 				engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
 				searchEngineFanout: true,
+				searchPages: options.searchPages,
 				limitPerQuery: options.limitPerQuery,
 				sourceScrapeLimit: options.sourceScrapeLimit,
 				scrapeTopResults: hasQueries,

@@ -16,6 +16,39 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Expand Search Depth and Direct Google Recovery For RFP Acquisition
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: widen broad RFP acquisition beyond first-page SearXNG engine fanout and add a direct Google recovery path when `search.lindela.io` and public `searx.space` instances do not deliver usable Google results.
+
+Changes in this slice:
+- Added bounded multi-page search support to discovery imports. Aggressive RFP acquisition now defaults to 2 search pages per query/engine, with `AGGRESSIVE_RFP_ACQUISITION_SEARCH_PAGES` capped at 5. The regular live discovery script can opt in with `LIVE_DISCOVERY_IMPORT_SEARCH_PAGES`.
+- Added `searchPages` to the discovery API input so operator/API discovery runs can deliberately request deeper search.
+- Added direct Google HTML fallback for Google engine searches after primary SearXNG and public/configured SearXNG fallback fanout fail. Direct DuckDuckGo fallback remains in place and still runs early for DuckDuckGo-eligible searches.
+- Added per-source timeout isolation for configured source discovery, controlled by `CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS`, so one slow portal/API is reported as degraded without stopping later sources in the same wide acquisition run.
+- Added regression coverage for deeper search pagination, aggressive acquisition search-page wiring, and Google direct fallback after failed SearXNG/public fanout.
+
+Live evidence:
+- Baseline before this slice's live acquisition: 4,441 opportunities; 959 RFP documents; 6,598 requirements; 1,739 source-document rows; 1,019 downloaded source documents.
+- `search_pages2_high_intent_docs_20260530T_next` ran high-intent and direct-document search with 2 pages, 4 engines, downloads disabled, and completed 2/2 campaigns. It found 4 records, updated 4 existing opportunities, imported 0, created 0 source documents, and emitted 224 warnings.
+- The two-page search proof confirmed the public `searx.space` fallback pool is still not reliable from this host: fallback instances repeatedly returned 403, 418, 429, fetch failures, and timeouts, while `search.lindela.io` continued reporting Google access-denied, DuckDuckGo timeout, Brave rate-limit, and Startpage CAPTCHA degradation.
+- Wide source-backed refresh attempts were stopped after they stalled without a complete proof artifact, but they had already persisted useful source/API-backed results: the live DB moved to 4,561 opportunities and 1,854 source-document rows, up 120 opportunities and 115 source documents from the baseline. Treat this as partial acquisition evidence, not a completed campaign proof.
+- `post_source_refresh_dry_20260530T_next` selected 20 source-document rows ready for intake, led by South Africa eTenders PDF downloads.
+- `post_source_refresh_etenders_live_20260530T_next` downloaded 4/4 selected eTenders PDFs, failed 0, completed 4 parser jobs, and extracted 22 requirements. Three of the PDFs used the lightweight `local_pdftotext` path directly; one PDF produced poor local text, tried Docling, then still completed parsing with 0 extracted requirements.
+- Final live snapshot after intake: 4,561 opportunities; 963 RFP documents; 6,620 requirements; 1,854 source-document rows; 1,023 downloaded source documents.
+
+Verification:
+- Focused regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts __tests__/services/searxng-client-config.test.ts` with 91 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live search proof completed with explicit degradation evidence.
+- Live source-document intake proof completed with 4 downloaded/parsed RFP documents and 22 extracted requirements.
+
+Remaining after this slice:
+- Continue prioritizing source/API-backed acquisition and source-document intake; broad search remains useful but currently degraded by `search.lindela.io` engine health and public SearXNG throttling.
+- Re-run the wide source-backed proof with per-source timeout isolation enabled and tune any source-specific timeout values that still produce avoidable skips.
+- Repair or configure trusted SearXNG fallback instances if Google/DuckDuckGo/Brave coverage is expected to carry broad acquisition at scale.
+
 ### 2026-05-30 - Repair Proposal Task Projection For Response Workflow
 
 Status: implemented, live-migrated, typechecked, and live-validated.

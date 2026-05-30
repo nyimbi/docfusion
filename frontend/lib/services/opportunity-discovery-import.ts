@@ -48,6 +48,7 @@ export interface DiscoveryImportInput {
 	categories?: SearchOptions["categories"];
 	engines?: SearchOptions["engines"];
 	searchEngineFanout?: boolean;
+	searchPages?: number;
 	countryRegion?: string;
 	category?: string;
 	updateExisting?: boolean;
@@ -219,6 +220,7 @@ interface ConfiguredSourceParseResult {
 type DiscoverySearchRequest = {
 	query: string;
 	engines?: string[];
+	page: number;
 	label: string;
 	failedAsImportError: boolean;
 };
@@ -351,6 +353,7 @@ const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
 const DEFAULT_CONFIGURED_SOURCE_MAX_PAGES = 3;
+const DEFAULT_CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS = 90_000;
 const DEFAULT_PERSISTENCE_RETRY_ATTEMPTS = 3;
 const DEFAULT_PERSISTENCE_RETRY_DELAY_MS = 500;
 const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
@@ -625,27 +628,41 @@ function searchRequestsForInput(
 ): DiscoverySearchRequest[] {
 	const engines = input.engines?.filter((engine) => engine.trim()) ?? [];
 	const shouldFanOut = input.searchEngineFanout !== false && engines.length > 1;
+	const pages = Array.from(
+		{ length: discoverySearchPages(input.searchPages) },
+		(_, index) => index + 1
+	);
 	if (!shouldFanOut) {
-		return [{
+		return pages.map((page) => ({
 			query,
 			engines: engines.length > 0 ? engines : undefined,
+			page,
 			label: searchEngineLabel(engines.length > 0 ? engines : undefined),
 			failedAsImportError: true,
-		}];
+		}));
 	}
 
-	return engines.map((engine) => ({
-		query,
-		engines: [engine],
-		label: engine,
-		failedAsImportError: false,
-	}));
+	return engines.flatMap((engine) =>
+		pages.map((page) => ({
+			query,
+			engines: [engine],
+			page,
+			label: page === 1 ? engine : `${engine}:page-${page}`,
+			failedAsImportError: false,
+		}))
+	);
 }
 
 function discoverySearchConcurrency(): number {
 	const parsed = Number(process.env.DISCOVERY_SEARCH_CONCURRENCY ?? 8);
 	if (!Number.isFinite(parsed)) return 8;
 	return Math.min(16, Math.max(1, Math.trunc(parsed)));
+}
+
+function discoverySearchPages(raw: number | undefined): number {
+	if (raw === undefined) return 1;
+	if (!Number.isFinite(raw)) return 1;
+	return Math.min(5, Math.max(1, Math.trunc(raw)));
 }
 
 async function mapWithConcurrency<T, R>(
@@ -683,6 +700,7 @@ async function runDiscoverySearches(
 				categories: input.categories ?? ["general"],
 				engines: task.request.engines,
 				language: input.language,
+				page: task.request.page > 1 ? task.request.page : undefined,
 				time_range: input.timeRange,
 				safesearch: 1,
 			});
@@ -1474,118 +1492,17 @@ async function discoverConfiguredSourceCandidates(
 
 	for (const sourceUrl of sourceUrls) {
 		try {
-			if (isKenyaPpipUrl(sourceUrl)) {
-				const ppipResult = await discoverKenyaPpipCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
-				candidates.push(...ppipResult.candidates);
-				if (ppipResult.handled) continue;
-			}
-			if (isUngmUrl(sourceUrl)) {
-				const ungmResult = await discoverUngmCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
-				candidates.push(...ungmResult.candidates);
-				if (ungmResult.handled) continue;
-			}
-
-			const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl, limitPerSource, {
-				browserFallback: input.browserFallback ?? true,
-			});
-			if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
-				if (isAfdbSourceUrl(sourceUrl)) {
-					const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
-					if (fallbackResult.handled) {
-						candidates.push(...fallbackResult.candidates);
-						continue;
-					}
-				}
-				warnings.push({
-					type: sourceResult.method === "browser_fallback"
-						? "browser_fallback_failed"
-						: sourceResult.method === "cloakbrowser_fallback"
-							? "cloakbrowser_fallback_failed"
-							: "source_scrape_failed",
-					query: `source:${sourceUrl}`,
-					title: "Configured source scrape failed",
-					url: sourceUrl,
-					message: sourceResult.scrapeResult.error ?? "Firecrawl returned no source content",
-				});
-				continue;
-			}
-
-			const { parser, parseResult, scrapeResult } = sourceResult;
-			if (!parseResult.opportunities.length) {
-				if (isAfdbSourceUrl(sourceUrl)) {
-					const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
-					if (fallbackResult.handled) {
-						candidates.push(...fallbackResult.candidates);
-						continue;
-					}
-				}
-				warnings.push({
-					type: "source_scrape_empty",
-					query: `source:${sourceUrl}`,
-					title: "Configured source scrape found no opportunities",
-					url: sourceUrl,
-					message: sourceResult.lastEmptyMessage
-						?? `${configuredSourceMethodLabel(sourceResult.method)} returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
-				});
-				continue;
-			}
-
-			const opportunities = parser.sourceId === "undp"
-				? await enrichUndpOpportunitiesWithDetails(
-					parseResult.opportunities.slice(0, limitPerSource),
+			candidates.push(...await withConfiguredSourceTimeout(
+				sourceUrl,
+				() => discoverConfiguredSourceCandidatesForUrl(
 					firecrawl,
-					Math.min(DEFAULT_UNDP_DETAIL_LIMIT, limitPerSource)
-				)
-				: parser.sourceId === "afdb"
-					? await enrichAfdbOpportunitiesWithDetails(
-						parseResult.opportunities.slice(0, limitPerSource),
-						firecrawl,
-						Math.min(DEFAULT_AFDB_DETAIL_LIMIT, limitPerSource)
-					)
-				: parser.sourceId === "world_bank"
-					? await enrichWorldBankOpportunitiesWithDetails(
-						parseResult.opportunities.slice(0, limitPerSource),
-						firecrawl,
-						Math.min(DEFAULT_WORLD_BANK_DETAIL_LIMIT, limitPerSource)
-					)
-				: parser.sourceId === "comesa"
-					? await enrichComesaOpportunitiesWithDetails(
-						parseResult.opportunities.slice(0, limitPerSource),
-						firecrawl,
-						Math.min(DEFAULT_COMESA_DETAIL_LIMIT, limitPerSource)
-					)
-				: parseResult.opportunities.slice(0, limitPerSource);
-
-			for (const opportunity of opportunities) {
-				const url = opportunity.portalUrl ?? sourceUrl;
-				const identity = sourceOpportunityIdentity(opportunity, sourceUrl);
-				if (seenUrls.has(identity)) continue;
-				seenUrls.add(identity);
-
-				candidates.push({
-					query: `source:${sourceUrl}`,
-					discoveryMethod: "source_scrape",
 					sourceUrl,
-					opportunity,
-					result: {
-						title: opportunity.title,
-						url,
-						content: opportunity.projectSummary ?? "",
-						engine: "firecrawl-source",
-						score: 1,
-						category: opportunity.countryRegion ?? "Configured source",
-					},
-					scrape: {
-						success: true,
-						title: opportunity.title,
-						description: opportunity.projectSummary,
-						markdown: scrapeResult.data?.markdown,
-						links: scrapeResult.data?.links,
-						method: sourceResult.method,
-						fallbackReason: sourceResult.fallbackReason,
-					},
-				});
-			}
+					limitPerSource,
+					seenUrls,
+					warnings,
+					input
+				)
+			));
 		} catch (error) {
 			warnings.push({
 				type: "source_scrape_failed",
@@ -1599,6 +1516,150 @@ async function discoverConfiguredSourceCandidates(
 	}
 
 	return candidates;
+}
+
+async function discoverConfiguredSourceCandidatesForUrl(
+	firecrawl: FirecrawlClient,
+	sourceUrl: string,
+	limitPerSource: number,
+	seenUrls: Set<string>,
+	warnings: DiscoveryRunWarning[],
+	input: DiscoveryImportInput
+): Promise<DiscoveryCandidate[]> {
+	const candidates: DiscoveryCandidate[] = [];
+	if (isKenyaPpipUrl(sourceUrl)) {
+		const ppipResult = await discoverKenyaPpipCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+		candidates.push(...ppipResult.candidates);
+		if (ppipResult.handled) return candidates;
+	}
+	if (isUngmUrl(sourceUrl)) {
+		const ungmResult = await discoverUngmCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+		candidates.push(...ungmResult.candidates);
+		if (ungmResult.handled) return candidates;
+	}
+
+	const sourceResult = await scrapeAndParseConfiguredSource(firecrawl, sourceUrl, limitPerSource, {
+		browserFallback: input.browserFallback ?? true,
+	});
+	if (!sourceResult.scrapeResult.success || !sourceResult.scrapeResult.data) {
+		if (isAfdbSourceUrl(sourceUrl)) {
+			const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+			if (fallbackResult.handled) return fallbackResult.candidates;
+		}
+		warnings.push({
+			type: sourceResult.method === "browser_fallback"
+				? "browser_fallback_failed"
+				: sourceResult.method === "cloakbrowser_fallback"
+					? "cloakbrowser_fallback_failed"
+					: "source_scrape_failed",
+			query: `source:${sourceUrl}`,
+			title: "Configured source scrape failed",
+			url: sourceUrl,
+			message: sourceResult.scrapeResult.error ?? "Firecrawl returned no source content",
+		});
+		return candidates;
+	}
+
+	const { parser, parseResult, scrapeResult } = sourceResult;
+	if (!parseResult.opportunities.length) {
+		if (isAfdbSourceUrl(sourceUrl)) {
+			const fallbackResult = await discoverAfdbSearchFallbackCandidates(sourceUrl, limitPerSource, seenUrls, warnings);
+			if (fallbackResult.handled) return fallbackResult.candidates;
+		}
+		warnings.push({
+			type: "source_scrape_empty",
+			query: `source:${sourceUrl}`,
+			title: "Configured source scrape found no opportunities",
+			url: sourceUrl,
+			message: sourceResult.lastEmptyMessage
+				?? `${configuredSourceMethodLabel(sourceResult.method)} returned content after ${sourceResult.attempts} attempt(s), but the ${parser.name} parser found no tender-like records.`,
+		});
+		return candidates;
+	}
+
+	const opportunities = parser.sourceId === "undp"
+		? await enrichUndpOpportunitiesWithDetails(
+			parseResult.opportunities.slice(0, limitPerSource),
+			firecrawl,
+			Math.min(DEFAULT_UNDP_DETAIL_LIMIT, limitPerSource)
+		)
+		: parser.sourceId === "afdb"
+			? await enrichAfdbOpportunitiesWithDetails(
+				parseResult.opportunities.slice(0, limitPerSource),
+				firecrawl,
+				Math.min(DEFAULT_AFDB_DETAIL_LIMIT, limitPerSource)
+			)
+		: parser.sourceId === "world_bank"
+			? await enrichWorldBankOpportunitiesWithDetails(
+				parseResult.opportunities.slice(0, limitPerSource),
+				firecrawl,
+				Math.min(DEFAULT_WORLD_BANK_DETAIL_LIMIT, limitPerSource)
+			)
+		: parser.sourceId === "comesa"
+			? await enrichComesaOpportunitiesWithDetails(
+				parseResult.opportunities.slice(0, limitPerSource),
+				firecrawl,
+				Math.min(DEFAULT_COMESA_DETAIL_LIMIT, limitPerSource)
+			)
+		: parseResult.opportunities.slice(0, limitPerSource);
+
+	for (const opportunity of opportunities) {
+		const url = opportunity.portalUrl ?? sourceUrl;
+		const identity = sourceOpportunityIdentity(opportunity, sourceUrl);
+		if (seenUrls.has(identity)) continue;
+		seenUrls.add(identity);
+
+		candidates.push({
+			query: `source:${sourceUrl}`,
+			discoveryMethod: "source_scrape",
+			sourceUrl,
+			opportunity,
+			result: {
+				title: opportunity.title,
+				url,
+				content: opportunity.projectSummary ?? "",
+				engine: "firecrawl-source",
+				score: 1,
+				category: opportunity.countryRegion ?? "Configured source",
+			},
+			scrape: {
+				success: true,
+				title: opportunity.title,
+				description: opportunity.projectSummary,
+				markdown: scrapeResult.data?.markdown,
+				links: scrapeResult.data?.links,
+				method: sourceResult.method,
+				fallbackReason: sourceResult.fallbackReason,
+			},
+		});
+	}
+	return candidates;
+}
+
+async function withConfiguredSourceTimeout<T>(
+	sourceUrl: string,
+	operation: () => Promise<T>
+): Promise<T> {
+	const timeoutMs = configuredSourceDiscoveryTimeoutMs();
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			operation(),
+			new Promise<T>((_, reject) => {
+				timeout = setTimeout(() => {
+					reject(new Error(`Configured source discovery timed out after ${timeoutMs}ms for ${sourceUrl}`));
+				}, timeoutMs);
+			}),
+		]);
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
+}
+
+function configuredSourceDiscoveryTimeoutMs(): number {
+	const parsed = Number(process.env.CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS ?? DEFAULT_CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS);
+	if (!Number.isFinite(parsed)) return DEFAULT_CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS;
+	return Math.min(300_000, Math.max(5, Math.trunc(parsed)));
 }
 
 function configuredSourceMethodLabel(method: ConfiguredSourceParseResult["method"]): string {
