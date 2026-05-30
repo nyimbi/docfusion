@@ -69,6 +69,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.etenders.gov.za/home/Download?downloadedFileName=Annexure%20C%2C%20D%20%26%20E_Local%20%26%20Imported%20Content%20Declaration%20Forms.xls",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "gbg_master.pdf",
+			sourceUrl: "https://www.ungm.org/Areas/Public/Downloads/gbg_master.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "pm.pdf",
+			sourceUrl: "https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/files/attachment/page/pdf/pm.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
 		})).toBe(true);

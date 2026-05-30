@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Aggressively Expand RFP Acquisition
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: widen RFP collection beyond the already-fixed Plan/UN Procurement paths by draining proven direct-document queues, running broad search/source fanout, and tightening intake filters where live evidence showed generic procurement manuals would waste acquisition capacity.
+
+Changes in this slice:
+- Added filter coverage for generic procurement manuals/guides, including UN `gbg_master.pdf` and the UN procurement manual PDF, so these do not consume source-document intake or parser capacity.
+- Extended both shared source-document link filtering and source-document intake filtering to reject procurement/vendor/supplier guides, manuals, handbooks, global marketplace guides, and the observed UN manual URLs while keeping active RFP/TOR documents eligible.
+
+Live acquisition runs:
+- `reliable_direct_sources_live_20260530T1306` drained the proven direct-source queue for NeST Tanzania, South Africa eTenders, World Bank, IOM, CDB, AU, Save the Children, and Mercy Corps: selected 50, downloaded 50, failed 0, parsed 50, parse failed 0, parse timed out 0.
+- That run fully drained NeST Tanzania source documents: 90 NeST source docs, 90 downloaded, 0 remaining selected.
+- `broad_direct_sources_queue_dry_20260530T1331` selected 21 candidates but showed most were known AfDB/GHANEPS failures, so the live pass was narrowed to unretried direct documents.
+- `broad_direct_sources_unretried_live_20260530T1332` downloaded the 2 remaining fresh South Africa eTenders direct PDFs with lightweight `local_pdftotext`, failed 0, and queued parsing without waiting.
+- `search_fanout_source_expansion_20260530T1333` ran high-intent search, direct document search, global public-sector search, global/regional search, and donor/NGO search with Google/DuckDuckGo/Bing/Brave fanout through SearXNG: 5 campaigns completed, failed 0, accepted 193 records, imported 79 new opportunities, updated 114, and created 5 source-document rows.
+- `search_fanout_new_docs_postfilter_dry_20260530T1347` selected 5 source docs after the new filters, down from 7 before filtering because the generic UN procurement guide/manual PDFs were excluded.
+- `search_fanout_new_docs_live_20260530T1347` downloaded 4 of those 5 newly discovered search-backed PDFs with `local_pdftotext`, failed 1 old externally blocked PDF with HTTP 403, and queued parsing without waiting.
+
+Verification:
+- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-link-filter.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 74 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Updated live database snapshot: 4,412 opportunities; 902 RFP documents; 6,181 extracted requirements; 1,649 source-document rows; 959 downloaded source documents; 99 source documents downloaded in the last 3 hours; 92 RFP documents created in the last 3 hours.
+
+Remaining after this slice:
+- Search fanout remains degraded despite searx.space fallback: the run completed but emitted 378 warnings, mostly SearXNG engine degradation plus public fallback 403/418/429 and direct DuckDuckGo fetch failures. Source/API-backed routes are still the reliable path for broad RFP growth.
+- Configured Source Scrape has the largest remaining selected queue, but 204 remaining active-ish rows are mixed with DGMarket/protected/noisy documents and should be addressed through source-specific handling rather than blind parser drains.
+- Rwanda UMUCYO, UNICEF, AfDB, UNDP, World Bank, IOM, CDB, and search-backed queues still have selected rows, but many are HTML/detail pages or known protected failures; run source-specific/API expansion before treating those as direct documents.
+- The 6 newly queued PDFs from the two wait-free live intake runs should be parsed in a later controlled parser drain.
+
 ### 2026-05-30 - Fix UN Procurement Row-Level PDF Acquisition
 
 Status: implemented, focused-test verified, typechecked, live-proved, live intake completed, and live database verified.

@@ -28,6 +28,13 @@ describe("RFP document link filtering", () => {
 			url: "https://example.org/Jaggaer_Supplier_Guide_V3.pdf",
 		})).toBe(true);
 		expect(isLowValueProcurementDocumentLink({
+			label: "Procurement Manual",
+			url: "https://example.org/procurement-manual.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			url: "https://www.ungm.org/Areas/Public/Downloads/gbg_master.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
 			url: "https://example.org/Jaggaer_Supplier_Guide_V3.pdf",
 		})).toBe(true);
 		expect(isLowValueProcurementDocumentLink({
