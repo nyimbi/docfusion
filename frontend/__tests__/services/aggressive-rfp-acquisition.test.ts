@@ -26,6 +26,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://cdn.ppda.go.ug/api/bid-invitations",
 				"https://www.contractsfinder.service.gov.uk/Search",
 				"https://canadabuys.canada.ca/en/tender-opportunities",
+				"https://www.mercycorps.org/tenders",
+				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 			]));
 	});
 
@@ -105,5 +107,37 @@ describe("aggressive RFP acquisition campaigns", () => {
 	it("selects requested campaigns by id", () => {
 		expect(selectAggressiveRfpAcquisitionCampaigns(["development_banks", "document_search"]).map((campaign) => campaign.id))
 			.toEqual(["development_banks", "document_search"]);
+	});
+
+	it("turns donor and regional search groups into source-backed campaigns", () => {
+		const [regional, donor] = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["global_regional_search", "donor_ngo_search"],
+			limitPerQuery: 4,
+			sourceScrapeLimit: 15,
+			scrapeLimit: 2,
+			browserFallbackLimit: 2,
+			downloadLimit: 5,
+			downloadParseMode: "queued",
+		});
+
+		expect(regional.input.sourceUrls).toEqual(expect.arrayContaining([
+			"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+			"https://www.spc.int/procurement",
+		]));
+		expect(regional.input.queries).toEqual(expect.arrayContaining([
+			"site:iadb.org procurement \"request for proposals\"",
+			"site:spc.int/procurement \"request for proposal\"",
+		]));
+		expect(donor.input.sourceUrls).toEqual(expect.arrayContaining([
+			"https://www.mercycorps.org/tenders",
+			"https://www.crs.org/bid-opportunities",
+			"https://www.dai.com/our-work/supplier-registration-portal",
+			"https://www.gtai.de/en/trade/tenders",
+		]));
+		expect(donor.input.queries).toEqual(expect.arrayContaining([
+			"site:dai.com/uploads \"request for proposals\" DAI",
+			"site:plan-international.org/calls-tender tender deadline",
+		]));
+		expect(donor.input.scrapeTopResults).toBe(true);
 	});
 });

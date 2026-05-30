@@ -24,4 +24,75 @@ describe("generic tender parser", () => {
 		]);
 		expect(String(result.opportunities[0].title)).not.toContain("Ref No");
 	});
+
+	it("extracts browser fallback HTML tender cards", async () => {
+		const result = await genericParser.parse({
+			url: "https://www.savethechildren.net/tenders",
+			markdown: `
+				<div class="three_col-listing-card">
+					<h3 class="three_col-listing-card__title_h3">
+						Provision of technical expertise in carrying out high quality Household Economy Analysis (HEA)
+					</h3>
+					<div class="three_col-listing-card__description">
+						<p>Save the Children International (SCI) is inviting proposals for the provision of technical expertise in carrying out high quality Household Economy Analysis.</p>
+					</div>
+					<div class="three_col-listing-card__start-date">26 May 2026</div>
+					<div class="three_col-listing-card__country">Worldwide</div>
+					<div class="three_col-listing-card__deadline">Deadline: 18 June 2026</div>
+				</div>
+			`,
+			links: [],
+		});
+
+		expect(result.opportunities).toEqual([
+			expect.objectContaining({
+				title: "Provision of technical expertise in carrying out high quality Household Economy Analysis (HEA)",
+				countryRegion: undefined,
+				portalUrl: "https://www.savethechildren.net/tenders",
+			}),
+		]);
+	});
+
+	it("extracts raw HTML procurement table links with closing dates", async () => {
+		const result = await genericParser.parse({
+			url: "https://www.spc.int/procurement",
+			markdown: `
+				<table>
+					<tr>
+						<td>
+							<a href="/tender/policy-dialogue-shared-decision-making-and-womens-leadership-in-the-pacific">
+								Policy Dialogue on Shared Decision-Making and Women's Leadership in the Pacific
+							</a>
+							<p>Posting date: <time datetime="2026-03-09T00:28:38+00:00">9 March 2026</time><br>
+							Closing Date: <time datetime="2026-03-20T12:00:00Z">20 March 2026</time></p>
+							<h3>Extension to Deadline for submissions:</h3>
+							<p>The Pacific Community hereby gives notice that the closing deadline for submissions is now until the 20/3/26.</p>
+						</td>
+						<td>Fiji</td>
+					</tr>
+				</table>
+			`,
+			links: [],
+		});
+
+		expect(result.opportunities).toEqual([
+			expect.objectContaining({
+				title: "Policy Dialogue on Shared Decision-Making and Women's Leadership in the Pacific",
+				portalUrl: "https://www.spc.int/tender/policy-dialogue-shared-decision-making-and-womens-leadership-in-the-pacific",
+			}),
+		]);
+	});
+
+	it("does not treat contract awards as active tenders", async () => {
+		const result = await genericParser.parse({
+			url: "https://buyer.example/procurement",
+			markdown: `
+				<a href="/awards/case-management-platform">Contract Award: Case Management Platform</a>
+				<p>Closing Date: 20 June 2026</p>
+			`,
+			links: [],
+		});
+
+		expect(result.opportunities).toEqual([]);
+	});
 });

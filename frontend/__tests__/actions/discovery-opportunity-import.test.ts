@@ -898,6 +898,43 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("does not misroute IDB procurement pages through the ADB source parser", async () => {
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"[Request for Proposals: Digital Citizen Services](https://www.iadb.org/en/procurement/digital-citizen-services-rfp)",
+					"",
+					"Submission deadline: 15 June 2026",
+				].join("\n"),
+				links: ["https://www.iadb.org/en/procurement/digital-citizen-services-rfp"],
+				metadata: { title: "IDB Procurement Notices" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+			expect.any(Object)
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Request for Proposals: Digital Citizen Services",
+			source: "source-scrape",
+			sourcePlatform: "Configured Source Scrape",
+			portalUrl: "https://www.iadb.org/en/procurement/digital-citizen-services-rfp",
+			sourceFile: "source:https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+			opportunityType: "rfp",
+		}));
+	});
+
 	it("imports AIIB project procurement opportunities from the official data script", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date(2026, 4, 28));

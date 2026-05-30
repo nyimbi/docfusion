@@ -69,6 +69,17 @@ const SOURCE_URLS: Record<string, string> = {
 	newZealandGets: "https://www.gets.govt.nz/ExternalIndex.htm",
 	usGrants: "https://www.grants.gov/search-grants",
 	usaidBusinessForecast: "https://www.usaid.gov/business-forecast",
+	mercyCorpsTenders: "https://www.mercycorps.org/tenders",
+	crsBidOpportunities: "https://www.crs.org/bid-opportunities",
+	saveChildrenIntlTenders: "https://www.savethechildren.net/tenders",
+	planInternationalTenders: "https://plan-international.org/calls-tender/",
+	daiSupplierPortal: "https://www.dai.com/our-work/supplier-registration-portal",
+	fcdoProcurement: "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office/about/procurement",
+	fcdoServicesSupplier: "https://www.fcdoservices.gov.uk/why-choose-us/becoming-a-supplier/",
+	gtaiTenders: "https://www.gtai.de/en/trade/tenders",
+	idbProcurementNotices: "https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+	idbCorporateProcurement: "https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
+	pacificCommunityProcurement: "https://www.spc.int/procurement",
 };
 
 export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisitionCampaign[] = [
@@ -189,6 +200,11 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 	{
 		id: "global_regional_search",
 		label: "Regional and non-Africa RFP search fanout",
+		sourceUrls: [
+			SOURCE_URLS.idbProcurementNotices,
+			SOURCE_URLS.idbCorporateProcurement,
+			SOURCE_URLS.pacificCommunityProcurement,
+		],
 		queries: [
 			"\"request for proposals\" \"submission deadline\" \"Latin America\"",
 			"\"request for proposals\" \"submission deadline\" Caribbean",
@@ -198,20 +214,35 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"\"tender notice\" \"software development\" \"closing date\" \"Europe\"",
 			"\"call for proposals\" \"digital transformation\" deadline global",
 			"\"terms of reference\" \"consultancy\" \"deadline\" \"international\"",
+			"site:iadb.org procurement \"request for proposals\"",
+			"site:spc.int/procurement \"request for proposal\"",
 		],
 	},
 	{
 		id: "donor_ngo_search",
 		label: "Donor and NGO procurement search fanout",
+		sourceUrls: [
+			SOURCE_URLS.mercyCorpsTenders,
+			SOURCE_URLS.crsBidOpportunities,
+			SOURCE_URLS.saveChildrenIntlTenders,
+			SOURCE_URLS.planInternationalTenders,
+			SOURCE_URLS.daiSupplierPortal,
+			SOURCE_URLS.fcdoProcurement,
+			SOURCE_URLS.fcdoServicesSupplier,
+			SOURCE_URLS.gtaiTenders,
+		],
 		queries: [
 			"site:giz.de \"tenders\" \"deadline\" \"request for proposals\"",
 			"site:kfw-entwicklungsbank.de \"tender\" \"deadline\"",
 			"site:fcdoservices.gov.uk \"tender\" \"deadline\"",
 			"site:chemonics.com \"request for proposals\" \"deadline\"",
 			"site:dai.com \"request for proposals\" \"deadline\"",
+			"site:dai.com/uploads \"request for proposals\" DAI",
+			"site:dai.com/uploads \"request for expressions of interest\" DAI",
 			"site:mercycorps.org \"tender\" \"deadline\"",
 			"site:crs.org \"request for proposals\" \"deadline\"",
 			"site:savethechildren.net \"request for proposal\" procurement",
+			"site:plan-international.org/calls-tender tender deadline",
 		],
 	},
 ];

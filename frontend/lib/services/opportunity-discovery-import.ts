@@ -314,6 +314,16 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?gets\.govt\.nz\//i,
 	/\/\/(?:www\.)?grants\.gov\/search-grants/i,
 	/\/\/(?:www\.)?usaid\.gov\/business-forecast/i,
+	/\/\/(?:www\.)?mercycorps\.org\/tenders/i,
+	/\/\/(?:www\.)?crs\.org\/bid-opportunities/i,
+	/\/\/(?:www\.)?savethechildren\.net\/tenders/i,
+	/\/\/plan-international\.org\/calls-tender/i,
+	/\/\/(?:www\.)?dai\.com\/our-work\/supplier-registration-portal/i,
+	/\/\/(?:www\.)?gov\.uk\/government\/organisations\/foreign-commonwealth-development-office\/about\/procurement/i,
+	/\/\/(?:www\.)?fcdoservices\.gov\.uk\/why-choose-us\/becoming-a-supplier/i,
+	/\/\/(?:www\.)?gtai\.de\/en\/trade\/tenders/i,
+	/\/\/(?:www\.)?iadb\.org\/.*\/procurement/i,
+	/\/\/(?:www\.)?spc\.int\/procurement/i,
 ];
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
@@ -451,8 +461,8 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	}
 
 	let sourceId: string | undefined;
-	if (host.includes("afdb.org")) sourceId = "afdb";
-	else if (host.includes("adb.org")) sourceId = "adb";
+	if (host === "afdb.org" || host.endsWith(".afdb.org")) sourceId = "afdb";
+	else if (host === "adb.org" || host.endsWith(".adb.org")) sourceId = "adb";
 	else if (host === "au.int" && safeUrlPathname(sourceUrl).startsWith("/en/bids")) sourceId = "african_union";
 	else if (host.includes("aiib.org") && safeUrlPathname(sourceUrl).includes("/project-procurement/")) sourceId = "aiib";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";

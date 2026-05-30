@@ -24,7 +24,6 @@ const TENDER_KEYWORDS = [
 	"rfi",
 	"eoi",
 	"bid",
-	"procurement",
 	"quotation",
 	"solicitation",
 	"invitation to bid",
@@ -32,7 +31,18 @@ const TENDER_KEYWORDS = [
 	"request for quotation",
 	"expression of interest",
 	"notice of intent",
-	"contract award",
+];
+
+const CONTEXT_TENDER_KEYWORDS = [
+	"inviting proposals",
+	"submission deadline",
+	"deadline for submissions",
+	"closing date",
+	"closing deadline",
+	"posting date",
+	"request for proposal",
+	"request for proposals",
+	"tender link",
 ];
 
 const EXCLUDE_KEYWORDS = [
@@ -51,6 +61,13 @@ const EXCLUDE_KEYWORDS = [
 	"opened bid details",
 	"annual procurement plan",
 	"electronic public procurement",
+	"contract award",
+	"awarded tender",
+	"extension to deadline",
+	"notice of extension",
+	"addendum to tender",
+	"supplementary information",
+	"clarification",
 ];
 
 const AFRICAN_COUNTRIES = [
@@ -70,8 +87,14 @@ function shouldExclude(text: string): boolean {
 }
 
 function isTenderLike(title: string, context: string): boolean {
-	const combined = `${title} ${context}`.toLowerCase();
-	return TENDER_KEYWORDS.some((kw) => combined.includes(kw));
+	const titleLower = title.toLowerCase();
+	const contextLower = context.toLowerCase();
+	if (TENDER_KEYWORDS.some((kw) => titleLower.includes(kw))) return true;
+	if (/\b(procurement|proposal|proposals)\b/i.test(title) && CONTEXT_TENDER_KEYWORDS.some((kw) => contextLower.includes(kw))) {
+		return true;
+	}
+	return CONTEXT_TENDER_KEYWORDS.some((kw) => contextLower.includes(kw))
+		&& !/^(media centre|careers|grants|contact|about|director-general|executive management|find out more about our procurement|procurement)$/i.test(title.trim());
 }
 
 function parseMetadataBlock(block: string): {
@@ -162,6 +185,35 @@ function extractContextMetadata(context: string): {
 
 function normaliseScrapedInlineText(text: string): string {
 	return cleanText(text.replace(/\\+/g, " "));
+}
+
+function decodeHtmlEntities(value: string): string {
+	return value
+		.replace(/&#(\d+);/g, (_, codepoint: string) => String.fromCodePoint(Number(codepoint)))
+		.replace(/&#x([0-9a-f]+);/gi, (_, codepoint: string) => String.fromCodePoint(Number.parseInt(codepoint, 16)))
+		.replace(/&amp;/g, "&")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, "\"")
+		.replace(/&#39;/g, "'")
+		.replace(/&apos;/g, "'");
+}
+
+function stripHtml(html: string): string {
+	return normaliseScrapedInlineText(decodeHtmlEntities(html.replace(/<script[\s\S]*?<\/script>/gi, " ")
+		.replace(/<style[\s\S]*?<\/style>/gi, " ")
+		.replace(/<[^>]+>/g, " ")));
+}
+
+function absoluteUrl(rawUrl: string, sourceUrl: string): string | undefined {
+	try {
+		const url = new URL(decodeHtmlEntities(rawUrl), sourceUrl);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return undefined;
+	}
 }
 
 function extractLabelledFields(text: string): Record<string, string> {
@@ -285,6 +337,40 @@ function extractFromLinks(markdown: string, sourceUrl: string): OpportunityData[
 	return opportunities;
 }
 
+function extractFromHtmlAnchors(markdown: string, sourceUrl: string): OpportunityData[] {
+	if (!/<a\b/i.test(markdown)) return [];
+	const opportunities: OpportunityData[] = [];
+	const anchorPattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+
+	let match;
+	while ((match = anchorPattern.exec(markdown)) !== null && opportunities.length < 80) {
+		const url = absoluteUrl(match[1], sourceUrl);
+		if (!url) continue;
+		const title = stripHtml(match[2] ?? "");
+		if (title.length < 10 || title.length > 300) continue;
+		if (shouldExclude(title)) continue;
+
+		const contextStart = Math.max(0, match.index - 600);
+		const contextEnd = Math.min(markdown.length, match.index + match[0].length + 900);
+		const context = stripHtml(markdown.slice(contextStart, contextEnd));
+		if (!isTenderLike(title, context)) continue;
+
+		const metadata = extractContextMetadata(context);
+		opportunities.push({
+			title,
+			source: "generic",
+			organization: metadata.organization,
+			deadline: metadata.deadline,
+			countryRegion: metadata.country,
+			projectSummary: metadata.description ?? compactDescription(context, title),
+			portalUrl: url,
+			noticeId: generateId(title),
+		});
+	}
+
+	return opportunities;
+}
+
 function extractFromHeadings(markdown: string, sourceUrl: string): OpportunityData[] {
 	const opportunities: OpportunityData[] = [];
 	const headingPattern = /^#{1,4}\s+(.+?)$/gm;
@@ -313,6 +399,54 @@ function extractFromHeadings(markdown: string, sourceUrl: string): OpportunityDa
 	}
 
 	return opportunities;
+}
+
+function extractFromHtmlHeadings(markdown: string, sourceUrl: string): OpportunityData[] {
+	if (!/<h[1-4]\b/i.test(markdown)) return [];
+	const opportunities: OpportunityData[] = [];
+	const headingPattern = /<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+
+	let match;
+	while ((match = headingPattern.exec(markdown)) !== null && opportunities.length < 80) {
+		const title = stripHtml(match[2] ?? "");
+		if (title.length < 15 || title.length > 300) continue;
+		if (shouldExclude(title)) continue;
+
+		const afterHeading = markdown.slice(match.index + match[0].length, match.index + match[0].length + 1500);
+		const context = stripHtml(afterHeading);
+		if (!isTenderLike(title, context)) continue;
+
+		const metadata = extractContextMetadata(context);
+		opportunities.push({
+			title,
+			source: "generic",
+			organization: metadata.organization,
+			deadline: metadata.deadline,
+			countryRegion: metadata.country,
+			projectSummary: metadata.description ?? compactDescription(context, title),
+			portalUrl: sourceUrl,
+			noticeId: generateId(title),
+		});
+	}
+
+	return opportunities;
+}
+
+function compactDescription(context: string, title: string): string | undefined {
+	const withoutTitle = context.replace(title, " ");
+	const compact = cleanText(withoutTitle);
+	if (compact.length < 30) return undefined;
+	return compact.slice(0, 500);
+}
+
+function pushUniqueOpportunities(target: OpportunityData[], additions: OpportunityData[]): void {
+	for (const opportunity of additions) {
+		const titleKey = opportunity.title.toLowerCase();
+		const exists = target.some((existing) =>
+			existing.title.toLowerCase() === titleKey
+		);
+		if (!exists) target.push(opportunity);
+	}
 }
 
 function findNextPage(content: ParseInput): string | undefined {
@@ -395,20 +529,14 @@ export const genericParser: TenderParser = {
 		opportunities.push(...structuredOpps);
 
 		// Strategy 2: Extract from links with tender keywords
-		const linkOpps = extractFromLinks(markdown, content.url);
-		for (const opp of linkOpps) {
-			if (!opportunities.some((o) => o.title.toLowerCase() === opp.title.toLowerCase())) {
-				opportunities.push(opp);
-			}
-		}
+		pushUniqueOpportunities(opportunities, extractFromLinks(markdown, content.url));
 
 		// Strategy 3: Extract from heading + paragraph patterns
-		const headingOpps = extractFromHeadings(markdown, content.url);
-		for (const opp of headingOpps) {
-			if (!opportunities.some((o) => o.title.toLowerCase() === opp.title.toLowerCase())) {
-				opportunities.push(opp);
-			}
-		}
+		pushUniqueOpportunities(opportunities, extractFromHeadings(markdown, content.url));
+
+		// Strategy 4: Browser fallback often returns raw HTML rather than markdown.
+		pushUniqueOpportunities(opportunities, extractFromHtmlAnchors(markdown, content.url));
+		pushUniqueOpportunities(opportunities, extractFromHtmlHeadings(markdown, content.url));
 
 		return {
 			opportunities,

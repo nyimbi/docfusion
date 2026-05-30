@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Expand Donor and Regional Source Acquisition
+
+Status: implemented, focused-test verified, typechecked, and partially live-proved.
+
+Purpose: widen RFP acquisition beyond the live-proven public-sector/global search lane by adding source-backed donor, NGO, and regional procurement portals, and by making generic source scraping recover opportunities from browser-service raw HTML instead of relying only on clean Firecrawl markdown.
+
+Changes in this slice:
+- Added source-backed acquisition coverage for Mercy Corps, CRS, Save the Children International, Plan International, DAI, FCDO, FCDO Services, GTAI, IDB, and the Pacific Community.
+- Added matching donor/regional queries to both aggressive acquisition campaigns and default scheduled discovery so routine collection inherits the broader coverage.
+- Added procurement-portal URL classification for the same donor/regional pages so source URL imports run without requiring a search result first.
+- Extended the generic parser to extract tender cards and table rows from raw browser-service HTML anchors/headings, while filtering navigation, award/addendum/extension noise, and duplicate generic source-page records.
+- Fixed IDB source routing by changing ADB/AfDB parser matching from substring checks to exact-domain/subdomain checks; `iadb.org` now stays on the generic source parser instead of being misclassified as `adb.org`.
+
+Verification:
+- Focused acquisition/source/parser regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/generic-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 68 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live HTTP/search scouting confirmed reachable source pages for Mercy Corps, Save the Children International, Plan International, DAI, FCDO procurement, FCDO Services supplier, GTAI tenders, IDB procurement notices, and Pacific Community procurement; CRS and Save the Children US remained protected by 403 and were not treated as proven extraction sources.
+- Live campaign `aggressive_rfp_acquisition_donor_regional_sources_20260530T1014` completed both donor/regional campaigns without campaign failure but imported 0 records before the raw-HTML generic parser fix, proving source URL expansion alone was insufficient.
+- Post-fix live browser-service probe parsed 5 Save the Children tender opportunities from raw HTML, including Malawi climate-informed procurement, HEA technical expertise, Bundle Up market dialogue, and Lebanon drinking-water treatment tenders.
+- Post-fix source-only live import from Save the Children and SPC imported 3 new Save the Children opportunities; SPC still failed intermittently through the browser service timeout/500 path and needs a bounded retry or source-specific parser.
+- Updated live database snapshot after this slice: 4,189 total opportunities; 1,859 `rfp`; 2,104 tender/TENDER; 5,670 extracted `rfp_requirements`.
+
+Remaining after this slice:
+- Save the Children tender cards imported as opportunities, but did not yet create source-document rows; add detail/document extraction so they flow into parse and response generation.
+- SPC procurement has promising tender table rows but remains blocked by browser-service instability in live import; add a bounded SPC-specific scraper or resilient retry before spending repeated broad runs there.
+- Re-run the donor/regional aggressive campaigns after this parser/routing fix to measure the new yield; the failed pre-fix run is evidence of the prior failure mode, not the expected post-fix baseline.
+- Continue treating donor/regional search fanout as source-backed and bounded; avoid repeated blind search-only expansion until SearXNG engine health improves.
+
 ### 2026-05-30 - Aggressively Expand RFP Acquisition
 
 Status: implemented, focused-test verified, typechecked, live-proved, live database verified, committed, and pushed.
