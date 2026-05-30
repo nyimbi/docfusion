@@ -138,6 +138,15 @@ describe("source document intake selection helpers", () => {
 		expect(isDirectDocumentIntakeSource(source)).toBe(true);
 	});
 
+	it("accepts UNDP public notice pages as local HTML source documents", () => {
+		const source = {
+			documentName: "view_notice.cfm",
+			sourceUrl: "https://procurement-notices.undp.org/view_notice.cfm?notice_id=98842",
+		};
+		expect(isSupportedDocumentSource(source)).toBe(true);
+		expect(isDirectDocumentIntakeSource(source)).toBe(true);
+	});
+
 	it("accepts Rwanda UMUCYO per-tender detail endpoints without accepting the shared list page", () => {
 		expect(isSupportedDocumentSource({
 			documentName: "selectAdvertisingDtlInfo.do",
