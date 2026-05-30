@@ -33,12 +33,13 @@ Verification:
 - NeST dry-run `source_doc_intake_nest_direct_dry_20260530T0424` selected 10 NeST OCDS release endpoints under `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1`, proving NeST is no longer skipped by direct-only intake.
 - NeST live proof `source_doc_intake_nest_direct_live_20260530T0426` selected 10, downloaded 10, failed 0, skipped 0, completed 10 parser jobs, timed out 0 parser jobs, and extracted 43 requirements.
 - NeST live scale-up `source_doc_intake_nest_direct_live_20260530T0430` selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and extracted 75 requirements.
-- Both live NeST runs used `local_html_text` on the rendered OCDS HTML surrogates; no Docling fallback was needed for these source documents.
-- Updated live database snapshot after the NeST drains: 3,947 total opportunities, 1,800 RFP-typed opportunities, 453 RFP documents with extracted text, 36,718,764 extracted text characters, and 3,269 extracted `rfp_requirements`.
-- Source queue verification after the NeST drains: NeST Tanzania moved to 35 downloaded selected documents and 15 selected documents still queued under the attempts cap.
+- NeST final drain `source_doc_intake_nest_direct_live_20260530T0443` selected the remaining 15 NeST rows, downloaded 15, failed 0, skipped 0, completed 15 parser jobs, timed out 0 parser jobs, and extracted 37 requirements.
+- All live NeST runs used `local_html_text` on the rendered OCDS HTML surrogates; no Docling fallback was needed for these source documents.
+- Updated live database snapshot after fully draining selected NeST rows: 3,947 total opportunities, 1,800 RFP-typed opportunities, 468 RFP documents with extracted text, 36,841,081 extracted text characters, and 3,306 extracted `rfp_requirements`.
+- Source queue verification after the NeST drains: NeST Tanzania moved to 50 downloaded selected documents and 0 selected documents queued under the attempts cap.
 
 Remaining after this slice:
-- Drain the remaining 15 NeST selected release rows if broad coverage is prioritized, but treat NeST as reliable and lower response-value than Ghana/Zambia/Rwanda/Kenya because the current feed is commodity-heavy.
+- Treat NeST as reliable and fully drained for current selected rows, but lower response-value than Ghana/Zambia/Rwanda/Kenya because the current feed is commodity-heavy.
 - Continue higher-yield national/direct drains across Ghana GHANEPS, Zambia ZPPA, Rwanda UMUCYO, Kenya PPIP, ESPPRA Eswatini, and UN/UNDP direct rows.
 
 ### 2026-05-30 - Add Direct-Only Source Document Intake Drain
