@@ -109,29 +109,43 @@ export async function searchSearxng(
     ? describeDegradedSearch(primary.response, options)
     : primary.error;
 
+  const directGoogleFirst = shouldPreferDirectGoogleBeforePublicFallback(options)
+    ? await searchDirectGoogleFallback(query, options)
+    : undefined;
   const directDuckduckgoFirst = shouldPreferDirectDuckduckgoBeforePublicFallback(options)
     ? await searchDirectDuckduckgoFallback(query, options)
     : undefined;
-  if (directDuckduckgoFirst?.results.length) {
+  const directFirstFallbacks = [
+    directGoogleFirst?.results.length
+      ? { baseUrl: GOOGLE_HTML_BASE_URL, label: "Google HTML", response: directGoogleFirst }
+      : undefined,
+    directDuckduckgoFirst?.results.length
+      ? { baseUrl: DUCKDUCKGO_HTML_BASE_URL, label: "DuckDuckGo HTML", response: directDuckduckgoFirst }
+      : undefined,
+  ].filter((fallback): fallback is { baseUrl: string; label: string; response: SearxngSearchResponse } => Boolean(fallback));
+
+  if (directFirstFallbacks.length) {
     const includePrimaryResults = primary.ok && primary.response.results.length > 0;
     const mergedResponses = includePrimaryResults
-      ? [primary.response, directDuckduckgoFirst]
-      : [directDuckduckgoFirst];
+      ? [primary.response, ...directFirstFallbacks.map(({ response }) => response)]
+      : directFirstFallbacks.map(({ response }) => response);
     const sourceInstances = includePrimaryResults
-      ? [SEARXNG_BASE_URL, DUCKDUCKGO_HTML_BASE_URL]
-      : [DUCKDUCKGO_HTML_BASE_URL];
+      ? [SEARXNG_BASE_URL, ...directFirstFallbacks.map(({ baseUrl }) => baseUrl)]
+      : directFirstFallbacks.map(({ baseUrl }) => baseUrl);
+    const fallbackLabels = directFirstFallbacks.map(({ label }) => label).join(" and ");
 
-    logger.warn("[SearXNG] Used direct DuckDuckGo HTML fallback before public SearXNG fanout", {
+    logger.warn("[SearXNG] Used direct search fallback before public SearXNG fanout", {
       query,
       primaryBaseUrl: SEARXNG_BASE_URL,
       fallbackReason,
-      resultCount: directDuckduckgoFirst.results.length,
+      fallbackLabels,
+      resultCount: directFirstFallbacks.reduce((sum, fallback) => sum + fallback.response.results.length, 0),
     });
     return withFallbackProvenance(
       mergeSearxngResponses(query, mergedResponses),
       sourceInstances,
       SEARXNG_BASE_URL,
-      `${fallbackReason}; recovered with DuckDuckGo HTML before public SearXNG fallback fanout`
+      `${fallbackReason}; recovered with ${fallbackLabels} before public SearXNG fallback fanout`
     );
   }
 
@@ -589,6 +603,11 @@ function shouldUseDirectGoogleFallback(options: SearchOptions): boolean {
   if (process.env.GOOGLE_DIRECT_FALLBACKS === "0") return false;
   if (!options.engines?.length) return true;
   return options.engines.some((engine) => normalizeEngineName(engine) === "google");
+}
+
+function shouldPreferDirectGoogleBeforePublicFallback(options: SearchOptions): boolean {
+  if (process.env.GOOGLE_DIRECT_FIRST_FALLBACKS === "0") return false;
+  return shouldUseDirectGoogleFallback(options);
 }
 
 function duckduckgoTimeRangeParam(timeRange: SearchOptions["time_range"]): string | undefined {

@@ -8,6 +8,7 @@ const originalSearxngSpaceInstancesUrl = process.env.SEARXNG_SPACE_INSTANCES_URL
 const originalDuckduckgoDirectFallbacks = process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
 const originalDuckduckgoDirectFirstFallbacks = process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 const originalGoogleDirectFallbacks = process.env.GOOGLE_DIRECT_FALLBACKS;
+const originalGoogleDirectFirstFallbacks = process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
 const originalDoclingUrl = process.env.DOCLING_URL;
 
 beforeEach(() => {
@@ -21,6 +22,7 @@ beforeEach(() => {
 	delete process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
 	delete process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 	delete process.env.GOOGLE_DIRECT_FALLBACKS;
+	delete process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
 	delete process.env.DOCLING_URL;
 });
 
@@ -64,6 +66,11 @@ afterEach(() => {
 		delete process.env.GOOGLE_DIRECT_FALLBACKS;
 	} else {
 		process.env.GOOGLE_DIRECT_FALLBACKS = originalGoogleDirectFallbacks;
+	}
+	if (originalGoogleDirectFirstFallbacks === undefined) {
+		delete process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
+	} else {
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = originalGoogleDirectFirstFallbacks;
 	}
 	if (originalDoclingUrl === undefined) {
 		delete process.env.DOCLING_URL;
@@ -227,6 +234,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -280,6 +288,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -330,6 +339,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
 		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "afdb procurement",
@@ -390,6 +400,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -450,6 +461,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
 		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -522,6 +534,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -691,6 +704,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -752,6 +766,59 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://www.google.com");
 	});
 
+	it("uses direct Google before public SearXNG fanout for Google searches", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Primary Bing RFP",
+					url: "https://buyer.example/primary",
+					content: "Request for proposals.",
+					engine: "bing",
+					score: 1,
+				}],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(`
+				<!doctype html>
+				<html>
+					<body>
+						<div class="g">
+							<a href="/url?q=https%3A%2F%2Fbuyer.example%2Fdirect-google-rfp&amp;sa=U">Direct Google RFP &amp; Tender</a>
+							<div>Request for proposals with submission deadline.</div>
+						</div>
+					</body>
+				</html>
+			`, { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://primary.example",
+			sourceInstances: ["https://primary.example", "https://www.google.com"],
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("recovered with Google HTML before public SearXNG fallback fanout"),
+			number_of_results: 2,
+		});
+		expect(result.results.map((item) => item.url)).toEqual([
+			"https://buyer.example/primary",
+			"https://buyer.example/direct-google-rfp",
+		]);
+		expect(result.results[1]).toMatchObject({
+			title: "Direct Google RFP & Tender",
+			engine: "google",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://www.google.com");
+	});
+
 	it("uses direct DuckDuckGo before public SearXNG fanout for duckduckgo-only searches", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
@@ -801,6 +868,7 @@ describe("SearXNG client configuration", () => {
 	it("uses direct DuckDuckGo before public SearXNG fanout for mixed-engine searches", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -853,6 +921,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "2";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -997,6 +1066,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
 		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
+		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",

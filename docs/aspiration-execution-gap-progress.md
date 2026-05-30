@@ -16,6 +16,45 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Direct-Google-First Acquisition and Live RFP Drain
+
+Status: implemented, focused-tested, live-run, and database-verified.
+
+Purpose: aggressively expand RFP acquisition using the full live acquisition runner, make Google recovery cheaper than public SearXNG fallback fanout, and drain the resulting parser-ready documents into requirements.
+
+Changes in this slice:
+- Changed the SearXNG client fallback order so Google-eligible degraded searches try direct Google HTML before public `searx.space` fallback fanout, matching the existing direct DuckDuckGo-first recovery path.
+- Kept public SearXNG fallback fanout available after direct Google/DuckDuckGo fail or return no usable results.
+- Added focused regression coverage proving direct Google runs before public SearXNG fallback for Google searches while existing SearXNG and DuckDuckGo fallback paths remain covered.
+
+Live runs:
+- `aggressive_rfp_acquisition_direct_google_first_20260530T_next` ran all 8 aggressive acquisition campaigns with 2 search pages, Google/DuckDuckGo/Bing/Brave fanout, configured source scraping, document download enabled, and queued parsing.
+- The acquisition run completed 8 campaigns, failed 0 campaigns, accepted 658 records, imported 54 new opportunities, updated 602 existing opportunities, created 17 source-document rows, downloaded 17 source documents, and had 0 source-document download failures.
+- Completed campaign highlights: African national sources produced 390 records and 40 new opportunities; global public-sector produced 37 records and 6 new opportunities; high-intent search produced 17 records and 3 new opportunities; global/regional produced 1 new source-backed document.
+- Search fanout remained heavily degraded from this host. Direct Google was attempted but frequently returned 429; direct DuckDuckGo frequently returned 403; public `searx.space` fallbacks frequently returned 403, 429, 502, or 504. The reliable yield continued to come from source/API-backed acquisition and direct document downloads.
+- `rfp_parse_queue_direct_google_first_acquisition_20260530T_next` then processed the queued parser backlog under the low-value filter. It selected 16 processable jobs, skipped 15 low-value candidates, completed 16 jobs, failed 0, and extracted 193 requirements.
+- The parser drain included AFDB, South Africa eTenders, RFQ, EOI, VMware migration, CRM migration, and IUCN source documents. Two selected documents completed with 0 extracted requirements, confirming they were low-yield even though they did not block the queue.
+
+Live database movement after the slice:
+- Opportunities: 4,625.
+- Opportunity source documents: 1,881.
+- RFP documents: 1,051.
+- RFP requirements: 7,315.
+- Completed parser jobs: 1,035.
+- Queued parser jobs: 15.
+- Failed parser jobs: 8.
+
+Verification:
+- Focused fallback regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/searxng-client-config.test.ts` with 24 tests.
+- Live acquisition command exited successfully with 8 completed campaigns, 54 imports, 17 downloaded source documents, and 0 download failures.
+- Live parse queue command exited successfully with 16 completed jobs, 0 failures, and 193 extracted requirements.
+- Direct database verification confirmed the opportunity, source document, RFP document, requirement, and parser job counts above.
+
+Remaining after this slice:
+- Source/API-backed acquisition is still the dependable breadth path; blind public search fanout remains throttled and should not be the only growth strategy.
+- The browser service at `http://84.247.181.100:3003` reported saturated active pages during this run and donor/NGO source fallbacks returned `/v1/scrape` 404 plus `/scrape` timeouts. Repair or restart that service before relying on browser fallback for donor/NGO portals.
+- Decide how to handle the remaining 15 low-value queued parser jobs.
+
 ### 2026-05-30 - Create Draft Response Packages and Repair Requirement Task Projection
 
 Status: implemented, live-migrated, typechecked, and live-proved.
