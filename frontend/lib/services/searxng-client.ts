@@ -12,6 +12,7 @@ const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 const SEARXNG_SPACE_INSTANCES_URL = process.env.SEARXNG_SPACE_INSTANCES_URL || "https://searx.space/data/instances.json";
 const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
 const SEARXNG_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
+const DEFAULT_DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
 const DEFAULT_SEARXNG_FALLBACK_LIMIT = 2;
 const DUCKDUCKGO_HTML_BASE_URL = "https://html.duckduckgo.com";
 const GOOGLE_HTML_BASE_URL = "https://www.google.com";
@@ -92,6 +93,10 @@ let publicFallbackCache:
   | { expiresAt: number; key: string; urls: string[] }
   | undefined;
 const suppressedFallbacks = new Map<string, { expiresAt: number; reason: string }>();
+const suppressedDirectSearchFallbacks = new Map<DirectSearchFallbackProvider, { expiresAt: number; reason: string }>();
+const directSearchFallbackInflight = new Map<DirectSearchFallbackProvider, Promise<void>>();
+
+type DirectSearchFallbackProvider = "duckduckgo" | "google";
 
 /**
  * Search using SearXNG
@@ -470,64 +475,50 @@ async function searchDirectDuckduckgoFallback(
   query: string,
   options: SearchOptions
 ): Promise<SearxngSearchResponse> {
-  if (!shouldUseDirectDuckduckgoFallback(options)) {
-    return {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  }
+  return withDirectSearchFallbackGate("duckduckgo", async () => {
+    if (!shouldUseDirectDuckduckgoFallback(options)) return emptySearchResponse(query);
 
-  const url = new URL(`${DUCKDUCKGO_HTML_BASE_URL}/html/`);
-  url.searchParams.set("q", query);
-  const duckduckgoTimeRange = duckduckgoTimeRangeParam(options.time_range);
-  if (duckduckgoTimeRange) {
-    url.searchParams.set("df", duckduckgoTimeRange);
-  }
-
-  try {
-    const response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(30000),
-      headers: {
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
-        "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
-      },
-    });
-    if (!response.ok) {
-      logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
-        query,
-        status: response.status,
-        statusText: response.statusText,
-      });
-      return {
-        query,
-        number_of_results: 0,
-        results: [],
-      };
+    const url = new URL(`${DUCKDUCKGO_HTML_BASE_URL}/html/`);
+    url.searchParams.set("q", query);
+    const duckduckgoTimeRange = duckduckgoTimeRangeParam(options.time_range);
+    if (duckduckgoTimeRange) {
+      url.searchParams.set("df", duckduckgoTimeRange);
     }
 
-    const parsed = parseDuckduckgoHtmlBody(await response.text(), query);
-    return parsed ?? {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  } catch (error) {
-    logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
-      query,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  }
+    try {
+      const response = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(30000),
+        headers: {
+          "Accept": "text/html,application/xhtml+xml",
+          "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
+          "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+        },
+      });
+      if (!response.ok) {
+        suppressDirectSearchFallback("duckduckgo", `${response.status} ${response.statusText}`);
+        logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
+          query,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        return emptySearchResponse(query);
+      }
+
+      const parsed = parseDuckduckgoHtmlBody(await response.text(), query);
+      return parsed ?? emptySearchResponse(query);
+    } catch (error) {
+      logger.warn("[SearXNG] Direct DuckDuckGo fallback failed", {
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return emptySearchResponse(query);
+    }
+  });
 }
 
 function shouldUseDirectDuckduckgoFallback(options: SearchOptions): boolean {
   if (process.env.DUCKDUCKGO_DIRECT_FALLBACKS === "0") return false;
+  if (isDirectSearchFallbackSuppressed("duckduckgo")) return false;
   if (!options.engines?.length) return true;
   return options.engines.some((engine) => normalizeEngineName(engine) === "duckduckgo");
 }
@@ -541,66 +532,52 @@ async function searchDirectGoogleFallback(
   query: string,
   options: SearchOptions
 ): Promise<SearxngSearchResponse> {
-  if (!shouldUseDirectGoogleFallback(options)) {
-    return {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  }
+  return withDirectSearchFallbackGate("google", async () => {
+    if (!shouldUseDirectGoogleFallback(options)) return emptySearchResponse(query);
 
-  const url = new URL(`${GOOGLE_HTML_BASE_URL}/search`);
-  url.searchParams.set("q", query);
-  url.searchParams.set("num", "10");
-  url.searchParams.set("hl", options.language?.startsWith("en") ? "en" : (options.language || "en"));
-  url.searchParams.set("pws", "0");
-  if (options.page && options.page > 1) {
-    url.searchParams.set("start", String((options.page - 1) * 10));
-  }
-
-  try {
-    const response = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(30000),
-      headers: {
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
-        "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
-      },
-    });
-    if (!response.ok) {
-      logger.warn("[SearXNG] Direct Google fallback failed", {
-        query,
-        status: response.status,
-        statusText: response.statusText,
-      });
-      return {
-        query,
-        number_of_results: 0,
-        results: [],
-      };
+    const url = new URL(`${GOOGLE_HTML_BASE_URL}/search`);
+    url.searchParams.set("q", query);
+    url.searchParams.set("num", "10");
+    url.searchParams.set("hl", options.language?.startsWith("en") ? "en" : (options.language || "en"));
+    url.searchParams.set("pws", "0");
+    if (options.page && options.page > 1) {
+      url.searchParams.set("start", String((options.page - 1) * 10));
     }
 
-    const parsed = parseGoogleHtmlBody(await response.text(), query);
-    return parsed ?? {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  } catch (error) {
-    logger.warn("[SearXNG] Direct Google fallback failed", {
-      query,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      query,
-      number_of_results: 0,
-      results: [],
-    };
-  }
+    try {
+      const response = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(30000),
+        headers: {
+          "Accept": "text/html,application/xhtml+xml",
+          "Accept-Language": options.language?.startsWith("en") ? "en-US,en;q=0.9" : "en;q=0.8",
+          "User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+        },
+      });
+      if (!response.ok) {
+        suppressDirectSearchFallback("google", `${response.status} ${response.statusText}`);
+        logger.warn("[SearXNG] Direct Google fallback failed", {
+          query,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        return emptySearchResponse(query);
+      }
+
+      const parsed = parseGoogleHtmlBody(await response.text(), query);
+      return parsed ?? emptySearchResponse(query);
+    } catch (error) {
+      logger.warn("[SearXNG] Direct Google fallback failed", {
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return emptySearchResponse(query);
+    }
+  });
 }
 
 function shouldUseDirectGoogleFallback(options: SearchOptions): boolean {
   if (process.env.GOOGLE_DIRECT_FALLBACKS === "0") return false;
+  if (isDirectSearchFallbackSuppressed("google")) return false;
   if (!options.engines?.length) return true;
   return options.engines.some((engine) => normalizeEngineName(engine) === "google");
 }
@@ -896,6 +873,69 @@ function isSearxngFallbackSuppressed(baseUrl: string): boolean {
 
 function isSuppressibleFallbackFailure(reason: string): boolean {
   return /\b(403|418|429|500)\b|forbidden|too many requests|fetch failed|timed out|timeout/i.test(reason);
+}
+
+async function withDirectSearchFallbackGate<T>(
+  provider: DirectSearchFallbackProvider,
+  operation: () => Promise<T>
+): Promise<T> {
+  let pending = directSearchFallbackInflight.get(provider);
+  while (pending) {
+    await pending.catch(() => undefined);
+    pending = directSearchFallbackInflight.get(provider);
+  }
+
+  let release: () => void = () => undefined;
+  const lock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  directSearchFallbackInflight.set(provider, lock);
+  try {
+    return await operation();
+  } finally {
+    if (directSearchFallbackInflight.get(provider) === lock) {
+      directSearchFallbackInflight.delete(provider);
+    }
+    release();
+  }
+}
+
+function suppressDirectSearchFallback(provider: DirectSearchFallbackProvider, reason: string): void {
+  if (!isSuppressibleDirectSearchFailure(reason)) return;
+  const suppressionMs = directSearchFallbackSuppressionMs();
+  if (suppressionMs <= 0) return;
+  suppressedDirectSearchFallbacks.set(provider, {
+    expiresAt: Date.now() + suppressionMs,
+    reason,
+  });
+}
+
+function isDirectSearchFallbackSuppressed(provider: DirectSearchFallbackProvider): boolean {
+  const entry = suppressedDirectSearchFallbacks.get(provider);
+  if (!entry) return false;
+  if (entry.expiresAt <= Date.now()) {
+    suppressedDirectSearchFallbacks.delete(provider);
+    return false;
+  }
+  return true;
+}
+
+function isSuppressibleDirectSearchFailure(reason: string): boolean {
+  return /\b(403|429|503)\b|forbidden|too many requests|captcha|blocked|access denied/i.test(reason);
+}
+
+function directSearchFallbackSuppressionMs(): number {
+  const parsed = Number(process.env.DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS ?? DEFAULT_DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS);
+  if (!Number.isFinite(parsed)) return DEFAULT_DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS;
+  return Math.min(60 * 60 * 1000, Math.max(0, Math.trunc(parsed)));
+}
+
+function emptySearchResponse(query: string): SearxngSearchResponse {
+  return {
+    query,
+    number_of_results: 0,
+    results: [],
+  };
 }
 
 function instanceSearchMedian(instance: SearxngInstanceRecord): number {

@@ -9,6 +9,7 @@ const originalDuckduckgoDirectFallbacks = process.env.DUCKDUCKGO_DIRECT_FALLBACK
 const originalDuckduckgoDirectFirstFallbacks = process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 const originalGoogleDirectFallbacks = process.env.GOOGLE_DIRECT_FALLBACKS;
 const originalGoogleDirectFirstFallbacks = process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
+const originalDirectSearchFallbackSuppressionMs = process.env.DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS;
 const originalDoclingUrl = process.env.DOCLING_URL;
 
 beforeEach(() => {
@@ -23,6 +24,7 @@ beforeEach(() => {
 	delete process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 	delete process.env.GOOGLE_DIRECT_FALLBACKS;
 	delete process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
+	delete process.env.DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS;
 	delete process.env.DOCLING_URL;
 });
 
@@ -71,6 +73,11 @@ afterEach(() => {
 		delete process.env.GOOGLE_DIRECT_FIRST_FALLBACKS;
 	} else {
 		process.env.GOOGLE_DIRECT_FIRST_FALLBACKS = originalGoogleDirectFirstFallbacks;
+	}
+	if (originalDirectSearchFallbackSuppressionMs === undefined) {
+		delete process.env.DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS;
+	} else {
+		process.env.DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS = originalDirectSearchFallbackSuppressionMs;
 	}
 	if (originalDoclingUrl === undefined) {
 		delete process.env.DOCLING_URL;
@@ -817,6 +824,104 @@ describe("SearXNG client configuration", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
 		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://www.google.com");
+	});
+
+	it("suppresses direct Google fallback after a throttle response", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "0";
+		const degradedPrimary = {
+			query: "rfp",
+			number_of_results: 1,
+			results: [{
+				title: "Primary Bing RFP",
+				url: "https://buyer.example/primary",
+				content: "Request for proposals.",
+				engine: "bing",
+				score: 1,
+			}],
+			unresponsive_engines: [{ engine: "google", error: "access denied" }],
+		};
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }))
+			.mockResolvedValueOnce(new Response("too many requests", { status: 429 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const first = await searchSearxng("rfp", { engines: ["google"] });
+		const second = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(first.sourceInstance).toBe("https://primary.example");
+		expect(second.sourceInstance).toBe("https://primary.example");
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://www.google.com");
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://primary.example");
+	});
+
+	it("serializes concurrent direct Google fallback probes so one throttle suppresses followers", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "0";
+		const degradedPrimary = {
+			query: "rfp",
+			number_of_results: 1,
+			results: [{
+				title: "Primary Bing RFP",
+				url: "https://buyer.example/primary",
+				content: "Request for proposals.",
+				engine: "bing",
+				score: 1,
+			}],
+			unresponsive_engines: [{ engine: "google", error: "access denied" }],
+		};
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }))
+			.mockResolvedValueOnce(new Response("too many requests", { status: 429 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const [first, second] = await Promise.all([
+			searchSearxng("rfp", { engines: ["google"] }),
+			searchSearxng("rfp", { engines: ["google"] }),
+		]);
+
+		expect(first.sourceInstance).toBe("https://primary.example");
+		expect(second.sourceInstance).toBe("https://primary.example");
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://www.google.com");
+	});
+
+	it("suppresses direct DuckDuckGo fallback after a block response", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "0";
+		const degradedPrimary = {
+			query: "rfp",
+			number_of_results: 0,
+			results: [],
+			unresponsive_engines: [{ engine: "duckduckgo", error: "CAPTCHA" }],
+		};
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }))
+			.mockResolvedValueOnce(new Response("forbidden", { status: 403 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify(degradedPrimary), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const first = await searchSearxng("rfp", { engines: ["duckduckgo"] });
+		const second = await searchSearxng("rfp", { engines: ["duckduckgo"] });
+
+		expect(first.sourceInstance).toBe("https://primary.example");
+		expect(second.sourceInstance).toBe("https://primary.example");
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://html.duckduckgo.com");
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://primary.example");
 	});
 
 	it("uses direct DuckDuckGo before public SearXNG fanout for duckduckgo-only searches", async () => {

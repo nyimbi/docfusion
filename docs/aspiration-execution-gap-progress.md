@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Gate Direct Search Fallbacks During Wide RFP Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: preserve broad RFP acquisition while preventing degraded direct Google and DuckDuckGo fallback paths from being hammered after provider throttling or blocking. Source/API-backed acquisition remains the dependable path while generic search providers are degraded from this host.
+
+Changes in this slice:
+- Added a provider-level direct search fallback cooldown, configurable with `DIRECT_SEARCH_FALLBACK_SUPPRESSION_MS`, for suppressible block/throttle responses from direct Google and DuckDuckGo fallback probes.
+- Added an in-process provider gate so concurrent direct fallback probes serialize; one 403/429 response can establish suppression before later degraded searches repeat the same blocked direct request.
+- Lowered default discovery search concurrency from 8 to 4 while keeping `DISCOVERY_SEARCH_CONCURRENCY` env override support up to 16.
+- Added regression coverage for direct Google throttle suppression, concurrent direct Google fallback serialization, and direct DuckDuckGo block suppression.
+
+Live runs:
+- `aggressive_rfp_acquisition_direct_fallback_cooldown_20260530T_donor` ran donor/NGO acquisition with direct fallback suppression enabled. It completed 1 campaign, failed 0, updated 30 records, and exposed the race where two concurrent direct Google fallback requests could both receive 429 before suppression took effect.
+- `aggressive_rfp_acquisition_direct_fallback_gate_20260530T_donor` reran the same donor/NGO lane after the provider gate. It completed 1 campaign, failed 0, updated 29 records, and emitted only one direct Google 429 warning before cooldown prevented repeated direct Google probes in the command output.
+- Source health remained useful for Mercy Corps, Save the Children, Plan International, FCDO procurement, and FCDO Services supplier records. CRS, DAI, and GTAI still returned empty in the gated donor/NGO proof.
+
+Verification:
+- Direct fallback regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/searxng-client-config.test.ts` with 27 tests.
+- Acquisition/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 68 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live donor/NGO acquisition proof completed successfully after the gate with 29 updated records and 0 campaign failures.
+
+Remaining after this slice:
+- `search.lindela.io` and public `searx.space` fanout are still degraded from this host: Google access denied/429, DuckDuckGo CAPTCHA/403/timeouts, Brave rate limits, and public fallback throttling remain recurring warnings.
+- Continue treating configured source/API-backed acquisition and direct document intake as the primary breadth path until generic search reliability improves.
+- CRS, DAI, and GTAI need source-specific adapters or browser/CloakBrowser handling if they remain empty in donor/NGO campaigns.
+- Decide the policy for the low-value queued parser jobs so they do not obscure the state of the actionable RFP intake queue.
+
 ### 2026-05-30 - Direct-Google-First Acquisition and Live RFP Drain
 
 Status: implemented, focused-tested, live-run, and database-verified.

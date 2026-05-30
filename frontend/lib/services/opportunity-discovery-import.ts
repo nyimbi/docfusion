@@ -356,6 +356,7 @@ const DEFAULT_CONFIGURED_SOURCE_MAX_PAGES = 3;
 const DEFAULT_CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS = 90_000;
 const DEFAULT_PERSISTENCE_RETRY_ATTEMPTS = 3;
 const DEFAULT_PERSISTENCE_RETRY_DELAY_MS = 500;
+const DEFAULT_DISCOVERY_SEARCH_CONCURRENCY = 4;
 const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
 const MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE = 6;
 const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)/i;
@@ -654,8 +655,8 @@ function searchRequestsForInput(
 }
 
 function discoverySearchConcurrency(): number {
-	const parsed = Number(process.env.DISCOVERY_SEARCH_CONCURRENCY ?? 8);
-	if (!Number.isFinite(parsed)) return 8;
+	const parsed = Number(process.env.DISCOVERY_SEARCH_CONCURRENCY ?? DEFAULT_DISCOVERY_SEARCH_CONCURRENCY);
+	if (!Number.isFinite(parsed)) return DEFAULT_DISCOVERY_SEARCH_CONCURRENCY;
 	return Math.min(16, Math.max(1, Math.trunc(parsed)));
 }
 
