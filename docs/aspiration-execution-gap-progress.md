@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Drain Acquired RFP Parser Backlog
+
+Status: live-proved on the production database.
+
+Purpose: convert the newly acquired RFP document backlog into extracted requirements so acquisition breadth directly improves response-readiness.
+
+Live runs:
+- `queued_parse_backlog_dry_20260530T_next` selected 40 queued parser jobs and skipped 15 low-value candidates before apply mode.
+- `queued_parse_backlog_drain_20260530T_next` processed 40 parser jobs, completed 40, failed 0, and extracted 251 requirements.
+- The batch covered PDFs, DOCX, and HTML/detail source documents. It included newly acquired eTenders, DAI, UNDP, ZPPA, Tanzania NeST, and South Africa tender documents.
+- Some scanned/weak-text generator tender PDFs completed with 0 extracted requirements, matching the earlier Docling fallback weakness, but they did not block the queue.
+
+Live database movement:
+- RFP requirements increased from 6,735 to 6,986.
+- Queued parser jobs decreased from 84 to 44.
+- RFP documents remained 1,035; this slice improved parse depth rather than acquisition breadth.
+
+Verification:
+- The parser drain command exited successfully with `completed: 40`, `failed: 0`, and `skippedLowValueCandidates: 15`.
+- Direct database verification confirmed 6,986 RFP requirements and 44 remaining queued parser jobs.
+
+Remaining after this slice:
+- Continue draining the remaining 44 queued parser jobs.
+- Fix Docling fallback reliability for weak/scanned PDFs so zero-requirement parser completions are less common.
+- Move high-value parsed opportunities through response package/backfill flows once parser backlog is lower.
+
 ### 2026-05-30 - Timeout-Isolated Wide Source Acquisition and RFP Drain
 
 Status: live-proved on the production database, with acquisition and parse evidence captured.
