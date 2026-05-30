@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Repair Rwanda UMUCYO Per-Tender Acquisition
+
+Status: live-run completed, stale queue cleaned, parser dry-run verified, and live database verified.
+
+Purpose: convert Rwanda UMUCYO from a stale shared-listing source-document queue into per-tender detail acquisition, so active Rwanda opportunities have parseable tender detail documents instead of all pointing at the public list page.
+
+Live runs:
+- Live Rwanda source rerun against `https://www.umucyo.gov.rw/eb/bav/selectListAdvertisingListForGU.do?menuId=EB01020100&leftTopFlag=l&recordCountPerPage=50` returned 48 candidates, imported 1 new opportunity, updated 47, failed 0, emitted 0 warnings, created 1 new per-tender detail source-document row, and reused 47 existing detail source-document rows.
+- Data cleanup deselected 48 stale UMUCYO source-document rows that still pointed at the shared `selectListAdvertisingListForGU.do` listing page after per-tender detail rows existed.
+- Dry run `rwanda_umucyo_detail_queue_dry_20260530T1410` selected 0 Rwanda source documents, proving the stale selected listing-page queue was removed.
+- Live intake `rwanda_umucyo_detail_new_live_20260530T1413` selected 1 newly created UMUCYO detail document, downloaded 1, failed 0, parsed 1, timed out 0, and extracted 8 requirements using lightweight `local_html_text`.
+
+Verification:
+- Updated live database snapshot: 4,413 opportunities; 903 RFP documents; 6,189 extracted requirements; 1,650 source-document rows; 960 downloaded source documents.
+- Rwanda UMUCYO snapshot: 49 opportunities; 97 source-document rows; 49 per-tender detail source documents; 0 selected stale listing-page source documents; 49 downloaded source documents; 0 remaining selected source documents; 49 RFP documents; 505 extracted requirements.
+
+Remaining after this slice:
+- The old deselected UMUCYO listing rows remain for audit/history but no longer consume routine intake capacity.
+- Continue using source/API-backed acquisition for the next largest reliable queues; search fanout remains degraded from this host.
+
 ### 2026-05-30 - Aggressively Expand RFP Acquisition
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
