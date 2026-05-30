@@ -36,9 +36,12 @@ Verification:
 - Follow-up reliable-source dry-run `source_doc_intake_direct_only_reliable_noaiib_dry_20260530T0348` selected 25 direct/endpoint rows after excluding AIIB spreadsheet/ZIP rows: ESPPRA Eswatini PDFs, Mauritius CEB DOCX/PDFs, Kenya PPIP PDFs, IOM procurement files, and Rwanda UMUCYO detail endpoints.
 - Follow-up reliable-source live intake `source_doc_intake_direct_only_reliable_noaiib_live_20260530T0349` selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and had 0 parser failures.
 - The follow-up live batch added 156 requirements: 5 Kenya PPIP documents with 39 requirements, 5 Rwanda UMUCYO documents with 44 requirements, 5 ESPPRA documents with 37 requirements, 5 Mauritius CEB documents with 25 requirements, and 5 IOM documents with 11 requirements.
+- National/direct dry-run `source_doc_intake_national_direct_dry_20260530T0400` selected 25 direct or trusted endpoint rows across ESPPRA Eswatini, Kenya PPIP, Rwanda UMUCYO, Zambia ZPPA, and Ghana GHANEPS.
+- National/direct live intake `source_doc_intake_national_direct_live_20260530T0401` selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and had 0 parser failures.
+- The national/direct live batch added 187 requirements: 5 ESPPRA documents with 38 requirements, 5 Kenya PPIP documents with 25 requirements, 5 Rwanda UMUCYO detail pages with 47 requirements, 5 Zambia ZPPA notices with 27 requirements, and 5 Ghana GHANEPS notices with 50 requirements.
 - Focused regression `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 9 tests.
 - Typecheck `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
-- Updated live database snapshot after both direct-only drains: 3,947 total opportunities, 1,800 RFP-typed opportunities, 393 RFP documents with extracted text, 34,830,686 extracted text characters, and 2,964 extracted `rfp_requirements`.
+- Updated live database snapshot after the direct-only drains: 3,947 total opportunities, 1,800 RFP-typed opportunities, 418 RFP documents with extracted text, 36,529,742 extracted text characters, and 3,151 extracted `rfp_requirements`.
 
 Remaining after this slice:
 - AFDB remains a recovery gap: multiple direct AFDB PDFs returned HTTP 403, and two AFDB rows were marked downloaded by recovery without producing linked RFP document records. Fix AFDB recovery/status handling before spending large batches there.
