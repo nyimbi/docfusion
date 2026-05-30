@@ -20,6 +20,7 @@
     "rfp-parse:audit-quality": "npx tsx scripts/audit-rfp-parse-quality.ts",
     "rfp-parse:recover-stalled": "npx tsx scripts/recover-stalled-rfp-parses.ts",
     "rfp-parse:process-queued": "npx tsx scripts/process-queued-rfp-parses.ts",
+    "rfp:acquire": "npx tsx scripts/run-aggressive-rfp-acquisition.ts",
     "rfp:cycle": "npx tsx scripts/run-rfp-intake-response-cycle.ts",
     "source-docs:intake": "npx tsx scripts/run-source-document-intake.ts",
     "platform:proof": "npx tsx scripts/platform-proof.ts",
