@@ -107,6 +107,33 @@ export async function searchSearxng(
   const fallbackReason = primary.ok
     ? describeDegradedSearch(primary.response, options)
     : primary.error;
+
+  const directDuckduckgoFirst = shouldPreferDirectDuckduckgoBeforePublicFallback(options)
+    ? await searchDirectDuckduckgoFallback(query, options)
+    : undefined;
+  if (directDuckduckgoFirst?.results.length) {
+    const includePrimaryResults = primary.ok && primary.response.results.length > 0;
+    const mergedResponses = includePrimaryResults
+      ? [primary.response, directDuckduckgoFirst]
+      : [directDuckduckgoFirst];
+    const sourceInstances = includePrimaryResults
+      ? [SEARXNG_BASE_URL, DUCKDUCKGO_HTML_BASE_URL]
+      : [DUCKDUCKGO_HTML_BASE_URL];
+
+    logger.warn("[SearXNG] Used direct DuckDuckGo HTML fallback before public SearXNG fanout", {
+      query,
+      primaryBaseUrl: SEARXNG_BASE_URL,
+      fallbackReason,
+      resultCount: directDuckduckgoFirst.results.length,
+    });
+    return withFallbackProvenance(
+      mergeSearxngResponses(query, mergedResponses),
+      sourceInstances,
+      SEARXNG_BASE_URL,
+      `${fallbackReason}; recovered with DuckDuckGo HTML before public SearXNG fallback fanout`
+    );
+  }
+
   const fallbacks = await getSearxngFallbackUrls(SEARXNG_BASE_URL, options.engines ?? []);
   const fallbackResponses = await Promise.all(
     fallbacks.map(async (fallbackBaseUrl) => ({
@@ -169,7 +196,7 @@ export async function searchSearxng(
     );
   }
 
-  const directDuckduckgo = await searchDirectDuckduckgoFallback(query, options);
+  const directDuckduckgo = directDuckduckgoFirst ?? await searchDirectDuckduckgoFallback(query, options);
   if (directDuckduckgo.results.length > 0) {
     const includePrimaryResults = primary.ok && primary.response.results.length > 0;
     const mergedResponses = includePrimaryResults
@@ -464,6 +491,12 @@ function shouldUseDirectDuckduckgoFallback(options: SearchOptions): boolean {
   if (process.env.DUCKDUCKGO_DIRECT_FALLBACKS === "0") return false;
   if (!options.engines?.length) return true;
   return options.engines.some((engine) => normalizeEngineName(engine) === "duckduckgo");
+}
+
+function shouldPreferDirectDuckduckgoBeforePublicFallback(options: SearchOptions): boolean {
+  if (process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS === "0") return false;
+  const engines = requestedSearchEngines(options);
+  return engines.length === 1 && engines[0] === "duckduckgo";
 }
 
 function duckduckgoTimeRangeParam(timeRange: SearchOptions["time_range"]): string | undefined {

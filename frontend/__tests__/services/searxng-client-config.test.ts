@@ -6,6 +6,7 @@ const originalSearxngPublicFallbacks = process.env.SEARXNG_PUBLIC_FALLBACKS;
 const originalSearxngPublicFallbackLimit = process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
 const originalSearxngSpaceInstancesUrl = process.env.SEARXNG_SPACE_INSTANCES_URL;
 const originalDuckduckgoDirectFallbacks = process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
+const originalDuckduckgoDirectFirstFallbacks = process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 const originalDoclingUrl = process.env.DOCLING_URL;
 
 beforeEach(() => {
@@ -17,6 +18,7 @@ beforeEach(() => {
 	delete process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT;
 	delete process.env.SEARXNG_SPACE_INSTANCES_URL;
 	delete process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
+	delete process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
 	delete process.env.DOCLING_URL;
 });
 
@@ -50,6 +52,11 @@ afterEach(() => {
 		delete process.env.DUCKDUCKGO_DIRECT_FALLBACKS;
 	} else {
 		process.env.DUCKDUCKGO_DIRECT_FALLBACKS = originalDuckduckgoDirectFallbacks;
+	}
+	if (originalDuckduckgoDirectFirstFallbacks === undefined) {
+		delete process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS;
+	} else {
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = originalDuckduckgoDirectFirstFallbacks;
 	}
 	if (originalDoclingUrl === undefined) {
 		delete process.env.DOCLING_URL;
@@ -667,6 +674,52 @@ describe("SearXNG client configuration", () => {
 		});
 		expect(fetchMock).toHaveBeenCalledTimes(4);
 		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://html.duckduckgo.com");
+	});
+
+	it("uses direct DuckDuckGo before public SearXNG fanout for duckduckgo-only searches", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+				unresponsive_engines: [{ engine: "duckduckgo", error: "timeout" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(`
+				<!doctype html>
+				<html>
+					<body>
+						<div class="result results_links results_links_deep web-result">
+							<h2 class="result__title">
+								<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Fdirect-rfp&amp;rut=abc">Direct RFP</a>
+							</h2>
+							<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Fdirect-rfp&amp;rut=abc">Request for proposals with deadline.</a>
+						</div>
+					</body>
+				</html>
+			`, { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["duckduckgo"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://html.duckduckgo.com",
+			sourceInstances: ["https://html.duckduckgo.com"],
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("before public SearXNG fallback fanout"),
+			number_of_results: 1,
+		});
+		expect(result.results[0]).toMatchObject({
+			title: "Direct RFP",
+			url: "https://buyer.example/direct-rfp",
+			engine: "duckduckgo",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://html.duckduckgo.com");
 	});
 
 	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {
