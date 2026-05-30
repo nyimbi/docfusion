@@ -29,6 +29,7 @@ Changes in this slice:
 - Raised `SOURCE_DOCUMENT_INTAKE_LIMIT` from a hard 25-row ceiling to a bounded 100-row ceiling so deliberate large drains are possible.
 - Raised explicit source-document per-host caps up to the same bounded 100-row ceiling while preserving the low default host diversity, so proven single-host drains such as UNDP can run at deliberate scale.
 - Added UNDP `view_negotiation.cfm?nego_id=...` detail pages to trusted direct source-document intake after live sampling showed static solicitation HTML with deadlines, proposal instructions, reference numbers, introductions, and document links.
+- Added UNDP `view_notice.cfm?notice_id=...` public notice pages to trusted direct source-document intake after live sampling showed static proposal overview, deadline, reference, and UNGM link content.
 - Hardened parser requirement persistence so duplicate AI-extracted requirement numbers inside one document are made unique before insert instead of failing the whole acquired RFP parse.
 
 Verification:
@@ -37,6 +38,7 @@ Verification:
 - Intake cap regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 10 tests.
 - UNDP endpoint regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 11 tests.
 - Per-host cap regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 12 tests.
+- UNDP public notice endpoint regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 13 tests.
 - Parser duplicate-number regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/rfp-parse-workflow.test.ts` with 18 tests.
 - Typecheck passed after each code slice: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
 - Broad aggressive discovery import exercised `https://search.lindela.io`, searx.space fallback fanout, and direct DuckDuckGo fallback; public SearXNG fallbacks and direct DuckDuckGo were heavily rate-limited, so broad discovery should now run in smaller targeted groups instead of one oversized pass.
@@ -56,13 +58,16 @@ Verification:
   - UN Procurement/UNICEF dry-run `source_doc_intake_un_proc_unicef_dry_20260530T_acq10`: selected 0 direct-only rows, proving those queues need source-specific handling before live drains.
   - National remaining dry-run `source_doc_intake_national_remaining_dry_20260530T_acq10`: selected only 1 previously failed Ghana retry row, so no live batch was spent on that path.
   - Small remaining direct live run `source_doc_intake_remaining_direct_live_20260530T_acq10`: selected 4, downloaded 2, failed 2, parsed 2, timed out 0, extracted 11 requirements. The Rockefeller Foundation PDF used local `pdftotext`; the recovered GTAI HTML parsed with 0 requirements, and British Council/archive.org retries remained failed.
-- Combined aggressive live drain result across `acq1` through `acq10` after the parser retry cleanup: 308 selected rows, 299 downloads, 9 failed downloads, 298 completed parser jobs, 0 remaining parser failures, 0 parser timeouts, and 1,922 extracted requirements.
+  - UNDP public notice dry-run `source_doc_intake_undp_notice_dry_20260530T_acq11`: selected exactly 2 `view_notice.cfm` rows and no SharePoint `AllItems.aspx` rows.
+  - UNDP public notice live run `source_doc_intake_undp_notice_live_20260530T_acq11`: selected 2, downloaded 2, failed 0, parsed 2, timed out 0, extracted 13 requirements using local HTML extraction.
+  - UNDP post-notice dry-run `source_doc_intake_undp_after_notice_dry_20260530T_acq11`: selected 0 direct-only rows, proving the current direct-eligible UNDP notice/negotiation queue is drained.
+- Combined aggressive live drain result across `acq1` through `acq11` after the parser retry cleanup: 310 selected rows, 301 downloads, 9 failed downloads, 300 completed parser jobs, 0 remaining parser failures, 0 parser timeouts, and 1,935 extracted requirements.
 - Combined UNDP detail live result across `acq6` through `acq9` after the parser retry cleanup: 182 selected rows, 182 downloads, 182 completed parser jobs, 0 remaining failures, 0 parser timeouts, and 1,135 extracted requirements.
-- Current live database snapshot: 4,089 total opportunities, 1,869 RFP-ish opportunities, 1,337 selected source documents, 837 selected documents downloaded, 495 selected documents still queued under the attempts cap, 791 RFP documents with extracted text, 49,638,483 extracted text characters, and 5,396 extracted `rfp_requirements`.
-- Current remaining selected queue by source: Configured Source Scrape 188 queued, Rwanda UMUCYO 48, UN Procurement 42, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, UNDP 24, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, SearXNG 12, IOM 11, SAM.gov 11, World Bank 11, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
+- Current live database snapshot: 4,089 total opportunities, 1,869 RFP-ish opportunities, 1,337 selected source documents, 839 selected documents downloaded, 493 selected documents still queued under the attempts cap, 793 RFP documents with extracted text, 49,644,746 extracted text characters, and 5,409 extracted `rfp_requirements`.
+- Current remaining selected queue by source: Configured Source Scrape 188 queued, Rwanda UMUCYO 48, UN Procurement 42, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, UNDP 21, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, SearXNG 12, IOM 11, SAM.gov 11, World Bank 11, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
 
 Remaining after this slice:
-- Treat UNDP negotiation detail intake as mostly drained for the current direct-eligible queue; 24 selected UNDP rows remain and need a separate eligibility/recovery pass.
+- Treat UNDP public notice/negotiation direct intake as drained for the current direct-eligible queue; 21 selected UNDP rows remain, all on SharePoint `AllItems.aspx`, and need browser or SharePoint-specific recovery.
 - Do not spend routine acquisition batches on AFDB direct PDFs until 403 recovery is improved.
 - Treat the remaining Rwanda UMUCYO queue as non-detail/shared-list residue; the dedicated dry-run selected 0 direct-eligible rows.
 - Split broad search/discovery imports by targeted source group because public search fanout is rate-limited and one oversized run is operationally noisy.
