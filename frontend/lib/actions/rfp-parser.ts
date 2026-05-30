@@ -91,6 +91,33 @@ const RFP_REQUIREMENT_VARCHAR_LIMITS = {
 	riskLevel: 20,
 } as const;
 
+export function uniqueRfpRequirementNumber(
+	rawRequirementNumber: string | null | undefined,
+	index: number,
+	usedRequirementNumbers: Set<string>,
+): string {
+	const fallback = `REQ-${String(index + 1).padStart(3, "0")}`;
+	const compacted =
+		compactStorageText(rawRequirementNumber, RFP_REQUIREMENT_VARCHAR_LIMITS.requirementNumber)
+		?? fallback;
+
+	if (!usedRequirementNumbers.has(compacted)) {
+		usedRequirementNumbers.add(compacted);
+		return compacted;
+	}
+
+	for (let suffix = 2; ; suffix += 1) {
+		const suffixText = `-${suffix}`;
+		const baseLimit = RFP_REQUIREMENT_VARCHAR_LIMITS.requirementNumber - suffixText.length;
+		const candidateBase = compacted.slice(0, Math.max(1, baseLimit));
+		const candidate = `${candidateBase}${suffixText}`;
+		if (!usedRequirementNumbers.has(candidate)) {
+			usedRequirementNumbers.add(candidate);
+			return candidate;
+		}
+	}
+}
+
 type RfpParseWorkflowAction = "retry" | "reject" | "manual_extraction" | "cancel";
 type RfpParseWorkflowState =
 	| "queued"
@@ -2144,17 +2171,15 @@ export async function processRfpParsingJob(
 						eq(rfpRequirements.rfpDocumentId, rfpDocumentId),
 						eq(rfpRequirements.organizationId, organizationId),
 					),
-				);
+			);
 
 			if (allExtractedRequirements.length > 0) {
+				const usedRequirementNumbers = new Set<string>();
 				const requirementsToInsert = allExtractedRequirements.map((req, index) => ({
 					rfpDocumentId,
 					organizationId,
 					opportunityId: rfpDoc.opportunityId,
-					requirementNumber: compactStorageText(
-						req.requirementNumber || `REQ-${String(index + 1).padStart(3, "0")}`,
-						RFP_REQUIREMENT_VARCHAR_LIMITS.requirementNumber,
-					),
+					requirementNumber: uniqueRfpRequirementNumber(req.requirementNumber, index, usedRequirementNumbers),
 					sourceSection: compactStorageTextOrNull(req.sectionReference, RFP_REQUIREMENT_VARCHAR_LIMITS.sourceSection),
 					title: compactStorageText(req.title, RFP_REQUIREMENT_VARCHAR_LIMITS.title)
 						?? compactStorageText(req.fullText, RFP_REQUIREMENT_VARCHAR_LIMITS.title),

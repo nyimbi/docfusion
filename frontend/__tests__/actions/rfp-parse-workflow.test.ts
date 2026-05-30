@@ -164,6 +164,7 @@ import {
 	processRfpParsingJob,
 	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
+	uniqueRfpRequirementNumber,
 } from "@/lib/actions/rfp-parser";
 import { batchExtractRequirements, parseRFPWithAI } from "@/lib/ai/rfp-parser";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
@@ -588,6 +589,24 @@ describe("RFP parse workflow", () => {
 		expect(String(insertedRequirements?.[0]?.subcategory)).toHaveLength(100);
 		expect(String(insertedRequirements?.[0]?.requirementType)).toHaveLength(20);
 		expect(String(insertedRequirements?.[0]?.priority)).toHaveLength(20);
+	});
+
+	it("deduplicates compacted requirement numbers before persistence", () => {
+		const used = new Set<string>();
+		const repeated = (value: string, length: number) => value.repeat(length);
+
+		expect(uniqueRfpRequirementNumber("1", 0, used)).toBe("1");
+		expect(uniqueRfpRequirementNumber("1", 1, used)).toBe("1-2");
+		expect(uniqueRfpRequirementNumber(undefined, 2, used)).toBe("REQ-003");
+
+		const longNumber = repeated("REQ-", 20);
+		const first = uniqueRfpRequirementNumber(longNumber, 3, used);
+		const second = uniqueRfpRequirementNumber(longNumber, 4, used);
+
+		expect(first).toHaveLength(50);
+		expect(second).toHaveLength(50);
+		expect(second.endsWith("-2")).toBe(true);
+		expect(new Set([first, second]).size).toBe(2);
 	});
 
 	it("normalizes AI parse results that omit sections before requirement extraction", async () => {
