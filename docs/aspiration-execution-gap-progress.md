@@ -27,6 +27,7 @@ Changes in this slice:
 - Tightened direct source-document intake to skip low-value procurement plans, corrigenda, and local-content annex/template rows before they consume parser slots.
 - Preserved lightweight extraction priority by making legacy `.doc` and `.xls` source documents try local extraction before Docling fallback.
 - Raised `SOURCE_DOCUMENT_INTAKE_LIMIT` from a hard 25-row ceiling to a bounded 100-row ceiling so deliberate large drains are possible.
+- Raised explicit source-document per-host caps up to the same bounded 100-row ceiling while preserving the low default host diversity, so proven single-host drains such as UNDP can run at deliberate scale.
 - Added UNDP `view_negotiation.cfm?nego_id=...` detail pages to trusted direct source-document intake after live sampling showed static solicitation HTML with deadlines, proposal instructions, reference numbers, introductions, and document links.
 
 Verification:
@@ -34,6 +35,7 @@ Verification:
 - Focused source-document regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` with 50 tests.
 - Intake cap regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 10 tests.
 - UNDP endpoint regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 11 tests.
+- Per-host cap regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 12 tests.
 - Typecheck passed after each code slice: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
 - Broad aggressive discovery import exercised `https://search.lindela.io`, searx.space fallback fanout, and direct DuckDuckGo fallback; public SearXNG fallbacks and direct DuckDuckGo were heavily rate-limited, so broad discovery should now run in smaller targeted groups instead of one oversized pass.
 - Live source-document drains:
@@ -45,12 +47,15 @@ Verification:
   - UNDP dry-run `source_doc_intake_undp_detail_dry_afterfix_20260530T_acq6` selected 25 UNDP negotiation detail pages, proving the newly trusted endpoint opened the largest remaining queue.
   - UNDP live run `source_doc_intake_undp_detail_live_20260530T_acq6`: selected 25, downloaded 25, failed 0, parsed 25, timed out 0, extracted 173 requirements using local HTML extraction.
   - UNDP live run `source_doc_intake_undp_detail_live_20260530T_acq7`: selected 25, downloaded 25, failed 0, parsed 25, timed out 0, extracted 169 requirements using local HTML extraction.
-- Combined aggressive live drain result across `acq1` through `acq7`: 172 selected rows, 165 downloads, 7 failed downloads, 164 completed parser jobs, 0 parser failures, 0 parser timeouts, and 1,118 extracted requirements.
-- Current live database snapshot: 4,089 total opportunities, 1,853 RFP-ish opportunities, 1,337 selected source documents, 703 selected documents downloaded, 540 selected documents still queued under the attempts cap, 657 RFP documents with extracted text, 49,043,393 extracted text characters, and 4,592 extracted `rfp_requirements`.
-- Current remaining selected queue by source: UNDP 156 queued, Configured Source Scrape 138, Rwanda UMUCYO 48, UN Procurement 42, Ghana GHANEPS 27, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, UNICEF Supply Division 12, World Bank 11, African Development Bank 11, IOM 11, SAM.gov 11, and SearXNG 10.
+  - UNDP dry-run `source_doc_intake_undp_detail_50_dry_20260530T_acq8`: selected 50 at `SOURCE_DOCUMENT_INTAKE_LIMIT=50`, `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=50`, and `SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST=50`, proving the per-host cap lift can fill a larger proven single-host batch.
+  - UNDP live run `source_doc_intake_undp_detail_50_live_20260530T_acq8`: selected 50, downloaded 50, failed 0, parsed 50, timed out 0, extracted 287 requirements using local HTML extraction.
+- Combined aggressive live drain result across `acq1` through `acq8`: 222 selected rows, 215 downloads, 7 failed downloads, 214 completed parser jobs, 0 parser failures, 0 parser timeouts, and 1,405 extracted requirements.
+- Combined UNDP detail live result across `acq6` through `acq8`: 100 selected rows, 100 downloads, 100 completed parser jobs, 0 failures, 0 parser timeouts, and 629 extracted requirements.
+- Current live database snapshot: 4,089 total opportunities, 1,853 RFP-ish opportunities, 1,337 selected source documents, 753 selected documents downloaded, 490 selected documents still queued under the attempts cap, 707 RFP documents with extracted text, 49,258,269 extracted text characters, and 4,879 extracted `rfp_requirements`.
+- Current remaining selected queue by source: Configured Source Scrape 138 queued, UNDP 106, Rwanda UMUCYO 48, UN Procurement 42, Ghana GHANEPS 27, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, UNICEF Supply Division 12, World Bank 11, African Development Bank 11, IOM 11, SAM.gov 11, and SearXNG 10.
 
 Remaining after this slice:
-- Continue UNDP in 25-row live batches; it is now reliable, high-yield, and still has 156 selected queued rows.
+- Continue UNDP in deliberate 50-row or larger live batches; it is now reliable, high-yield, and still has 106 selected queued rows.
 - Do not spend routine acquisition batches on AFDB direct PDFs until 403 recovery is improved.
 - Treat the remaining Rwanda UMUCYO queue as non-detail/shared-list residue; the dedicated dry-run selected 0 direct-eligible rows.
 - Split broad search/discovery imports by targeted source group because public search fanout is rate-limited and one oversized run is operationally noisy.
