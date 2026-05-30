@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Drain Post-Acquisition RFP Parse Queue
+
+Status: implemented, focused-test verified, typechecked, live-run completed, and live database verified.
+
+Purpose: convert newly acquired/downloaded source documents into structured requirements for response generation, while protecting parser capacity from ancillary procurement attachments.
+
+Changes in this slice:
+- Tightened the shared low-value procurement document filter to skip cover pages, regret/cancellation letters, quality-control/inspection-test-plan templates, standalone QCP/ITP documents, and press-release URLs.
+- Normalized hyphens and underscores before applying the filter so filenames like `Regret_Letter...` and `Cover_page.pdf` are treated the same as human-readable labels.
+- Extended `scripts/process-queued-rfp-parses.ts` to filter queued parse candidates using the original source URL from RFP document metadata, not just the stored filename; this prevents recovered press-release landing pages with procurement-looking titles from reaching the parser.
+
+Verification:
+- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-link-filter.test.ts`.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Pre-run dry selection `rfp_parse_queue_post_acquisition_filter_dry_20260530T1220` inspected up to 400 queued candidates, skipped 15 low-value candidates, and selected 15 productive parse jobs.
+- Live parser drain `rfp_parse_queue_post_acquisition_live_20260530T1225` processed 15 selected jobs, completed 15, failed 0, and extracted 138 requirements.
+- Post-run dry selection `rfp_parse_queue_post_acquisition_after_live_dry_20260530T1235` inspected the remaining queue, skipped 15 low-value candidates, selected 0 productive parse jobs, and failed 0.
+- Updated live database snapshot after the drain: 836 RFP documents; 819 completed; 15 pending low-value skipped-by-filter documents; 2 failed; 15 queued jobs remaining only because they are low-value candidates excluded by the shared filter; 5,808 extracted `rfp_requirements`.
+
+Remaining after this slice:
+- The queue processor currently excludes low-value candidates at selection time rather than marking them terminal; operational queue counts can still show those low-value jobs as queued even though normal processing selects 0 productive jobs.
+- One parsed AfDB Guinea accreditation document completed with 0 requirements and should be sampled later during a parse-quality audit, but it did not fail the drain.
+
 ### 2026-05-30 - Run Full Aggressive Acquisition After Donor Parser Expansion
 
 Status: live-run completed and live database verified.

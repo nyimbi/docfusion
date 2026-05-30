@@ -30,6 +30,23 @@ describe("RFP document link filtering", () => {
 		expect(isLowValueProcurementDocumentLink({
 			url: "https://example.org/Jaggaer_Supplier_Guide_V3.pdf",
 		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			url: "https://example.org/Cover_page.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			url: "https://example.org/Regret_Letter_for_Unsuccessful_Suppliers.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			url: "https://example.org/Tender_Cancellation_Letter_Template_for_Invitation_to_Tender_01.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			label: "Quality Control Plan or Inspection Test Plan QCP or ITP",
+			url: "https://example.org/240-109253302_QCP_or_ITP_rev_2.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			label: "Satellite procurement solutions",
+			url: "https://example.org/PRESS%20RELEASES/satellite-procurement-solutions.pdf",
+		})).toBe(true);
 	});
 
 	it("keeps active solicitations and terms of reference eligible", () => {

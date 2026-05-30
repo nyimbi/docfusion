@@ -18,6 +18,7 @@ type QueuedParseRow = {
 	rfpDocumentId: string;
 	organizationId: string;
 	filename: string;
+	sourceUrl: string | null;
 	queuedAt: Date;
 	currentStep: string | null;
 };
@@ -144,6 +145,7 @@ async function findQueuedParses(): Promise<QueuedParseSelection> {
 			d.id::text AS "rfpDocumentId",
 			d.organization_id AS "organizationId",
 			d.filename,
+			COALESCE(d.metadata->>'sourceUrl', d.metadata->>'originalSourceUrl') AS "sourceUrl",
 			j.queued_at AS "queuedAt",
 			j.current_step AS "currentStep"
 		FROM rfp_parsing_jobs j
@@ -173,7 +175,7 @@ async function findQueuedParses(): Promise<QueuedParseSelection> {
 	const selected: QueuedParseRow[] = [];
 	let skippedLowValueCandidates = 0;
 	for (const row of rows) {
-		if (isLowValueProcurementDocumentLink({ label: row.filename, url: row.filename })) {
+		if (isLowValueProcurementDocumentLink({ label: row.filename, url: row.sourceUrl ?? row.filename })) {
 			skippedLowValueCandidates++;
 			continue;
 		}
