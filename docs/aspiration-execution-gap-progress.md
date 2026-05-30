@@ -34,11 +34,14 @@ Verification:
 - Live UN Procurement source-only rerun updated 12 existing opportunities, failed 0, created 10 new row-level source-document rows, reused 2 existing source-document rows, and reported healthy source health with 0 warnings.
 - Dry-run `un_procurement_row_pdf_intake_dry_20260530T1243` selected 9 currently eligible UN Procurement PDFs after the parser fix.
 - Live run `un_procurement_row_pdf_intake_live_20260530T1244` selected 9, downloaded 9, failed 0, parsed 9, timed out 0, and extracted 97 requirements using lightweight `local_pdftotext`.
+- Follow-up wider source-only refresh with `sourceScrapeLimit=48` updated 20 current UN Procurement listing rows, failed 0, and found all 20 row-level source-document rows already present.
+- Post-refresh dry-run `un_procurement_row_pdf_second_dry_20260530T1252` selected 0 additional eligible UN Procurement PDFs, proving the currently eligible row-level UNPD PDFs are drained under the deadline-aware intake selector.
 - Updated live database snapshot: 4,333 opportunities; 846 RFP documents; 5,924 extracted requirements; 23 UN Procurement opportunities; 56 UN Procurement source-document rows; 12 UN Procurement source documents downloaded.
 
 Remaining after this slice:
 - Older UN Procurement rows/source-document associations still include historical duplicated PDFs from before row-level extraction; forward acquisition now updates current cards with the correct row-level PDF.
-- Only the first 12 current UN Procurement cards were refreshed in this proof. Continue paginated/source-specific UN Procurement coverage before treating the full UNPD queue as clean.
+- The remaining selected UN Procurement queue is historical duplicate `eoi24448/eoi24449` residue attached before row-level extraction. The direct intake selector selected 0 new work after the fix, but a separate queue-cleanup pass should mark or ignore those stale duplicate source-document rows.
+- Continue paginated/source-specific UN Procurement coverage before treating the full UNPD queue as clean.
 
 ### 2026-05-30 - Parse Active Plan International Package
 
