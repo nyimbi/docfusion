@@ -16,6 +16,23 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Drain High-Yield Direct National Documents
+
+Status: live-proved and live database verified.
+
+Purpose: continue aggressive RFP acquisition after the NeST unlock by draining higher-yield direct national and multilateral source-document queues that already have trusted direct URLs or source-specific detail handling.
+
+Verification:
+- High-yield direct live intake `source_doc_intake_high_yield_direct_live_20260530T0452` targeted Ghana GHANEPS, Zambia ZPPA, Rwanda UMUCYO, Kenya PPIP, ESPPRA Eswatini, UNDP, UN Procurement, UNICEF Supply Division, and IOM with `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1`.
+- The run selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and extracted 168 requirements.
+- The run used local `pdftotext` for direct PDF and national notice PDFs and local HTML extraction for Rwanda UMUCYO/IOM recovered HTML; no Docling fallback was needed for successful rows.
+- Updated live database snapshot after this drain: 3,947 total opportunities, 1,800 RFP-typed opportunities, 493 RFP documents with extracted text, 39,183,543 extracted text characters, and 3,474 extracted `rfp_requirements`.
+- Source queue verification after this drain: Kenya PPIP moved to 65 downloaded/50 queued selected documents, Ghana GHANEPS to 30/51, Zambia ZPPA to 30/70, Rwanda UMUCYO to 48/48, ESPPRA Eswatini to 33/2, IOM to 13/11, and NeST Tanzania stayed fully drained at 50/0.
+
+Remaining after this slice:
+- Continue direct-only drains across UNDP, Zambia ZPPA, Ghana GHANEPS, Kenya PPIP, Rwanda UMUCYO, UN Procurement, UNICEF, and IOM, keeping IOM bounded because direct media URLs still require recovery.
+- Add targeted source handling for the remaining high-queue HTML/detail sources only when it increases successful downloads or requirement yield.
+
 ### 2026-05-30 - Unlock NeST Tanzania OCDS Release Intake
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
