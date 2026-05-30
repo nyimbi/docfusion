@@ -3145,6 +3145,94 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes Enabel configured procurement and grant sources through its source-document parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockImplementation(async (url: string) => {
+			if (url.includes("enabel.be/public-procurement")) {
+				return new Response(`
+					<div class="card--news card--tenders | font-normal group" data-open="false">
+						<div class="news__botton">
+							<p class="h5"><span>GIN23006-10058 &#8211; Marché public de services relatif au contrôle et surveillance des travaux</span></p>
+							<p><strong>Country : </strong> Guinea</p>
+							<p><strong>Closing date : </strong> 16 June 2099 11:00 </p>
+							<div class="hidden__card hidden">
+								<p><strong>Status :</strong> Open</p>
+								<p><strong>Attachments : </strong></p>
+								<p><a href="https://www.enabel.be/app/uploads/2099/05/Cahier-des-charges-Gin23006-10058.pdf" download>Cahier des charges.pdf</a></p>
+								<p><a href="https://www.enabel.be/app/uploads/2099/05/Inventaire.xlsx" download>Inventaire.xlsx</a></p>
+							</div>
+						</div>
+					</div>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response(`
+				<div class="card--news card--tenders | font-normal group" data-open="false">
+					<div class="news__botton">
+						<p class="h5"><span>BDI23007-10156 &#8211; Appel à propositions pour appuyer l'entrepreneuriat féminin</span></p>
+						<p><strong>Country : </strong> Burundi</p>
+						<p><strong>Closing date : </strong> 06 July 2099 10:00 </p>
+						<div class="hidden__card hidden">
+							<p><strong>Status :</strong> Open</p>
+							<p><strong>Attachments : </strong></p>
+							<p><a href="https://www.enabel.be/app/uploads/2099/06/BDI23007-10156-Guidelines.pdf" download>Guidelines.pdf</a></p>
+							<p><a href="https://www.enabel.be/app/uploads/2099/06/Application-File.docx" download>Application File.docx</a></p>
+						</div>
+					</div>
+				</div>
+			`, { status: 200, headers: { "content-type": "text/html" } });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [
+				"https://www.enabel.be/public-procurement/",
+				"https://www.enabel.be/grants/",
+			],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 2,
+			imported: 2,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Marché public de services relatif au contrôle et surveillance des travaux",
+			source: "enabel",
+			sourcePlatform: "Enabel",
+			sourceFile: "source:https://www.enabel.be/public-procurement/",
+			rfpLink: "https://www.enabel.be/app/uploads/2099/05/Cahier-des-charges-Gin23006-10058.pdf",
+			tags: ["external-discovery", "source-scrape", "enabel", "bilateral-donor", "source-documents"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Appel à propositions pour appuyer l'entrepreneuriat féminin",
+			source: "enabel",
+			sourcePlatform: "Enabel",
+			sourceFile: "source:https://www.enabel.be/grants/",
+			rfpLink: "https://www.enabel.be/app/uploads/2099/06/BDI23007-10156-Guidelines.pdf",
+			tags: ["external-discovery", "source-scrape", "enabel", "bilateral-donor", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.enabel.be/public-procurement/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.enabel.be/grants/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

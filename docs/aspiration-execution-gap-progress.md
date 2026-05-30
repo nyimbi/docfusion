@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Enabel Procurement and Grant Source Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: aggressively expand official source-backed acquisition with Enabel's public procurement and grant pages, which expose open opportunity cards plus package attachments directly and can produce materially more RFP intake than degraded generic search fanout.
+
+Changes in this slice:
+- Added an Enabel parser for `https://www.enabel.be/public-procurement/` and `https://www.enabel.be/grants/`, including card extraction, open-status filtering, expiry filtering, reference/source-ID preservation, country/deadline capture, and attachment package links.
+- Registered Enabel in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added targeted search queries for Enabel public procurement and grants so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can still discover indexed Enabel records when source-page scraping is unavailable.
+- Routed Enabel configured source URLs through the dedicated parser, labeled imported opportunities as `Enabel`, and preserved source-document tags/metadata for downstream source-document intake.
+
+Live runs:
+- `live_discovery_import_enabel_20260531T` first ran the two Enabel source URLs with source scraping enabled, search-result scraping disabled, downloads enabled, and queued parse mode.
+- That first run created 15 opportunities, created 32 source-document rows, attempted 10 downloads, downloaded 10, and had 0 source-document download failures.
+- The document service used lightweight `local_pdftotext` for large PDFs and `local_docx_parse` for DOCX attachments. Docling was only attempted after local extraction failed on image/drawing PDFs; the Docling service dropped/refused two large drawing PDFs, but the opportunity import and source-document downloads completed successfully.
+- After tightening the parser to require explicit `Status: Open` plus a parseable non-expired closing date, `live_discovery_import_enabel_strict_20260531T` re-ran the two Enabel source URLs with downloads disabled to conserve repeat parsing compute.
+- The strict run source health was healthy: public procurement had 10 candidates and 10 updates; grants had 1 candidate and 1 update; both had 0 failed records and 0 warnings.
+- The four no-deadline informational grant records created by the first broad pass were removed from `db.lindela.io`; the live database now has 11 Enabel opportunities and 0 Enabel records with null deadlines.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/enabel-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 79 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifacts: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_enabel_20260531T/live-discovery-import.json` and `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_enabel_strict_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Enabel immediately added 11 explicitly open, deadline-backed live opportunities after cleanup; run a bounded response-package backfill against the richest Enabel imports after reviewing extracted source text quality.
+- Harden Docling or skip Docling for drawing-heavy attachment classes so large image-only annexes do not spend remote parsing capacity after `pdftotext` correctly identifies no useful text.
+
 ### 2026-05-31 - Add DT Global and CARE Source-Backed RFP Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
