@@ -2136,6 +2136,59 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("keeps importing later configured sources when one source parser throws", async () => {
+		fetchMock.mockRejectedValueOnce(new Error("AU source timed out"));
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "[RFP for Records Platform](https://buyer.example/tenders/records)\n\nDeadline: 31 December 2026",
+				links: ["https://buyer.example/tenders/records"],
+				metadata: { title: "Buyer Tenders" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://au.int/en/bids", "https://buyer.example/tenders"],
+			sourceScrapeLimit: 5,
+			downloadDiscoveredDocuments: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(result.warnings).toEqual([
+			expect.objectContaining({
+				type: "source_scrape_failed",
+				query: "source:https://au.int/en/bids",
+				message: "AU source timed out",
+			}),
+		]);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://au.int/en/bids",
+				status: "failed",
+				candidates: 0,
+				warnings: 1,
+				warningTypes: { source_scrape_failed: 1 },
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://buyer.example/tenders",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP for Records Platform",
+			sourceFile: "source:https://buyer.example/tenders",
+		}));
+	});
+
 	it("imports Ghana GHANEPS tenders with the national source platform label", async () => {
 		fetchMock.mockResolvedValue({
 			ok: true,
