@@ -198,7 +198,7 @@ interface SourceCandidateImportOutcome {
 }
 
 type FirecrawlScrapeResult = Awaited<ReturnType<FirecrawlClient["scrape"]>>;
-type DiscoveryScrapeMethod = "firecrawl" | "browser_fallback" | "browser_source" | "cloakbrowser_fallback" | "source_api";
+type DiscoveryScrapeMethod = "firecrawl" | "direct_http" | "browser_fallback" | "browser_source" | "cloakbrowser_fallback" | "source_api";
 
 type DiscoveryDocumentLink = {
 	url: string;
@@ -324,6 +324,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?gov\.uk\/government\/organisations\/foreign-commonwealth-development-office\/about\/procurement/i,
 	/\/\/(?:www\.)?fcdoservices\.gov\.uk\/why-choose-us\/becoming-a-supplier/i,
 	/\/\/(?:www\.)?gtai\.de\/en\/trade\/tenders/i,
+	/\/\/(?:www\.)?gtai\.de\/en\/meta\/search\/kfw-tenders/i,
 	/\/\/(?:www\.)?iadb\.org\/.*\/procurement/i,
 	/\/\/(?:www\.)?spc\.int\/procurement/i,
 ];
@@ -518,6 +519,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("unicef.org")) sourceId = "unicef";
 	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
+	else if (host === "gtai.de" && /^\/en\/(?:trade\/tenders|meta\/search\/kfw-tenders)/.test(safeUrlPathname(sourceUrl))) sourceId = "gtai_kfw";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
 	else if (host === "umucyo.gov.rw" && safeUrlPathname(sourceUrl).startsWith("/eb/bav/selectListAdvertisingListForGU.do")) sourceId = "umucyo_rwanda";
@@ -1354,6 +1356,7 @@ function buildOpportunityFromDiscovery(
 				url: normalizedUrl,
 				sourceTotal: candidate.sourceTotal,
 				scrapedWithFirecrawl: candidate.scrape?.success && candidate.scrape.method === "firecrawl",
+				scrapedWithDirectHttp: candidate.scrape?.success && candidate.scrape.method === "direct_http",
 				scrapedWithBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "browser_fallback",
 				scrapedWithBrowserSource: candidate.scrape?.success && candidate.scrape.method === "browser_source",
 				scrapedWithCloakBrowserFallback: candidate.scrape?.success && candidate.scrape.method === "cloakbrowser_fallback",
@@ -1675,6 +1678,8 @@ function configuredSourceMethodLabel(method: ConfiguredSourceParseResult["method
 			return "Source API";
 		case "firecrawl":
 			return "Firecrawl";
+		case "direct_http":
+			return "Direct HTTP";
 	}
 }
 
@@ -1787,6 +1792,16 @@ async function scrapeAndParseConfiguredSource(
 		success: false,
 		error: "Configured source scrape did not run",
 	};
+	const directHttpResult = await maybeParseConfiguredSourceWithDirectHttp(parser, sourceUrl, limitPerSource);
+	if (directHttpResult.parseResult.opportunities.length > 0) {
+		return {
+			parser,
+			...directHttpResult,
+		};
+	}
+	if (directHttpResult.lastEmptyMessage) {
+		lastEmptyMessage = directHttpResult.lastEmptyMessage;
+	}
 	if (!options.browserFallback) {
 		return {
 			parser,
@@ -1808,6 +1823,136 @@ async function scrapeAndParseConfiguredSource(
 			maxAttempts,
 			lastEmptyMessage
 		),
+	};
+}
+
+async function maybeParseConfiguredSourceWithDirectHttp(
+	parser: TenderParser,
+	sourceUrl: string,
+	limitPerSource: number
+): Promise<Omit<ConfiguredSourceParseResult, "parser">> {
+	try {
+		const response = await fetchPublicHttpUrl(sourceUrl, {
+			timeoutMs: 20000,
+			maxRedirects: 3,
+			headers: {
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+				"User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+			},
+		}, "Configured source direct fetch");
+		if (!response.ok) {
+			return {
+				parseResult: { opportunities: [] },
+				scrapeResult: {
+					success: false,
+					error: `Direct HTTP returned ${response.status} ${response.statusText}`,
+				},
+				attempts: 1,
+				method: "direct_http",
+				lastEmptyMessage: `Direct HTTP returned ${response.status} ${response.statusText}`,
+			};
+		}
+
+		const html = await response.text();
+		if (isBotProtectionContent({
+			title: response.headers.get("title") ?? undefined,
+			markdown: html,
+		})) {
+			return {
+				parseResult: { opportunities: [] },
+				scrapeResult: {
+					success: false,
+					error: "Direct HTTP returned bot-protection content",
+				},
+				attempts: 1,
+				method: "direct_http",
+				fallbackReason: "Direct HTTP returned bot-protection content",
+				lastEmptyMessage: "Direct HTTP returned bot-protection content",
+			};
+		}
+		const input = { html, markdown: html, links: extractHtmlLinks(html, sourceUrl), url: sourceUrl };
+		const parseResult = await parser.parse(input);
+		const paginatedParseResult = parseResult.opportunities.length > 0
+			? await fetchAdditionalConfiguredSourcePagesWithDirectHttp(parser, sourceUrl, input, parseResult, limitPerSource)
+			: parseResult;
+		return {
+			parseResult: paginatedParseResult,
+			scrapeResult: {
+				success: true,
+				data: {
+					html,
+					markdown: html,
+					links: input.links,
+					metadata: {
+						title: parser.name,
+						description: `${parser.name} parsed through direct HTTP fallback.`,
+						statusCode: response.status,
+					},
+				},
+			},
+			attempts: 1,
+			method: "direct_http",
+			lastEmptyMessage: paginatedParseResult.opportunities.length > 0
+				? undefined
+				: `Direct HTTP returned content but ${parser.name} found no tender-like records.`,
+		};
+	} catch (error) {
+		return {
+			parseResult: { opportunities: [] },
+			scrapeResult: {
+				success: false,
+				error: error instanceof Error ? error.message : String(error),
+			},
+			attempts: 1,
+			method: "direct_http",
+			lastEmptyMessage: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+async function fetchAdditionalConfiguredSourcePagesWithDirectHttp(
+	parser: TenderParser,
+	sourceUrl: string,
+	firstPageInput: Parameters<TenderParser["parse"]>[0],
+	firstPageResult: ParseResult,
+	limitPerSource: number
+): Promise<ParseResult> {
+	if (firstPageResult.opportunities.length >= limitPerSource) return firstPageResult;
+
+	let currentUrl = sourceUrl;
+	let currentInput = firstPageInput;
+	let currentResult = firstPageResult;
+	const opportunities = [...firstPageResult.opportunities];
+	const maxPages = configuredSourceMaxPages();
+
+	for (let page = 1; page < maxPages && opportunities.length < limitPerSource; page += 1) {
+		const nextPageUrl = nextConfiguredSourcePageUrl(parser, currentUrl, page, currentInput, currentResult);
+		if (!nextPageUrl || nextPageUrl === currentUrl) break;
+
+		const response = await fetchPublicHttpUrl(nextPageUrl, {
+			timeoutMs: 20000,
+			maxRedirects: 3,
+			headers: {
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+				"User-Agent": "Mozilla/5.0 (compatible; LindelaOpportunityDiscovery/1.0; +https://lindela.io)",
+			},
+		}, "Configured source direct page fetch");
+		if (!response.ok) break;
+
+		const html = await response.text();
+		currentUrl = nextPageUrl;
+		currentInput = { html, markdown: html, links: extractHtmlLinks(html, nextPageUrl), url: nextPageUrl };
+		currentResult = await parser.parse(currentInput);
+		if (currentResult.opportunities.length === 0) break;
+		opportunities.push(...currentResult.opportunities);
+	}
+
+	return {
+		...firstPageResult,
+		opportunities,
+		nextPageUrl: opportunities.length >= limitPerSource ? currentResult.nextPageUrl : undefined,
 	};
 }
 
@@ -1862,6 +2007,21 @@ async function scrapeAdditionalConfiguredSourcePages(
 		opportunities,
 		nextPageUrl: opportunities.length >= limitPerSource ? currentResult.nextPageUrl : undefined,
 	};
+}
+
+function extractHtmlLinks(html: string, sourceUrl: string): string[] {
+	const links: string[] = [];
+	for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
+		try {
+			const url = new URL(match[1] ?? "", sourceUrl);
+			if (url.protocol !== "http:" && url.protocol !== "https:") continue;
+			url.hash = "";
+			links.push(url.toString());
+		} catch {
+			continue;
+		}
+	}
+	return [...new Set(links)];
 }
 
 function nextConfiguredSourcePageUrl(
@@ -2604,6 +2764,9 @@ function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | n
 	if (!scrape?.success) {
 		return scrape?.error || "Firecrawl scrape failed";
 	}
+	if (isBotProtectionContent(scrape)) {
+		return "Scrape returned bot-protection content";
+	}
 
 	const markdownLength = scrape.markdown?.trim().length ?? 0;
 	if (markdownLength < MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH && !scrape.description?.trim()) {
@@ -2615,11 +2778,17 @@ function browserFallbackReason(scrape: DiscoveryCandidate["scrape"]): string | n
 
 function isUsefulBrowserFallback(scrape: DiscoveryCandidate["scrape"]): boolean {
 	if (!scrape?.success) return false;
+	if (isBotProtectionContent(scrape)) return false;
 	return Boolean(
 		scrape.description?.trim() ||
 		(scrape.markdown?.trim().length ?? 0) >= MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH ||
 		scrape.title?.trim()
 	);
+}
+
+function isBotProtectionContent(scrape: Pick<NonNullable<DiscoveryCandidate["scrape"]>, "title" | "description" | "markdown">): boolean {
+	const content = `${scrape.title ?? ""}\n${scrape.description ?? ""}\n${scrape.markdown ?? ""}`;
+	return /radware captcha page|captcha\.perfdrive\.com|h-captcha|please solve this captcha|made us think that you are a bot|access denied|too many requests/i.test(content);
 }
 
 function collectDiscoveryWarnings(candidates: DiscoveryCandidate[]): DiscoveryRunWarning[] {

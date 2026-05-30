@@ -16,6 +16,38 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Add GTAI/KfW Direct-HTTP Source Acquisition
+
+Status: implemented, focused-tested, typechecked, live-proved for unblocked GTAI direct fetches, and hardened after a live bot-protection rerun.
+
+Purpose: aggressively broaden donor/development-bank RFP acquisition when generic search fanout and Firecrawl are degraded. GTAI exposes KfW tender results as static HTML, but Firecrawl receives a Radware CAPTCHA on the same endpoint; the acquisition runner can fetch the static page directly and parse it more cheaply than browser fallback.
+
+Changes in this slice:
+- Added a GTAI/KfW source parser for the static tender search results, including active tender extraction, country inference, tender-award/cancellation filtering, stable source IDs, document links, and pagination.
+- Repointed GTAI configured sources from the generic tender explainer page to the KfW tender search endpoint.
+- Added a configured-source direct HTTP fallback that runs after Firecrawl and before browser/CloakBrowser fallbacks, with browser-like public headers, HTML link extraction, parser-driven pagination, and `direct_http` discovery metadata.
+- Added bot-protection detection so Radware/CAPTCHA HTML from direct HTTP or browser scrape paths is not treated as useful tender-listing content.
+- Added a GTAI detail-page search query to the donor/NGO campaign so indexed KfW tender detail pages can still be surfaced when the listing endpoint blocks direct scraping.
+- Routed GTAI KfW source URLs through the new parser in discovery import and updated source-list tests.
+
+Live runs:
+- Before this slice, `aggressive_rfp_acquisition_gtai_kfw_source_20260530T_donor` completed the donor/NGO lane with 29 updated records, but GTAI remained empty because Firecrawl returned CAPTCHA content instead of tender results.
+- `aggressive_rfp_acquisition_gtai_direct_http_20260530T_donor` reran the donor/NGO lane after the direct-HTTP fallback. It completed 1 campaign, failed 0 campaigns, accepted 33 records, imported 4 new opportunities, updated 29 existing opportunities, created 2 source documents, and attempted no downloads because downloads were disabled for this proof.
+- Source health in the live proof showed GTAI/KfW healthy with 2 candidates and 2 imports from `https://www.gtai.de/en/meta/search/kfw-tenders/795748!search`.
+- The same live proof showed CRS healthy with 2 imported candidates, Mercy Corps healthy with 2 updated candidates, Save the Children healthy with 16 updates, Plan International healthy with 9 updates, FCDO procurement healthy with 1 update, and FCDO Services healthy with 1 update. DAI remained empty.
+- A subsequent exact-code rerun, `aggressive_rfp_acquisition_gtai_direct_http_block_scope_20260530T_donor`, completed 1 campaign with 31 records and 0 campaign failures, but GTAI returned Radware/CAPTCHA content after repeated probes from this network. That rerun drove the bot-protection detection and the added indexed-detail search query.
+
+Verification:
+- Focused acquisition/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/scrapers/gtai-parser.test.ts` with 74 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live donor/NGO acquisition proof completed successfully with 33 accepted records, 4 imports, 29 updates, 2 source documents created, and 0 campaign failures.
+
+Remaining after this slice:
+- `search.lindela.io` remains degraded from this host during wide donor searches: Brave rate limits, DuckDuckGo timeouts/suspensions, Google access denial/429, Startpage CAPTCHA, and public fallback errors are still recurring warnings.
+- GTAI direct listing fetches can now trip Radware bot protection after repeated probes; avoid hammering that endpoint and rely on indexed detail-page search plus future source/API alternatives when blocked.
+- DAI supplier acquisition remains empty; the current supplier portal page is not itself a tender feed and needs a source-specific route if DAI is a priority.
+- Continue preferring configured source/API/direct document acquisition over blind generic search for high-volume RFP breadth.
+
 ### 2026-05-30 - Gate Direct Search Fallbacks During Wide RFP Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

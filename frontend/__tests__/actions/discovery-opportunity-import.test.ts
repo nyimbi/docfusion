@@ -2870,6 +2870,126 @@ describe("discoverAndImportOpportunities", () => {
 		}), "user-1");
 	});
 
+	it("uses direct HTTP fallback for static configured sources when Firecrawl returns bot protection", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "Captcha Page\n\nPlease solve this CAPTCHA",
+				html: "<h1>Captcha Page</h1>",
+				links: [],
+				metadata: {
+					title: "Radware Captcha Page",
+				},
+			},
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<div class="search-result">
+				<span>Tender Notice </span>
+				<a class="" href="/en/trade/rwanda/tenders/consulting-services-for-the-feasibility-study-and-environmental-and-social-instruments-sustainable-public-spaces--2000742" title="Link to Event">
+					<h3>Consulting Services for the Feasibility Study and Environmental and Social Instruments</h3>
+				</a>
+				<p>KfW Entwicklungsbank</p>
+				<p class="excerpt">Project: sustainable public spaces in selected secondary cities.</p>
+			</div>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.gtai.de/en/meta/search/kfw-tenders/795748!search"],
+			sourceScrapeLimit: 5,
+			browserFallback: true,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			"https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+			expect.objectContaining({
+				timeoutMs: 20000,
+				maxRedirects: 3,
+			}),
+			"Configured source direct fetch"
+		);
+		expect(fetchMock).not.toHaveBeenCalledWith(
+			"http://84.247.181.100:3003/v1/scrape",
+			expect.anything()
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Consulting Services for the Feasibility Study and Environmental and Social Instruments",
+			source: "source-scrape",
+			sourcePlatform: "Configured Source Scrape",
+			sourceFile: "source:https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+			rfpLink: "https://www.gtai.de/en/trade/rwanda/tenders/consulting-services-for-the-feasibility-study-and-environmental-and-social-instruments-sustainable-public-spaces--2000742",
+			tags: ["external-discovery", "source-scrape", "gtai", "kfw", "development-bank"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					scrapedWithFirecrawl: false,
+					scrapedWithDirectHttp: true,
+					scrapeMethod: "direct_http",
+				}),
+			}),
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+				warnings: 0,
+			}),
+		]);
+	});
+
+	it("treats direct HTTP bot protection as blocked content instead of an empty source", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "Captcha Page\n\nPlease solve this CAPTCHA",
+				html: "<h1>Captcha Page</h1>",
+				links: [],
+				metadata: {
+					title: "Radware Captcha Page",
+				},
+			},
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<title>Radware Captcha Page</title>
+			<p>We apologize for the inconvenience, but your activity made us think that you are a bot.</p>
+			<p>Please solve this CAPTCHA to request unblock to the website.</p>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.gtai.de/en/meta/search/kfw-tenders/795748!search"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 0,
+			imported: 0,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+				status: "empty",
+				candidates: 0,
+				warnings: 1,
+				warningTypes: { source_scrape_empty: 1 },
+				message: "Direct HTTP returned bot-protection content",
+			}),
+		]);
+	});
+
 	it("uses CloakBrowser for configured source URLs only after Firecrawl and browser fallback fail", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

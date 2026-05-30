@@ -142,7 +142,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.dai.com/our-work/supplier-registration-portal",
 	"https://www.gov.uk/government/organisations/foreign-commonwealth-development-office/about/procurement",
 	"https://www.fcdoservices.gov.uk/why-choose-us/becoming-a-supplier/",
-	"https://www.gtai.de/en/trade/tenders",
+	"https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
 	"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 	"https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
 	"https://www.spc.int/procurement",

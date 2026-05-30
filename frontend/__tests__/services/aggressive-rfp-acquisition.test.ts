@@ -137,9 +137,10 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.mercycorps.org/tenders",
 			"https://www.crs.org/bid-opportunities",
 			"https://www.dai.com/our-work/supplier-registration-portal",
-			"https://www.gtai.de/en/trade/tenders",
+			"https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
+			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
 			"site:dai.com/uploads \"request for proposals\" DAI",
 			"site:plan-international.org/calls-tender tender deadline",
 		]));

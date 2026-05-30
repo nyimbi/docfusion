@@ -77,7 +77,7 @@ const SOURCE_URLS: Record<string, string> = {
 	daiSupplierPortal: "https://www.dai.com/our-work/supplier-registration-portal",
 	fcdoProcurement: "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office/about/procurement",
 	fcdoServicesSupplier: "https://www.fcdoservices.gov.uk/why-choose-us/becoming-a-supplier/",
-	gtaiTenders: "https://www.gtai.de/en/trade/tenders",
+	gtaiTenders: "https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
 	idbProcurementNotices: "https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 	idbCorporateProcurement: "https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
 	pacificCommunityProcurement: "https://www.spc.int/procurement",
@@ -235,6 +235,7 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 		queries: [
 			"site:giz.de \"tenders\" \"deadline\" \"request for proposals\"",
 			"site:kfw-entwicklungsbank.de \"tender\" \"deadline\"",
+			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
 			"site:fcdoservices.gov.uk \"tender\" \"deadline\"",
 			"site:chemonics.com \"request for proposals\" \"deadline\"",
 			"site:dai.com \"request for proposals\" \"deadline\"",
