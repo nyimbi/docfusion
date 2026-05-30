@@ -401,6 +401,19 @@ function compactText(value: string | undefined | null, maxLength: number): strin
 	return compacted.length > maxLength ? `${compacted.slice(0, maxLength - 3)}...` : compacted;
 }
 
+function compactIdentifier(value: string | undefined | null, maxLength: number): string | undefined {
+	const compacted = value?.replace(/\s+/g, " ").trim();
+	if (!compacted) return undefined;
+	if (compacted.length <= maxLength) return compacted;
+
+	const hash = sha256Hex(compacted).slice(0, 10);
+	const prefix = compacted
+		.slice(0, maxLength - hash.length - 1)
+		.replace(/\s+$/g, "")
+		.replace(/[-:/#._]+$/g, "");
+	return `${prefix || "notice"}-${hash}`;
+}
+
 function slugForSourceFile(query: string): string {
 	const slug = query
 		.toLowerCase()
@@ -465,6 +478,8 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "adb.org" || host.endsWith(".adb.org")) sourceId = "adb";
 	else if (host === "au.int" && safeUrlPathname(sourceUrl).startsWith("/en/bids")) sourceId = "african_union";
 	else if (host.includes("aiib.org") && safeUrlPathname(sourceUrl).includes("/project-procurement/")) sourceId = "aiib";
+	else if (host === "mercycorps.org" || host.endsWith(".mercycorps.org")) sourceId = "mercy_corps";
+	else if (host === "savethechildren.net" || host.endsWith(".savethechildren.net")) sourceId = "save_children";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
 	else if (host === "un.org" && safeUrlPathname(sourceUrl).startsWith("/procurement/")) sourceId = "un_procurement";
 	else if (host.includes("procurement-notices.undp.org")) sourceId = "undp";
@@ -856,8 +871,7 @@ function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): Discovery
 }
 
 function shouldAttachPageWideDocumentLinks(candidate: DiscoveryCandidate): boolean {
-	return candidate.discoveryMethod !== "source_scrape"
-		|| candidate.opportunity?.source !== "generic";
+	return candidate.discoveryMethod !== "source_scrape";
 }
 
 function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
@@ -904,6 +918,8 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
 	if (opportunity?.source === "iom") return "IOM";
 	if (opportunity?.source === "giz") return "GIZ";
+	if (opportunity?.source === "mercy_corps") return "Mercy Corps";
+	if (opportunity?.source === "save_children") return "Save the Children International";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
 	if (opportunity?.source === "ghaneps") return "Ghana GHANEPS";
@@ -940,6 +956,8 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
 		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
+		...(opportunity?.source === "mercy_corps" ? ["mercy-corps", "ngo", "source-documents"] : []),
+		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "umucyo_rwanda" ? ["umucyo", "rwanda", "national-procurement"] : []),
 		...(opportunity?.source === "ghaneps" ? ["ghaneps", "ghana", "national-procurement"] : []),
@@ -1260,7 +1278,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "save_children"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
@@ -1280,7 +1298,7 @@ function buildOpportunityFromDiscovery(
 		opportunityType: sourceOpportunityType(sourceOpportunity) || inferOpportunityType(candidate),
 		source,
 		fingerprint: urlHash,
-		noticeId: sourceOpportunity?.noticeId,
+		noticeId: compactIdentifier(sourceOpportunity?.noticeId, 100),
 		portalUrl: sourceOpportunity?.portalUrl || candidate.result.url,
 		documentUrl,
 		scrapedAt: new Date(),

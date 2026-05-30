@@ -1488,6 +1488,64 @@ describe("discoverAndImportOpportunities", () => {
 		expect(db.insert).not.toHaveBeenCalled();
 	});
 
+	it("imports Save the Children source cards with detail pages as source documents", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				html: `
+					<div class="views-row">
+						<div class="three_col-listing-card">
+							<h3 class="three_col-listing-card__h3">Lebanon Country Office - Tender for Drinking Water Treatment Station</h3>
+							<div class="three_col-listing-card__description"><p>Inviting submissions of tenders for water treatment station services.</p></div>
+							<div class="three_col-listing-card__table">
+								<div class="three_col-listing-card__end-date table-item">15 Jun 2026 - 16:00 UTC</div>
+								<div class="three_col-listing-card__country table-item">Lebanon</div>
+								<div class="three_col-listing-card__type table-item">Open Tender - Consultancy to Develop a Climate-Informed Procurement and Supply Planning Methodology for Essential Health Commodities</div>
+							</div>
+							<div class="three_col-listing-card__link">
+								<a href="/tenders/lebanon-country-office-tender-drinking-water-treatment-station">Read More</a>
+							</div>
+						</div>
+					</div>
+				`,
+				markdown: "",
+				links: ["/docs/unrelated-page-wide-rfp.pdf"],
+				metadata: { title: "Save the Children Tenders" },
+			},
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.savethechildren.net/tenders"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Lebanon Country Office - Tender for Drinking Water Treatment Station",
+			source: "save_children",
+			sourcePlatform: "Save the Children International",
+			noticeId: undefined,
+			portalUrl: "https://www.savethechildren.net/tenders/lebanon-country-office-tender-drinking-water-treatment-station",
+			documentUrl: "https://www.savethechildren.net/tenders/lebanon-country-office-tender-drinking-water-treatment-station",
+			tags: expect.arrayContaining(["save-the-children", "ngo", "source-documents"]),
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentLinks: [
+						expect.objectContaining({
+							url: "https://www.savethechildren.net/tenders/lebanon-country-office-tender-drinking-water-treatment-station",
+							source: "opportunity_document_url",
+						}),
+					],
+				}),
+			}),
+		}));
+		const insertedSourceUrl = (vi.mocked(db.insert).mock.results[0].value as { values: ReturnType<typeof vi.fn> })
+			.values.mock.calls[0][0].sourceUrl;
+		expect(insertedSourceUrl).toBe("https://www.savethechildren.net/tenders/lebanon-country-office-tender-drinking-water-treatment-station");
+	});
+
 	it("paginates configured source URLs before applying the source scrape limit", async () => {
 		firecrawlScrapeMock
 			.mockResolvedValueOnce({

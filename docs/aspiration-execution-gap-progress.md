@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Add Source-Specific Donor Tender Parsers
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: turn high-yield NGO tender listing pages into reliable source-backed RFP/tender acquisition instead of depending on generic page scraping or page-wide PDF attachment.
+
+Changes in this slice:
+- Added source-specific parsers for Save the Children International and Mercy Corps tender listings, extracting tender title, deadline, country/office metadata, detail URL, portal URL, and a source-document URL per card.
+- Routed `savethechildren.net` and `mercycorps.org` configured source URLs to the new parsers and preserved their canonical source IDs, source platforms, and tags through discovery import.
+- Stopped all configured `source_scrape` candidates from inheriting unrelated page-wide document links; source-specific parsers must now provide the detail/document URL explicitly.
+- Stopped treating Save the Children card type labels as `notice_id` values and added import-side compacting for overlong source-provided notice IDs, preventing verbose labels from failing database writes.
+
+Verification:
+- Focused parser/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/save-children-parser.test.ts __tests__/scrapers/mercy-corps-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 60 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live source-only acquisition against Mercy Corps and Save the Children, with downloads disabled, processed 8 candidates, imported 1, updated 7, failed 0, produced healthy source health for both sources, created 1 source-document row, and reused 7 existing source-document rows.
+- Current `db.lindela.io:5432/docfusion` snapshot after the live run: 4,217 total opportunities; 1,860 `rfp`; 1,110 lowercase `tender`; 8 canonical `mercy_corps`/`save_children` opportunities; 1,573 opportunity-document rows; 907 RFP documents; 8 Mercy Corps/Save the Children source-document rows.
+
+Remaining after this slice:
+- Live operational one-off commands must force `frontend/.env.local` `DATABASE_URL` before importing DB-bound modules; otherwise an ambient stale `DATABASE_URL` can still target `88.80.188.224:5432`.
+- This slice intentionally disabled document downloads during live proof; a later bounded intake pass should download/parse the newly reliable detail URLs once parser capacity is available.
+
 ### 2026-05-30 - Prove Post-Fix Donor Regional Acquisition Yield
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
