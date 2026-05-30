@@ -753,6 +753,7 @@ describe("discoverAndImportOpportunities", () => {
 				markdown: [
 					"# Data Platform RFP",
 					"[Contract awards above USD100K 2025](/docs/UNwomen-ContractAwardsAboveUSD100K-2025.pdf)",
+					"[Notice of Award RFP23-6059 - Preferred Supplier for Graphic Designers and Illustrators](/docs/Notice%20of%20Award%20RFP23-6059.pdf)",
 					"[Annual report](/docs/annual-report.pdf)",
 					"[Request for proposal](/docs/data-platform-rfp.pdf)",
 				].join("\n\n"),

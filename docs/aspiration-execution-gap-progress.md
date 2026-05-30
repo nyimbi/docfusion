@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Prove Post-Fix Donor Regional Acquisition Yield
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: rerun donor/regional acquisition after the raw-HTML generic parser and IDB routing fixes, then close the concrete low-value document gap exposed by the live run.
+
+Changes in this slice:
+- Extended the shared low-value procurement document filter to reject `Notice of Award ...` filenames/labels and supplier guides/manuals before source-document rows are seeded, downloaded, or selected from the queued parser backlog.
+- Added focused coverage for the SPC-style `Notice of Award RFP...` pattern, JAGGAER supplier-guide filenames, and the discovery import path that chooses source-document links.
+
+Verification:
+- Post-fix live run `aggressive_rfp_acquisition_donor_regional_postfix_20260530T1046` completed 2 campaigns, failed 0, accepted 25 records, imported 22 new opportunities, updated 3, created 61 source-document rows, downloaded 9 source documents, and had 0 source-document download failures.
+- Productive source-health signals from that run: SPC imported 12 candidates; IDB corporate procurement imported 1; Mercy Corps imported 2; Save the Children imported 2 and updated 3; FCDO procurement imported 1; FCDO Services imported 1. CRS and Plan still failed through browser/protection paths; DAI and GTAI remained empty.
+- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-link-filter.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 58 tests.
+- Parser queue dry-run `rfp_parse_queue_donor_regional_postfix_filter_dry_20260530b` inspected up to 100 queued candidates, skipped 10 low-value award/supplier-guide candidates, and selected 0 parser jobs, proving the newly tightened filter protects parse capacity before a live parser drain.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Updated live database snapshot after this run: 4,211 total opportunities; 1,860 `rfp`; 2,109 tender/TENDER; 20 Mercy Corps/Save the Children/SPC-matching donor-regional opportunities; 816 stored RFP documents; 5,670 extracted `rfp_requirements`.
+
+Remaining after this slice:
+- The post-fix run created and downloaded 6 existing `Notice of Award` RFP documents before the filter was tightened; the current parser queue now skips those and the remaining supplier-guide candidate, so do not parse them as active RFPs unless explicitly auditing historical noise.
+- The 61 newly created source-document rows were queued/downloaded only; requirements stayed at 5,670 because the only current queued parser candidates after this run are low-value rows. New productive source-document rows need detail/document extraction from the imported opportunities, not blind parsing of the current queue.
+- CRS and Plan need source-specific/protected-page handling before they can contribute; DAI and GTAI should remain low priority unless query/source evidence changes.
+- SearXNG engine degradation remains severe for broad Google/Bing/Brave-style fanout; this slice's meaningful gains came from source-backed routes plus browser fallback, not blind search expansion.
+
 ### 2026-05-30 - Expand Donor and Regional Source Acquisition
 
 Status: implemented, focused-test verified, typechecked, and partially live-proved.

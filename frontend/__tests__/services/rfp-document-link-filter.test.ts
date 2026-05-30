@@ -12,12 +12,23 @@ describe("RFP document link filtering", () => {
 			url: "https://example.org/UNwomen-ContractAwardsAboveUSD100K-2016.pdf",
 		})).toBe(true);
 		expect(isLowValueProcurementDocumentLink({
+			label: "Notice of Award RFP23-6059 - Preferred Supplier for Graphic Designers and Illustrators",
+			url: "https://example.org/documents/Notice%20of%20Award%20RFP23-6059.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
 			label: "Annual Report",
 			url: "https://example.org/reports/annual-report-2025.pdf",
 		})).toBe(true);
 		expect(isLowValueProcurementDocumentLink({
 			label: "Supplier Code of Conduct",
 			url: "https://example.org/supplier-code-of-conduct.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			label: "JAGGAER supplier guide",
+			url: "https://example.org/Jaggaer_Supplier_Guide_V3.pdf",
+		})).toBe(true);
+		expect(isLowValueProcurementDocumentLink({
+			url: "https://example.org/Jaggaer_Supplier_Guide_V3.pdf",
 		})).toBe(true);
 	});
 
