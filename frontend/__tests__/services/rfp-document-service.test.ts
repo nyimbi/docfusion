@@ -1121,7 +1121,7 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
-	it("falls back from DocLing to sanitized legacy DOC text without storing binary control bytes", async () => {
+	it("uses sanitized local legacy DOC text before DocLing without storing binary control bytes", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];
 		const readableText = [
@@ -1154,7 +1154,6 @@ describe("RFP document fetch storage", () => {
 				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
 				onValues: (value) => insertedValues.push(value),
 			}));
-		doclingMock.processRfpDocument.mockRejectedValueOnce(new Error("DocLing unavailable"));
 		fetchPublicHttpUrlMock.mockResolvedValue(new Response(new Blob([legacyDocBuffer as unknown as BlobPart]), {
 			status: 200,
 			headers: {
@@ -1170,7 +1169,7 @@ describe("RFP document fetch storage", () => {
 			mimeType: "application/msword",
 			rfpDocumentId: "00000000-0000-4000-8000-000000000401",
 		});
-		expect(doclingMock.processRfpDocument).toHaveBeenCalled();
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
 		expect(updates).toContainEqual(expect.objectContaining({
 			status: "downloaded",
 			extractedText: expect.stringContaining("Request for Proposal"),

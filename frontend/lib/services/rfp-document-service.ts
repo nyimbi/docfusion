@@ -2329,7 +2329,7 @@ async function extractSupportedDocumentText(
     logger.warn(`[RFP Document Service] Local HTML extraction could not extract usable text from ${filename}; trying DocLing`);
   }
 
-  if (extension === ".docx" || extension === ".xlsx") {
+  if (extension === ".docx" || extension === ".doc" || extension === ".xlsx" || extension === ".xls") {
     const localOfficeText = await extractDocumentTextLocally(buffer, filename);
     if (localOfficeText) {
       logger.debug(`[RFP Document Service] Used ${localOfficeText.extractor} for ${filename}`, {
@@ -2419,7 +2419,7 @@ async function extractDocumentTextLocally(
       return { text, extractor: "local_html_text" };
     }
 
-    if (extension === ".xlsx") {
+    if (extension === ".xlsx" || extension === ".xls") {
       const text = cleanExtractedText(await extractXlsxText(buffer));
       if (text.length < MIN_EXTRACTED_TEXT_LENGTH) return undefined;
       return { text, extractor: "local_xlsx_parse" };

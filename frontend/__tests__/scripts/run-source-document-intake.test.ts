@@ -55,6 +55,18 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.gppb.gov.ph/wp-content/uploads/2023/07/NPM-No.-122-2013.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "P000913_Publication_of_Procurement_Plan.xlsx",
+			sourceUrl: "https://www.aiib.org/en/projects/details/2026/_download/Pakistan/P000913_Publication_of_Procurement_Plan.xlsx",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "C5ACorrigendumNo1_20260317.pdf",
+			sourceUrl: "https://www.aiib.org/en/projects/details/2026/_download/India/C5ACorrigendumNo1_20260317.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Annexure_C_D_E_Local_Imported_Content_Declaration_Forms.xls",
+			sourceUrl: "https://www.etenders.gov.za/home/Download?downloadedFileName=Annexure%20C%2C%20D%20%26%20E_Local%20%26%20Imported%20Content%20Declaration%20Forms.xls",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
 		})).toBe(true);
