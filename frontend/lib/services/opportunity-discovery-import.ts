@@ -668,7 +668,7 @@ async function runDiscoverySearches(
 	return mapWithConcurrency(tasks, discoverySearchConcurrency(), async (task) => {
 		try {
 			const response = await searchSearxng(task.request.query, {
-				categories: input.categories ?? ["general", "news", "files"],
+				categories: input.categories ?? ["general"],
 				engines: task.request.engines,
 				language: input.language,
 				time_range: input.timeRange,

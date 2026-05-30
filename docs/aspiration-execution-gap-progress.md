@@ -16,6 +16,24 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Keep Broad Search Fanout on General Web Engines
+
+Status: implemented, focused-test verified, and typechecked.
+
+Purpose: reduce noisy and blocked SearXNG fanout during broad RFP acquisition by keeping default discovery searches on the `general` category instead of implicitly adding `news` and `files` engines for every RFP query.
+
+Changes in this slice:
+- Changed discovery import search defaults from `general,news,files` to `general` when the caller has not explicitly supplied categories.
+- Preserved explicit category overrides for callers that deliberately need file or news search.
+- Added regression coverage proving default SearXNG discovery calls now send `categories: ["general"]`.
+
+Verification:
+- Focused regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts` with 59 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+
+Remaining after this slice:
+- Run the next broad acquisition pass with this narrower default and compare warning mix against `search_fanout_after_undp_recovery_20260530T1605`; it should avoid irrelevant news/torrent/file-engine failures but cannot by itself fix Google, DuckDuckGo, Brave, or Startpage blocking.
+
 ### 2026-05-30 - Search Fanout and Remaining Usable RFP Intake
 
 Status: live-proved and live database verified.

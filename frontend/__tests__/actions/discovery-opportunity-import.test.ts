@@ -215,6 +215,7 @@ describe("discoverAndImportOpportunities", () => {
 			matchBy: "sourceId",
 		}, "user-1");
 		expect(searchSearxngMock).toHaveBeenCalledWith("case management rfp Kenya", expect.objectContaining({
+			categories: ["general"],
 			engines: ["bing"],
 		}));
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
