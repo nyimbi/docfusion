@@ -20,6 +20,7 @@ const RUN_ID = process.env.SOURCE_DOCUMENT_INTAKE_RUN_ID ?? createProofRunId("so
 const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID, wave: "source-document-intake" });
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
+const DIRECT_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".xlsx", ".xls", ".zip"];
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN = /(?:https:\/\/(?:www\.ghaneps\.gov\.gh|eprocure\.zppa\.org\.zm)\/epps\/cft\/downloadNoticeForAdvSearch\.do\?[^#\s]*\bresourceId=\d+\b|https:\/\/www\.umucyo\.gov\.rw\/eb\/bav\/selectAdvertisingDtlInfo\.do\?[^#\s]*\btendReferNo=)/i;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
 	"(https://(www\\.ghaneps\\.gov\\.gh|eprocure\\.zppa\\.org\\.zm)/epps/cft/downloadNoticeForAdvSearch\\.do\\?[^#[:space:]]*\\mresourceId=[0-9]+\\M|https://www\\.umucyo\\.gov\\.rw/eb/bav/selectAdvertisingDtlInfo\\.do\\?[^#[:space:]]*\\mtendReferNo=)";
@@ -76,6 +77,7 @@ type SourceDocumentIntakeProof = {
 		fillMaxPerHost: number;
 		retryProtectedHosts: boolean;
 		sourcePlatforms: string[];
+		directDocumentsOnly: boolean;
 	};
 	selected: Array<{
 		id: string;
@@ -127,6 +129,7 @@ async function main() {
 			),
 			retryProtectedHosts: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS === "1",
 			sourcePlatforms: parseCsvList(process.env.SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS),
+			directDocumentsOnly: process.env.SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY === "1",
 		},
 		selected: [],
 		results: [],
@@ -201,6 +204,13 @@ async function selectDiscoveredDocuments(
 		extensionCondition,
 		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN}`
 	);
+	const directDocumentCondition = or(
+		...DIRECT_DOCUMENT_PATTERNS.flatMap((extension) => [
+			ilike(opportunityDocuments.documentName, `%${extension}%`),
+			ilike(opportunityDocuments.sourceUrl, `%${extension}%`),
+		]),
+		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN}`
+	);
 	const conditions = [
 		config.retryFailed
 			? inArray(opportunityDocuments.status, ["discovered", "failed"])
@@ -224,6 +234,9 @@ async function selectDiscoveredDocuments(
 	}
 	if (config.sourcePlatforms.length > 0) {
 		conditions.push(inArray(schema.opportunities.sourcePlatform, config.sourcePlatforms));
+	}
+	if (config.directDocumentsOnly) {
+		conditions.push(directDocumentCondition);
 	}
 
 	const directDocumentRank = sql<number>`case
@@ -341,6 +354,12 @@ export function isLikelySolicitationSource(value: { documentName: string; source
 export function isSupportedDocumentSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`.toLowerCase();
 	return SUPPORTED_DOCUMENT_PATTERNS.some((extension) => haystack.includes(extension))
+		|| TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN.test(value.sourceUrl);
+}
+
+export function isDirectDocumentIntakeSource(value: { documentName: string; sourceUrl: string }): boolean {
+	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`.toLowerCase();
+	return DIRECT_DOCUMENT_PATTERNS.some((extension) => haystack.includes(extension))
 		|| TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN.test(value.sourceUrl);
 }
 

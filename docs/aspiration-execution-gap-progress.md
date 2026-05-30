@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Add Direct-Only Source Document Intake Drain
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: aggressively convert the broad source-document backlog into usable RFP text while avoiding low-yield protected or generic HTML detail pages that crowd out direct documents from the same source platforms.
+
+Changes in this slice:
+- Added `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1` so operators can drain direct PDF/DOC/DOCX/XLS/ZIP source-document rows and trusted national endpoints without selecting generic HTML detail pages.
+- Kept the normal source-document intake path unchanged when the direct-only flag is not set.
+- Documented the new direct-only intake mode in the opportunity discovery runbook.
+
+Verification:
+- DGMarket recovery proof `source_doc_intake_configured_source_live_20260530T0319` selected 10 `Configured Source Scrape` DGMarket tender pages with protected-host retry enabled, downloaded 1, failed 9 with HTTP 403, completed 1 parser job, and extracted 0 requirements. This proved DGMarket should not consume routine broad intake batches.
+- Direct mixed-source dry-run `source_doc_intake_direct_only_mix_dry_20260530T0328` selected 25 concrete direct files/endpoints across South Africa eTenders, Kenya PPIP, ESPPRA Eswatini, Mauritius CEB, UN Procurement, African Development Bank, and AIIB, instead of AFDB/World Bank/NeST HTML detail pages.
+- Direct mixed-source live intake `source_doc_intake_direct_only_mix_live_20260530T0329` selected 25, downloaded 22, failed 3, skipped 0, completed 20 parser jobs, timed out 0 parser jobs, and had 0 parser failures.
+- The live direct-only batch used local `pdftotext` or local DOCX/DOC fallback for successful documents where applicable; Docling was not needed for the successful PDF/DOCX rows.
+- The live direct-only batch added extracted requirements across ESPPRA Eswatini, Mauritius CEB, South Africa eTenders, UN Procurement, Kenya PPIP, and AIIB. Batch verification by source showed 5 ESPPRA documents with 44 requirements, 5 Mauritius CEB documents with 31 requirements, 4 South Africa eTenders documents with 38 requirements, 2 UN Procurement documents with 24 requirements, 1 Kenya PPIP document with 5 requirements, and 3 AIIB documents with 19 requirements.
+- Focused regression `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 9 tests.
+- Typecheck `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
+- Updated live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 368 RFP documents with extracted text, 32,804,159 extracted text characters, and 2,808 extracted `rfp_requirements`.
+
+Remaining after this slice:
+- AFDB remains a recovery gap: multiple direct AFDB PDFs returned HTTP 403, and two AFDB rows were marked downloaded by recovery without producing linked RFP document records. Fix AFDB recovery/status handling before spending large batches there.
+- Add a local-first `.doc` extraction path before Docling; the Mauritius CEB `.doc` succeeded through local binary fallback only after Docling returned no text.
+- Continue direct-only drains across the remaining high-yield national and multilateral source-document queue.
+
 ### 2026-05-30 - Accelerate Broad RFP Queue Intake
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
