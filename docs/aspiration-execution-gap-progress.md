@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Run Full Aggressive Acquisition After Donor Parser Expansion
+
+Status: live-run completed and live database verified.
+
+Purpose: execute the full broad acquisition profile after the donor parser improvements so the platform collects as many RFP/tender records as the current source and search infrastructure can reliably yield.
+
+Live run:
+- `aggressive_rfp_acquisition_post_donor_parsers_20260530T1138` completed all 8 campaigns with 0 campaign failures.
+- Total run yield: 637 records processed, 107 imported, 530 updated, 0 row failures, 51 source-document rows created, 24 source documents downloaded, 6 source-document download failures, 0 parser failures, and 335 warnings.
+- Campaign yield: UN/multilateral 96 records; development banks 110; Africa national 321; high-intent search 17; document search 10; global public sector 21; global/regional search 47; donor/NGO search 15.
+- Donor/NGO source-backed contribution included Save the Children 8 candidates with 2 imported and 6 updated, Mercy Corps 2 updated, Plan International 4 imported, and FCDO procurement 1 updated.
+- Document extraction used the lightweight local paths where possible, including `local_pdftotext` for multiple PDFs and `local_html_text` for source/detail pages.
+
+Updated live database snapshot:
+- `db.lindela.io:5432/docfusion` now contains 4,324 total opportunities, 1,867 `rfp`, 1,172 lowercase `tender`, 781 `source-scrape` opportunities, 1,624 opportunity-document rows, 938 RFP documents, 893 downloaded documents, 14 Mercy Corps/Save the Children/Plan source-document rows, and 5,670 extracted `rfp_requirements`.
+
+Remaining after this slice:
+- Search fanout remains noisy: public SearXNG fallback instances produced many 403/418/429 failures and `search_no_candidates` warnings. Source-backed routes are materially more reliable than blind search-only expansion.
+- Development-bank document intake still has protected-document gaps: AfDB produced 5 download failures, and the donor/NGO campaign had 1 FCDO source-document timeout.
+- CRS, FCDO Services, GTAI, and DAI still need source-specific/protected-page handling; generic source scraping either failed or found no tender-like records.
+- Requirements did not increase because this acquisition run queued/downloaded documents but used queued parse mode rather than draining parser jobs inline.
+
 ### 2026-05-30 - Add Source-Specific Donor Tender Parsers
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
