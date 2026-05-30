@@ -600,6 +600,42 @@ describe("discoverAndImportOpportunities", () => {
 		]));
 	});
 
+	it("rejects dictionary and translation search hits before scraping", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "REQUEST Definition & Meaning",
+					url: "https://www.merriam-webster.com/dictionary/request",
+					content: "Definitions and examples for request. Query matched request for proposals.",
+					engine: "bing",
+					score: 11,
+					category: "general",
+				},
+				{
+					title: "request - English-Spanish Dictionary",
+					url: "https://www.wordreference.com/es/translation.asp?tranword=request",
+					content: "Translation for request, proposal, and deadline.",
+					engine: "bing",
+					score: 10,
+					category: "general",
+				},
+			],
+		});
+
+		const result = await discoverAndImportOpportunities({
+			query: "\"request for proposals\" \"submission deadline\"",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 0, imported: 0, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(result.warnings).toEqual(expect.arrayContaining([
+			expect.objectContaining({ type: "search_no_candidates" }),
+		]));
+	});
+
 	it("accepts high-intent known procurement notice pages without snippet keywords", async () => {
 		searchSearxngMock.mockResolvedValue({
 			results: [

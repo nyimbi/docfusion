@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Reject Reference-Site Search Noise
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: prevent broad RFP search from importing or updating opportunity rows from dictionary, translation, and reference pages when search engines match words like `request` instead of procurement notices.
+
+Changes in this slice:
+- Expanded low-value discovery URL filtering from archive/wiki mirrors to include dictionary and translation/reference hosts such as Merriam-Webster, Cambridge Dictionary, Dictionary.com, WordReference, Linguee, TheFreeDictionary, Collins Dictionary, Thesaurus.com, Britannica, and YourDictionary.
+- Preserved the existing high-intent procurement portal fallback; known procurement portals can still be accepted even when snippets are thin.
+- Added regression coverage proving dictionary and translation hits are rejected before Firecrawl scraping or opportunity persistence.
+
+Live evidence:
+- A bounded live import probe for `"request for proposals" "submission deadline" ICT OR software OR data` against Bing returned `total:0`, `imported:0`, `updated:0`, `sourceDocumentsCreated:0`, with expected `searxng_engine_degraded` and `search_no_candidates` warnings. This is the intended result for the dictionary-only result set seen in the previous live SearXNG probe.
+
+Verification:
+- Focused discovery import regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts` with 60 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+
+Remaining after this slice:
+- Continue tuning high-intent search acceptance and query shaping with live probes, but prioritize source/API-backed discovery because generic broad search still depends on degraded upstream engine coverage.
+
 ### 2026-05-30 - Bound Public Search Fallback Spend
 
 Status: implemented, focused-test verified, typechecked, and live-probed.

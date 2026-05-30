@@ -326,6 +326,23 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?spc\.int\/procurement/i,
 ];
 
+const LOW_VALUE_DISCOVERY_HOSTS = new Set([
+	"archive.org",
+	"britannica.com",
+	"cambridge.org",
+	"collinsdictionary.com",
+	"dictionary.cambridge.org",
+	"dictionary.com",
+	"linguee.com",
+	"merriam-webster.com",
+	"thefreedictionary.com",
+	"thesaurus.com",
+	"wikimedia.org",
+	"wikipedia.org",
+	"wordreference.com",
+	"yourdictionary.com",
+]);
+
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
 const DEFAULT_AFDB_DETAIL_LIMIT = 5;
@@ -537,13 +554,8 @@ function isLowValueDiscoveryUrl(url: string | undefined): boolean {
 	if (!url) return false;
 	try {
 		const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
-		return host === "archive.org"
-			|| host.endsWith(".archive.org")
-			|| host === "commons.wikimedia.org"
-			|| host === "wikimedia.org"
-			|| host.endsWith(".wikimedia.org")
-			|| host === "wikipedia.org"
-			|| host.endsWith(".wikipedia.org");
+		return LOW_VALUE_DISCOVERY_HOSTS.has(host)
+			|| Array.from(LOW_VALUE_DISCOVERY_HOSTS).some((blockedHost) => host.endsWith(`.${blockedHost}`));
 	} catch {
 		return false;
 	}
