@@ -16,6 +16,45 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Create Draft Response Packages and Repair Requirement Task Projection
+
+Status: implemented, live-migrated, typechecked, and live-proved.
+
+Purpose: move from acquired/parsed RFPs toward winning responses by creating draft response packages, accepting requirements into workflow state, projecting them into proposal tasks, and running the response readiness gate.
+
+Changes in this slice:
+- Added migration `0034_proposal_tasks_suggested_assignees_repair.sql` to repair the remaining live `proposal_tasks` schema drift. The table was missing `suggested_assignees`, which caused requirement acceptance task projection to fail when Drizzle selected the full `proposal_tasks` row.
+- Added the new migration to the workflow migration runner.
+- Tightened workflow validation and requirement-acceptance schema support checks so the full `proposal_tasks` projection shape is required, not just the smaller subset from the prior repair.
+
+Live runs:
+- `post_parser_drain_response_backfill_dry_20260530T_next` found 10 response package candidates after the parser drain. Seven passed the unattended pursuit-fit floor and would create draft response packages; three were skipped for pursuit fit below 60.
+- `post_parser_drain_response_backfill_apply_20260530T_next` persisted 7 draft response packages. Each persisted package created 6 proposal documents and 1 win theme. The packages were correctly marked blocked pending requirement acceptance and readiness pass.
+- `post_response_package_requirement_acceptance_apply_20260530T_next` initially accepted 0 requirements because the live `proposal_tasks` table was missing `suggested_assignees`.
+- `npm run workflow:migrate-db` applied `0034_proposal_tasks_suggested_assignees_repair.sql`, and `npm run workflow:validate-db` returned `ok: true` with `proposal_tasks` included.
+- `post_response_package_requirement_acceptance_apply_after_task_schema_repair_20260530T_next` accepted 88 requirements and projected 88 proposal tasks. It produced workflow receipts for 5 opportunities with accepted requirement counts of 2, 23, 26, 22, and 15; expired-deadline requirements were skipped.
+- `post_requirement_acceptance_readiness_dry_20260530T_next` assessed 6 response packages and found 5 ready for review.
+- `post_requirement_acceptance_readiness_apply_20260530T_next` marked 5 response packages ready for review with full requirement coverage, citation coverage, evidence checklist coverage, review gate coverage, and draft artifact integrity coverage. One older response package remained blocked by a missing source citation map.
+
+Live database movement:
+- Proposal documents: 103.
+- Proposal tasks: 88.
+- Accepted RFP requirements: 157.
+- Compliance matrices: 12.
+- Compliance entries: 157.
+- `proposal_response_package` workflow readiness distribution: 11 ready for review, 5 blocked.
+
+Verification:
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Workflow migration passed: `npm run workflow:migrate-db`.
+- Workflow validation passed: `npm run workflow:validate-db`.
+- Direct database verification confirmed the proposal document, proposal task, accepted requirement, compliance, and readiness counts above.
+
+Remaining after this slice:
+- Continue applying response package backfill now that the acceptance/readiness path is unblocked.
+- Repair the older blocked response package with missing source citation map.
+- Add a cleanup policy for the 15 low-value queued parser jobs left by the low-value parser selector.
+
 ### 2026-05-30 - Drain Acquired RFP Parser Backlog
 
 Status: live-proved on the production database.

@@ -9,6 +9,7 @@ const MIGRATIONS = [
 	"0017_workflow_template_governance.sql",
 	"0025_workflow_instances_tenant.sql",
 	"0033_proposal_tasks_projection_repair.sql",
+	"0034_proposal_tasks_suggested_assignees_repair.sql",
 ];
 
 async function main() {
