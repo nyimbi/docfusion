@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add UN Women Source-Backed Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand reliable UN/multilateral RFP acquisition with another source-backed feed instead of relying on degraded generic search fanout. UN Women publishes a static embedded procurement feed on its procurement page with UNGM notice links and deadlines, so the platform can acquire current UN Women opportunities directly.
+
+Changes in this slice:
+- Added a UN Women procurement parser for the embedded `Current procurement opportunities` feed, mapping UNGM notice links into canonical opportunities with stable notice IDs, deadlines, organization, source tags, and RFP/RFQ/ITB type inference.
+- Filtered past-deadline UN Women feed rows so stale embedded notices do not inflate current acquisition.
+- Registered `https://www.unwomen.org/en/about-us/procurement` as a configured source in the UN/multilateral campaign and default discovery source list.
+- Routed UN Women procurement URLs through the dedicated parser in discovery import and added parser/source-list regression coverage.
+
+Live run:
+- `aggressive_rfp_acquisition_un_women_source_20260531T_un` ran the UN/multilateral acquisition lane with source scraping enabled and downloads disabled for proof isolation.
+- The run completed 1 campaign, failed 0 campaigns, accepted 138 records, imported 8 new opportunities, updated 130 existing opportunities, and created 2 source-document rows.
+- Source health showed the new UN Women source healthy with 2 candidates, 2 imports, 0 failures, and 0 warnings.
+- Other healthy UN/multilateral source health in the same proof included UNGM with 15 candidates, IOM with 10, UNDP with 80, UN Procurement with 20, UNICEF with 9, UNOPS with 1, and ILO with 1. WHO, FAO, IFAD, and UNESCO remained empty under the current generic parser/browser path.
+
+Verification:
+- Focused acquisition/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/un-women-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 73 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live UN/multilateral acquisition proof completed successfully with 138 accepted records, 8 imports, 130 updates, 2 source documents created, and 0 campaign failures.
+
+Remaining after this slice:
+- WHO, FAO, IFAD, and UNESCO procurement pages still need source-specific routes or better parser handling; generic scraping returns content but no tender-like records.
+- Downloads were intentionally disabled for this proof; the newly created source-document rows still need a later document download/parse pass if they are response-worthy.
+- Continue expanding source/API-backed feeds because they are currently more reliable than generic search from this host.
+
 ### 2026-05-30 - Add GTAI/KfW Direct-HTTP Source Acquisition
 
 Status: implemented, focused-tested, typechecked, live-proved for unblocked GTAI direct fetches, and hardened after a live bot-protection rerun.

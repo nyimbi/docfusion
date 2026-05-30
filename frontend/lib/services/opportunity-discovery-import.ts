@@ -281,6 +281,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?ilo\.org\/about-ilo\/procurement/i,
 	/\/\/(?:www\.)?ifad\.org\/(?:en\/)?(?:project-procurement|corporate-procurement)/i,
 	/\/\/(?:www\.)?unhcr\.org\/.*bidding-opportunities/i,
+	/\/\/(?:www\.)?unwomen\.org\/en\/about-us\/procurement/i,
 	/\/\/(?:www\.)?fao\.org\/unfao\/procurement/i,
 	/\/\/procurement-notices\.undp\.org\//i,
 	/\/\/(?:www\.)?worldbank\.org\/.*procurement/i,
@@ -517,6 +518,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
+	else if (host === "unwomen.org" && safeUrlPathname(sourceUrl).startsWith("/en/about-us/procurement")) sourceId = "un_women";
 	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host === "gtai.de" && /^\/en\/(?:trade\/tenders|meta\/search\/kfw-tenders)/.test(safeUrlPathname(sourceUrl))) sourceId = "gtai_kfw";

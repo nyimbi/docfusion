@@ -102,6 +102,7 @@ describe("default discovery sources", () => {
 			"https://www.fao.org/unfao/procurement/en/",
 			"https://www.ifad.org/en/corporate-procurement",
 			"https://www.unesco.org/en/procurement",
+			"https://www.unwomen.org/en/about-us/procurement",
 			"https://procurement-notices.undp.org",
 			"https://projects.worldbank.org/en/projects-operations/procurement",
 			"https://www.afdb.org/en/projects-and-operations/procurement",
