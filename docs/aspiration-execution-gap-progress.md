@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Promote Tetra Tech Source-Backed RFPs to Review-Ready Response Packages
+
+Status: live-proved.
+
+Purpose: carry the richest new-source parsed RFPs from acquisition and intake into response-package readiness, proving that aggressively acquired source-backed opportunities can become review-ready response work rather than stopping at collection.
+
+Live runs:
+- `response_package_backfill_palladium_jhpiego_tetratech_dry_20260531T` found 2 response-worthy parsed Tetra Tech opportunities from the new Palladium/Jhpiego/Tetra Tech source intake batch.
+- `response_package_backfill_palladium_jhpiego_tetratech_apply_20260531T` persisted response packages for both opportunities, creating 12 proposal documents and 2 win themes total.
+- `requirement_acceptance_palladium_jhpiego_tetratech_apply_20260531T` accepted all 8 parsed requirements across the 2 target opportunities and projected proposal tasks.
+- `response_readiness_palladium_jhpiego_tetratech_apply_20260531T` assessed both target opportunities and marked 2/2 `ready_for_review` with no blockers.
+
+Verification:
+- Response-package proof artifact: `.omx/logs/platform-completion/response-package-backfill-response_package_backfill_palladium_jhpiego_tetratech_apply_20260531T/response-package-backfill.json`.
+- Requirement-acceptance proof artifact: `.omx/logs/platform-completion/requirement-acceptance-backfill-requirement_acceptance_palladium_jhpiego_tetratech_apply_20260531T/requirement-acceptance-backfill.json`.
+- Readiness proof artifact: `.omx/logs/platform-completion/response-readiness-pass-response_readiness_palladium_jhpiego_tetratech_apply_20260531T/response-readiness-pass.json`.
+- DB verification showed the conflict-prevention opportunity now has 6 proposal documents, 1 win theme, 6 parsed requirements, and 6 accepted requirements.
+- DB verification showed the Mekong EOI opportunity now has 6 proposal documents, 1 win theme, 2 parsed requirements, and 2 accepted requirements.
+
+Remaining after this slice:
+- The 2 packages are ready for human review, not final submission.
+- The readiness pass warned that 4/6 response documents on each package have directly targeted win themes, so win-theme targeting should be strengthened before final package production.
+- The broader Palladium/Jhpiego parsed documents had smaller detail-page requirement sets and were not selected by the default response-package eligibility pass yet.
+
 ### 2026-05-31 - Drain Palladium, Jhpiego, and Tetra Tech Source Documents Into Parsed Requirements
 
 Status: live-proved.
