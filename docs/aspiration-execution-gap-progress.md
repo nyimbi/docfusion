@@ -70,6 +70,11 @@ Verification:
 - Follow-up dry-run `source_doc_intake_umucyo_detail_batch2_dry_20260530T0155` selected 10 more UMUCYO detail HTML source documents from the remaining queue.
 - Follow-up live intake `source_doc_intake_umucyo_detail_batch2_live_20260530T0156` selected 10, downloaded 10, failed 0, skipped 0, completed 10 parse jobs, timed out 0 parse jobs, and extracted 87 more requirements.
 - Updated live database verification after both UMUCYO detail batches: 16 downloaded RFP documents, 77,256 extracted text characters, and 149 extracted `rfp_requirements`.
+- Third dry-run `source_doc_intake_umucyo_detail_batch3_dry_20260530T0302` selected 20 additional per-tender UMUCYO detail pages from the remaining Rwanda queue.
+- Third live intake `source_doc_intake_umucyo_detail_batch3_live_20260530T0303` selected 20, downloaded 20, failed 0, skipped 0, completed 20 parse jobs, timed out 0 parse jobs, and extracted 240 requirements.
+- The third UMUCYO batch used `local_html_text` for every selected detail page; no Docling fallback was needed.
+- Updated live database verification after the third UMUCYO detail batch: Rwanda UMUCYO has 36 downloaded RFP documents, 186,883 extracted source-document text characters, and 389 extracted `rfp_requirements`.
+- Updated global live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 347 RFP documents with extracted text, 31,693,125 extracted text characters, and 2,647 extracted `rfp_requirements`.
 - Current live opportunity snapshot remains 3,947 total opportunities and 1,800 RFP-typed opportunities.
 
 Remaining after this slice:
