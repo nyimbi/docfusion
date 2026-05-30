@@ -16,6 +16,37 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Palladium, Jhpiego, and Tetra Tech Source-Backed Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: aggressively expand reliable RFP acquisition with more source-backed donor/implementer procurement pages so current opportunities are collected even when generic search fanout is degraded.
+
+Changes in this slice:
+- Added a Palladium tenders parser for `https://thepalladiumgroup.com/tenders`, including list-page tender extraction, detail-page deadline/document extraction, source-document tagging, and stable source IDs.
+- Added a Jhpiego Work With Us parser for `https://jhpiego.org/work-with-us/`, including request-table extraction, post/close dates, location, active-row filtering, and stable source IDs.
+- Added a Tetra Tech International Development parser for `https://intdev.tetratech.com.au/partner-with-us/` and the Europe tender page, including accordion tender extraction, closing-date parsing, document links, and source-document tagging.
+- Registered Palladium and Jhpiego in the donor/NGO acquisition lane and Tetra Tech in the global/regional lane, with corresponding Google/DuckDuckGo/SearXNG query seeds.
+- Routed the new configured source URLs through dedicated parsers and preserved their source platform and tags on persisted opportunities.
+
+Live run:
+- `aggressive_rfp_acquisition_palladium_jhpiego_tetratech_20260531T0127` ran `global_regional_search` plus `donor_ngo_search` with source scraping enabled and downloads disabled for acquisition proof isolation.
+- The run completed 2 campaigns, failed 0 campaigns, accepted 156 records, imported 25 new opportunities, updated 131 existing opportunities, and created 24 source-document rows.
+- New source health was healthy for Palladium with 16 candidates and 16 imports.
+- New source health was healthy for Jhpiego with 1 candidate and 1 import.
+- New source health was healthy for Tetra Tech Australia with 6 candidates and 6 imports.
+- Tetra Tech Europe returned content but no tender-like records under the new parser, so it remains configured but currently empty.
+
+Verification:
+- Focused acquisition/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/palladium-parser.test.ts __tests__/scrapers/jhpiego-parser.test.ts __tests__/scrapers/tetra-tech-intdev-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 78 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live proof artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-aggressive_rfp_acquisition_palladium_jhpiego_tetratech_20260531T0127/aggressive-rfp-acquisition.json`.
+
+Remaining after this slice:
+- Search fanout is still degraded: the live run recorded 144 warnings, mostly SearXNG engine suspensions/rate limits/CAPTCHA and search queries with no accepted candidates. The acquisition gain came from configured source scraping.
+- Download/parse was intentionally disabled for this proof; the 24 new source-document rows should be drained through source-document intake using lightweight local extraction first, with Docling only as fallback.
+- Tetra Tech Europe needs either a page-specific parser adjustment or a browser-backed route if the page contains opportunities not visible to direct HTTP.
+
 ### 2026-05-31 - Promote RTI and Abt Parsed RFPs to Review-Ready Response Packages
 
 Status: implemented, typechecked, and live-proved.

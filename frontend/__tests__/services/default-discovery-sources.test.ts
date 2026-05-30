@@ -82,7 +82,11 @@ describe("default discovery sources", () => {
 			"site:plan-international.org/calls-tender tender deadline",
 			"site:rti.org/current-opportunities \"Request for Quote/Proposal\" \"Date Proposal Due\"",
 			"site:abtglobal.com/doing-business-with-abt/commercial-opportunities \"RFP\" \"Closing\"",
+			"site:thepalladiumgroup.com/tenders RFP tender closing date",
+			"site:jhpiego.org/work-with-us \"RFP\" \"Close Date\"",
 			"site:fhi360.org/partner-us-business-opportunities solicitations",
+			"site:intdev.tetratech.com.au/partner-with-us tender \"Closing Date and Time\"",
+			"site:intdev.tetratecheurope.com/work-with-us/tender-opportunities tender deadline",
 			"\"request for proposals\" \"submission deadline\" \"Latin America\"",
 			"\"request for proposals\" \"submission deadline\" Caribbean",
 			"\"expression of interest\" \"consulting services\" Asia deadline",
@@ -151,9 +155,13 @@ describe("default discovery sources", () => {
 			"https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
 			"https://www.rti.org/current-opportunities",
 			"https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
+			"https://thepalladiumgroup.com/tenders",
+			"https://jhpiego.org/work-with-us/",
 			"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 			"https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
 			"https://www.spc.int/procurement",
+			"https://intdev.tetratecheurope.com/work-with-us/tender-opportunities/",
+			"https://intdev.tetratech.com.au/partner-with-us/",
 		]);
 		expect(new Set(DEFAULT_DISCOVERY_QUERIES).size).toBe(DEFAULT_DISCOVERY_QUERIES.length);
 		expect(new Set(DEFAULT_DISCOVERY_SOURCE_URLS).size).toBe(DEFAULT_DISCOVERY_SOURCE_URLS.length);

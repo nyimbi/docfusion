@@ -3019,6 +3019,104 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockImplementation(async (url: string) => {
+			if (url.includes("thepalladiumgroup.com/tenders")) {
+				return new Response(`
+					<ul class="listing">
+						<li>
+							<span>RFP99-008 Photography services for SWLT PNG</span>
+							<a href="/tender/RFP99-008-Photography-services-for-SWLT-PNG">Find out more</a>
+						</li>
+					</ul>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url.includes("jhpiego.org/work-with-us")) {
+				return new Response(`
+					<table class="show-desktop"><tbody><tr>
+						<td class="title">RFP-99-009</td>
+						<td class="description"><div class="text">Social Listening Services</div></td>
+						<td class="post-date"><time datetime="May 27, 2099">May 27, 2099</time></td>
+						<td class="close-date"><time datetime="June 19, 2099">June 19, 2099</time></td>
+						<td class="location">USA</td>
+					</tr></tbody></table>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response(`
+				<a class="elementor-accordion-title">Strategic Border Management - Request for Tender</a>
+				<div class="elementor-tab-content">
+					<p>Closing Date and Time: Tuesday 23 June 2099 at 4:00pm AEST</p>
+					<p><a href="/wp-content/uploads/strategic-border-management-rft.pdf">RFT document [PDF]</a></p>
+				</div>
+			`, { status: 200, headers: { "content-type": "text/html" } });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [
+				"https://thepalladiumgroup.com/tenders",
+				"https://jhpiego.org/work-with-us/",
+				"https://intdev.tetratech.com.au/partner-with-us/",
+			],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 3,
+			imported: 3,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP99-008 Photography services for SWLT PNG",
+			source: "palladium",
+			sourcePlatform: "Palladium",
+			sourceFile: "source:https://thepalladiumgroup.com/tenders",
+			rfpLink: "https://thepalladiumgroup.com/tender/RFP99-008-Photography-services-for-SWLT-PNG",
+			tags: ["external-discovery", "source-scrape", "palladium", "donor-implementer", "source-documents"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP-99-009: Social Listening Services",
+			source: "jhpiego",
+			sourcePlatform: "Jhpiego",
+			sourceFile: "source:https://jhpiego.org/work-with-us/",
+			tags: ["external-discovery", "source-scrape", "jhpiego", "donor-implementer"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Strategic Border Management - Request for Tender",
+			source: "tetra_tech_intdev",
+			sourcePlatform: "Tetra Tech International Development",
+			sourceFile: "source:https://intdev.tetratech.com.au/partner-with-us/",
+			rfpLink: "https://intdev.tetratech.com.au/wp-content/uploads/strategic-border-management-rft.pdf",
+			tags: ["external-discovery", "source-scrape", "tetra-tech-intdev", "donor-implementer", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://thepalladiumgroup.com/tenders",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://jhpiego.org/work-with-us/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://intdev.tetratech.com.au/partner-with-us/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("treats direct HTTP bot protection as blocked content instead of an empty source", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

@@ -328,6 +328,10 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?gtai\.de\/en\/meta\/search\/kfw-tenders/i,
 	/\/\/(?:www\.)?iadb\.org\/.*\/procurement/i,
 	/\/\/(?:www\.)?spc\.int\/procurement/i,
+	/\/\/(?:www\.)?thepalladiumgroup\.com\/(?:tenders|tender\/)/i,
+	/\/\/(?:www\.)?jhpiego\.org\/work-with-us/i,
+	/\/\/intdev\.tetratech\.com\.au\/partner-with-us/i,
+	/\/\/intdev\.tetratecheurope\.com\/work-with-us\/tender-opportunities/i,
 ];
 
 const LOW_VALUE_DISCOVERY_HOSTS = new Set([
@@ -524,6 +528,10 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "gtai.de" && /^\/en\/(?:trade\/tenders|meta\/search\/kfw-tenders)/.test(safeUrlPathname(sourceUrl))) sourceId = "gtai_kfw";
 	else if (host === "rti.org" && safeUrlPathname(sourceUrl).startsWith("/current-opportunities")) sourceId = "rti";
 	else if (host === "abtglobal.com" && safeUrlPathname(sourceUrl).startsWith("/doing-business-with-abt/commercial-opportunities")) sourceId = "abt_global";
+	else if (host === "thepalladiumgroup.com" && /^(?:\/tenders|\/tender\/)/.test(safeUrlPathname(sourceUrl))) sourceId = "palladium";
+	else if (host === "jhpiego.org" && safeUrlPathname(sourceUrl).startsWith("/work-with-us")) sourceId = "jhpiego";
+	else if (host === "intdev.tetratech.com.au" && safeUrlPathname(sourceUrl).startsWith("/partner-with-us")) sourceId = "tetra_tech_intdev";
+	else if (host === "intdev.tetratecheurope.com" && safeUrlPathname(sourceUrl).startsWith("/work-with-us/tender-opportunities")) sourceId = "tetra_tech_intdev";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
 	else if (host === "umucyo.gov.rw" && safeUrlPathname(sourceUrl).startsWith("/eb/bav/selectListAdvertisingListForGU.do")) sourceId = "umucyo_rwanda";
@@ -963,6 +971,9 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "spc") return "Pacific Community";
 	if (opportunity?.source === "rti") return "RTI International";
 	if (opportunity?.source === "abt_global") return "Abt Global";
+	if (opportunity?.source === "palladium") return "Palladium";
+	if (opportunity?.source === "jhpiego") return "Jhpiego";
+	if (opportunity?.source === "tetra_tech_intdev") return "Tetra Tech International Development";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
 	if (opportunity?.source === "ghaneps") return "Ghana GHANEPS";
@@ -1003,6 +1014,9 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "plan_international" ? ["plan-international", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "spc" ? ["spc", "pacific-community", "regional-procurement", "source-documents"] : []),
+		...(opportunity?.source === "palladium" ? ["palladium", "donor-implementer", "source-documents"] : []),
+		...(opportunity?.source === "jhpiego" ? ["jhpiego", "donor-implementer"] : []),
+		...(opportunity?.source === "tetra_tech_intdev" ? ["tetra-tech-intdev", "donor-implementer", "source-documents"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "umucyo_rwanda" ? ["umucyo", "rwanda", "national-procurement"] : []),
 		...(opportunity?.source === "ghaneps" ? ["ghaneps", "ghana", "national-procurement"] : []),
@@ -1323,7 +1337,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "tetra_tech_intdev"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
