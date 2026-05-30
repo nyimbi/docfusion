@@ -121,6 +121,15 @@ describe("source document intake selection helpers", () => {
 		})).toBe(false);
 	});
 
+	it("accepts UNDP negotiation detail pages as local HTML source documents", () => {
+		const source = {
+			documentName: "view_negotiation.cfm",
+			sourceUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45765",
+		};
+		expect(isSupportedDocumentSource(source)).toBe(true);
+		expect(isDirectDocumentIntakeSource(source)).toBe(true);
+	});
+
 	it("accepts Rwanda UMUCYO per-tender detail endpoints without accepting the shared list page", () => {
 		expect(isSupportedDocumentSource({
 			documentName: "selectAdvertisingDtlInfo.do",
