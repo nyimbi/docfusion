@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Drain Palladium, Jhpiego, and Tetra Tech Source Documents Into Parsed Requirements
+
+Status: live-proved.
+
+Purpose: convert the newest source-backed acquisition batch into response-usable RFP intake records, proving that the platform can move beyond collection into extracted requirements without depending on Docling when local lightweight extraction works.
+
+Live run:
+- `source_document_intake_palladium_jhpiego_tetratech_dry_20260531T` selected 23 discovered source documents for the new source platforms: Palladium, Jhpiego, and Tetra Tech International Development.
+- `source_document_intake_palladium_jhpiego_tetratech_20260531T` then ran actual intake with parsing enabled for those source platforms.
+- The run selected 23 source documents, downloaded 23, failed 0, skipped 0, completed 23 parses, failed 0 parses, and timed out 0 parses.
+- The document service used lightweight local extraction paths throughout: `local_html_text` for Palladium/Jhpiego/source detail pages, `local_docx_parse` for the Tetra Tech EOI DOCX, and `local_pdftotext` for Tetra Tech RFT PDFs. Docling fallback was not needed.
+- Completed parses extracted 118 requirements total: 70 from Palladium documents, 4 from Jhpiego, and 44 from Tetra Tech International Development.
+
+Verification:
+- Live proof artifact: `.omx/logs/platform-completion/source-document-intake-source_document_intake_palladium_jhpiego_tetratech_20260531T/source-document-intake.json`.
+- DB verification after the run showed all new-source opportunity-document rows downloaded: Jhpiego 1, Palladium 16, and Tetra Tech International Development 6.
+- DB verification over the fresh parsing jobs showed 23 completed jobs and 118 extracted requirements for those source platforms.
+
+Remaining after this slice:
+- The parsed requirements should be evaluated for response-package backfill and readiness, as was done for RTI/Abt.
+- Some extracted requirement counts are intentionally small because several source pages are lightweight detail pages rather than full RFP packages; downstream response selection should prioritize the richer/direct-document opportunities first.
+
 ### 2026-05-31 - Add Palladium, Jhpiego, and Tetra Tech Source-Backed Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
