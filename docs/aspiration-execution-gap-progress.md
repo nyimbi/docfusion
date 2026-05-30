@@ -23,6 +23,9 @@ Status: implemented, focused-test verified, typechecked, live-proved, live datab
 Purpose: materially broaden and accelerate RFP acquisition by keeping broad discovery resilient, draining larger source-document batches, avoiding low-value files, and unlocking UNDP negotiation pages as parser-ready RFP source documents.
 
 Changes in this slice:
+- Added `npm run rfp:acquire` / `scripts/run-aggressive-rfp-acquisition.ts`, a repeatable targeted acquisition runner that splits broad collection into UN/multilateral, development-bank, African national, high-intent search, and direct-document search campaigns.
+- Expanded the default broad discovery profile with UN Women, UNESCO, Global Fund, UNICEF supply, and World Bank EOI query coverage, plus reachable UN Women, UNESCO, and Global Fund configured-source URLs.
+- Added discovery-stage filtering for annual reports, contract-award PDFs, procurement plans, vendor profiles, and similar low-value documents so generic procurement pages cannot seed those files as primary RFP source documents.
 - Isolated configured-source discovery failures so one source timeout or scraper failure is recorded as source health evidence instead of aborting the whole import.
 - Tightened direct source-document intake to skip low-value procurement plans, corrigenda, and local-content annex/template rows before they consume parser slots.
 - Preserved lightweight extraction priority by making legacy `.doc` and `.xls` source documents try local extraction before Docling fallback.
@@ -33,7 +36,8 @@ Changes in this slice:
 - Hardened parser requirement persistence so duplicate AI-extracted requirement numbers inside one document are made unique before insert instead of failing the whole acquired RFP parse.
 
 Verification:
-- Focused discovery regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts` with 54 tests.
+- Focused discovery regression passed after the discovery-stage low-value document filter: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/actions/discovery-opportunity-import.test.ts` with 55 tests.
+- Targeted acquisition campaign regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts` with 6 tests.
 - Focused source-document regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` with 50 tests.
 - Intake cap regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 10 tests.
 - UNDP endpoint regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 11 tests.
@@ -63,14 +67,17 @@ Verification:
   - UNDP post-notice dry-run `source_doc_intake_undp_after_notice_dry_20260530T_acq11`: selected 0 direct-only rows, proving the current direct-eligible UNDP notice/negotiation queue is drained.
 - Combined aggressive live drain result across `acq1` through `acq11` after the parser retry cleanup: 310 selected rows, 301 downloads, 9 failed downloads, 300 completed parser jobs, 0 remaining parser failures, 0 parser timeouts, and 1,935 extracted requirements.
 - Combined UNDP detail live result across `acq6` through `acq9` after the parser retry cleanup: 182 selected rows, 182 downloads, 182 completed parser jobs, 0 remaining failures, 0 parser timeouts, and 1,135 extracted requirements.
-- Current live database snapshot: 4,089 total opportunities, 1,869 RFP-ish opportunities, 1,337 selected source documents, 839 selected documents downloaded, 493 selected documents still queued under the attempts cap, 793 RFP documents with extracted text, 49,644,746 extracted text characters, and 5,409 extracted `rfp_requirements`.
-- Current remaining selected queue by source: Configured Source Scrape 188 queued, Rwanda UMUCYO 48, UN Procurement 42, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, UNDP 21, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, SearXNG 12, IOM 11, SAM.gov 11, World Bank 11, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
+- Targeted acquisition runner live run `aggressive_rfp_acquisition_live_20260530T_acq12`: ran 5 campaigns, completed 5, failed 0, processed 500 discovery records, imported 78 new opportunities, updated 422 existing opportunities, created 115 source-document rows, downloaded 17 source documents, had 0 source-document download failures, and recorded 76 source/search warnings. The run exercised `search.lindela.io`, searx.space fallback fanout, and direct DuckDuckGo recovery; public fallback instances were still heavily rate-limited.
+- Parser queue run `rfp_parse_queue_aggressive_acq12_20260530`: selected 25 queued parser jobs, completed 25, failed 0, and extracted 238 requirements. Five UN Women contract-award PDFs from the pre-filter acquisition run produced low/zero requirement yield; commit `4877f2e1` now prevents award/report/procurement-plan/vendor-profile documents from being selected in discovery import.
+- Current live database snapshot: 4,167 total opportunities; opportunity type counts are 1,850 `rfp`, 2,098 tender/TENDER, 100 `eoi`, 42 `grant`, and 77 `other`; 1,452 selected source documents; 856 selected documents downloaded; 591 selected documents still queued under the attempts cap; 806 RFP documents with extracted text; 50,171,460 extracted text characters; 5,647 extracted `rfp_requirements`; and 2 queued parse jobs remaining.
+- Current remaining selected queue by source: Configured Source Scrape 254 queued, Rwanda UMUCYO 48, UN Procurement 43, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, NeST Tanzania 25, UNDP 22, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, SearXNG 12, IOM 11, SAM.gov 11, World Bank 11, South Africa eTenders 6, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
 
 Remaining after this slice:
+- Rerun the targeted acquisition campaigns with the new discovery-stage low-value filter in place; the pre-filter run proved the path but also seeded historical UN Women award PDFs.
 - Treat UNDP public notice/negotiation direct intake as drained for the current direct-eligible queue; 21 selected UNDP rows remain, all on SharePoint `AllItems.aspx`, and need browser or SharePoint-specific recovery.
 - Do not spend routine acquisition batches on AFDB direct PDFs until 403 recovery is improved.
 - Treat the remaining Rwanda UMUCYO queue as non-detail/shared-list residue; the dedicated dry-run selected 0 direct-eligible rows.
-- Split broad search/discovery imports by targeted source group because public search fanout is rate-limited and one oversized run is operationally noisy.
+- Keep broad search/discovery imports split by targeted source group because public search fanout is rate-limited and one oversized run is operationally noisy.
 - Investigate Configured Source Scrape, UN Procurement, UNICEF, and the remaining UNDP rows separately; direct-only dry-runs selected no usable UN Procurement/UNICEF rows, so they need source-specific detail/document extraction rather than more blind direct drains.
 
 ### 2026-05-30 - Drain High-Yield Direct National Documents
