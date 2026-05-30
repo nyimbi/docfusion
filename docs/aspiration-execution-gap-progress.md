@@ -29,17 +29,20 @@ Live runs:
 - `post_timeout_source_refresh_live_20260530T_next` selected 25 direct-document rows, downloaded 24, failed 1 timed-out eTenders URL, and skipped 0. The successful downloads used lightweight local extraction heavily: `local_pdftotext` for PDFs and `local_html_text` for HTML/detail endpoints. Docling was attempted only after weak local PDF extraction; the Docling service on `84.247.181.100:3600` refused or dropped fallback requests during this run.
 - The intake run raised downloaded source documents from 1,023 to 1,047 and RFP documents from 963 to 986.
 - `post_timeout_source_refresh_parse_drain_20260530T_next` processed 10 queued parser jobs, completed 10, failed 0, skipped 15 low-value candidates, and extracted 115 requirements. Three of those completed parser jobs came from the newly acquired direct-document batch.
+- `direct_document_drain2_live_20260530T_next` then ran a larger direct-document drain, selected 50, downloaded 50, failed 0, and skipped 0. This second drain handled PDFs, DOCX files, and HTML/detail endpoints through local extraction paths, adding another 50 downloaded source documents and raising the live RFP document count above 1,000.
 
 Final live snapshot after this slice:
 - 4,571 opportunities.
-- 986 RFP documents.
+- 1,035 RFP documents.
 - 6,735 extracted RFP requirements.
 - 1,864 source-document rows.
-- 1,047 downloaded source documents.
+- 1,097 downloaded source documents.
+- 84 queued parser jobs remain after the acquisition drains and the 10-job parser batch.
 
 Verification:
 - Live acquisition artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-timeout_isolated_source_refresh_20260530T_next/aggressive-rfp-acquisition.json`.
 - Live intake artifact: `.omx/logs/platform-completion/source-document-intake-post_timeout_source_refresh_live_20260530T_next/source-document-intake.json`.
+- Second live intake artifact: `.omx/logs/platform-completion/source-document-intake-direct_document_drain2_live_20260530T_next/source-document-intake.json`.
 - Direct database verification confirmed the final counts above.
 - Parser drain command completed successfully with 10/10 parser jobs completed and 115 requirements extracted.
 
