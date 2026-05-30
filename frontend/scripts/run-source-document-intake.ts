@@ -21,6 +21,7 @@ const LOG_DIR = createProofLogDir({ workspaceRoot: WORKSPACE_ROOT, runId: RUN_ID
 const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-source-document-intake-evidence.md");
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
 const DIRECT_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".xlsx", ".xls", ".zip"];
+export const MAX_SOURCE_DOCUMENT_INTAKE_LIMIT = 100;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN = /(?:https:\/\/(?:www\.ghaneps\.gov\.gh|eprocure\.zppa\.org\.zm)\/epps\/cft\/downloadNoticeForAdvSearch\.do\?[^#\s]*\bresourceId=\d+\b|https:\/\/www\.umucyo\.gov\.rw\/eb\/bav\/selectAdvertisingDtlInfo\.do\?[^#\s]*\btendReferNo=|https:\/\/nest\.go\.tz\/gateway\/nest-data-portal-api\/api\/releases\/[^#\s/]+\/[^#\s/]+)/i;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
 	"(https://(www\\.ghaneps\\.gov\\.gh|eprocure\\.zppa\\.org\\.zm)/epps/cft/downloadNoticeForAdvSearch\\.do\\?[^#[:space:]]*\\mresourceId=[0-9]+\\M|https://www\\.umucyo\\.gov\\.rw/eb/bav/selectAdvertisingDtlInfo\\.do\\?[^#[:space:]]*\\mtendReferNo=|https://nest\\.go\\.tz/gateway/nest-data-portal-api/api/releases/[^#[:space:]/]+/[^#[:space:]/]+)";
@@ -110,7 +111,7 @@ async function main() {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
 		config: {
-			limit: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_LIMIT, 5, 1, 25),
+			limit: parseSourceDocumentIntakeLimit(process.env.SOURCE_DOCUMENT_INTAKE_LIMIT),
 			maxAttempts: boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_MAX_ATTEMPTS, 3, 1, 10),
 			userId: process.env.SOURCE_DOCUMENT_INTAKE_USER_ID?.trim() || "system",
 			organizationId: process.env.SOURCE_DOCUMENT_INTAKE_ORGANIZATION_ID?.trim() || undefined,
@@ -532,6 +533,10 @@ function boundedNumber(
 	const parsed = raw === undefined ? defaultValue : Number(raw);
 	if (!Number.isFinite(parsed)) return defaultValue;
 	return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+export function parseSourceDocumentIntakeLimit(raw: string | undefined): number {
+	return boundedNumber(raw, 5, 1, MAX_SOURCE_DOCUMENT_INTAKE_LIMIT);
 }
 
 export function parseCsvList(raw: string | undefined): string[] {

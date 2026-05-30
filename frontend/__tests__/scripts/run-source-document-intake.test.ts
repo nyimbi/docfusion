@@ -4,6 +4,7 @@ import {
 	isDirectDocumentIntakeSource,
 	isLikelySolicitationSource,
 	isRoutineSourceCandidate,
+	parseSourceDocumentIntakeLimit,
 	isSupportedDocumentSource,
 	parseCsvList,
 	scoreSourceDocumentIntakeCandidate,
@@ -96,6 +97,13 @@ describe("source document intake selection helpers", () => {
 			"UNGM",
 		]);
 		expect(parseCsvList(undefined)).toEqual([]);
+	});
+
+	it("allows larger live intake batches while keeping a bounded ceiling", () => {
+		expect(parseSourceDocumentIntakeLimit("50")).toBe(50);
+		expect(parseSourceDocumentIntakeLimit("250")).toBe(100);
+		expect(parseSourceDocumentIntakeLimit("0")).toBe(1);
+		expect(parseSourceDocumentIntakeLimit(undefined)).toBe(5);
 	});
 
 	it("accepts trusted national notice download endpoints without file extensions", () => {
