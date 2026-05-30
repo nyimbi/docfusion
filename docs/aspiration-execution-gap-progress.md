@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Promote FHI 360 RFA to Review-Ready Response Package
+
+Status: live-proved.
+
+Purpose: carry the strongest newly acquired FHI 360 opportunity through response-package creation, requirement acceptance, and readiness assessment so the acquisition expansion also advances the response-generation side of the platform.
+
+Live runs:
+- `response_package_backfill_fhi360_dry_20260531T` found 1 response-worthy FHI 360 candidate: `RFA #103425-03-23-2026-001 English for STEM Professionals Course`, with 12 parsed requirements, 38,242 extracted text characters, parse review state `auto_accepted`, pursuit fit score 98, and recommendation `pursue`.
+- `response_package_backfill_fhi360_apply_20260531T` persisted the package for that opportunity, creating 6 response documents, 6 proposal documents, and 2 win themes with 6,465 total draft words.
+- `requirement_acceptance_fhi360_apply_20260531T` accepted all 12 parsed requirements and projected proposal tasks.
+- `response_readiness_fhi360_apply_20260531T` marked the package `ready_for_review` with no blockers, 12/12 drafted requirements, 12 compliance entries, source/evidence/checklist/review-gate/draft-integrity coverage all at 1, and 6 drafted documents.
+
+Verification:
+- Response-package proof artifact: `.omx/logs/platform-completion/response-package-backfill-response_package_backfill_fhi360_apply_20260531T/response-package-backfill.json`.
+- Requirement-acceptance proof artifact: `.omx/logs/platform-completion/requirement-acceptance-backfill-requirement_acceptance_fhi360_apply_20260531T/requirement-acceptance-backfill.json`.
+- Readiness proof artifact: `.omx/logs/platform-completion/response-readiness-pass-response_readiness_fhi360_apply_20260531T/response-readiness-pass.json`.
+
+Remaining after this slice:
+- The package is ready for human review, not final submission.
+- The readiness pass warned that 2/6 response documents have directly targeted win themes; strengthen win-theme targeting before final package production.
+- The other 4 FHI opportunities were imported and document-backed, but the default response backfill selected only this richer candidate in the bounded pass.
+
 ### 2026-05-31 - Add FHI 360 Source-Backed Solicitation Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
