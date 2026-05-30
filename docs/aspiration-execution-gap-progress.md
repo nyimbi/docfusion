@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Search Fanout and Remaining Usable RFP Intake
+
+Status: live-proved and live database verified.
+
+Purpose: keep expanding RFP acquisition beyond the source-specific drains by running the broad search fanout again, then immediately draining the usable source-document rows it surfaced instead of leaving parser-ready RFPs idle.
+
+Live runs:
+- `search_fanout_after_undp_recovery_20260530T1605` ran the high-intent search, direct-document search, global/regional search, and donor/NGO search campaigns with downloads disabled for breadth. It completed 4/4 campaigns, returned 126 records, imported 16 new opportunities, updated 110 opportunities, and created 9 source-document rows.
+- The same search fanout emitted 221 warnings. The dominant warning class was SearXNG engine degradation from `https://search.lindela.io/search`: Google and DuckDuckGo were frequently blocked by access-denied, CAPTCHA, timeout, or HTTP connection errors; Brave and Startpage were frequently rate-limited or CAPTCHA-blocked; public fallback instances also produced 403/429/CAPTCHA/timeouts. Direct DuckDuckGo HTML fallback still recovered some results, but broad search is currently degraded relative to source/API-backed acquisition.
+- `post_fanout_noise_baseline_dry_20260530T_next` selected 3 active, unretried, solicitation-like source documents after the broad run: 2 Save the Children tender detail pages and 1 ISS Africa ToR PDF.
+- `post_fanout_usable_live_20260530T_next` downloaded all 3 selected rows, failed 0, parsed 3, timed out 0, and extracted 24 requirements. The Save the Children rows used local HTML extraction; the ISS Africa PDF used the lightweight `local_pdftotext` path before any Docling fallback.
+- `post_fanout_usable_after_dry_20260530T_next` selected 0 rows, proving the current active unretried usable queue is drained under the deadline-aware selector.
+
+Queue triage:
+- AfDB remains a source-specific protected-site problem, not a blind retry target. Controlled run `afdb_active_detail_live_20260530T1552` selected 11 active discovered AfDB detail pages and failed 11/11 with HTTP 403/Cloudflare challenge responses.
+- African Union, UN Procurement, and IOM rows still visible in raw selected backlog are duplicate-attempt suppressed or already represented by identical downloaded/attempted URLs.
+- UNICEF, configured-source, and search-backed raw queues remain noisy with tender calendars, contract-award PDFs, procurement manuals, policy reports, and financial documents; parser capacity should stay on rows that pass the solicitation selector or on source-specific recovery work.
+
+Verification:
+- Updated live database snapshot: 4,441 opportunities; 959 RFP documents; 6,598 extracted requirements; 1,739 source-document rows; 1,019 downloaded source documents.
+- The source-document after-dry run selected 0 current active unretried usable rows, so the next acquisition lift should come from repairing degraded search fanout, adding source-specific attachment recovery, or improving configured-source parsers rather than retrying the drained routine queue.
+
+Remaining after this slice:
+- Repair or reconfigure `search.lindela.io` SearXNG fanout if we expect Google, DuckDuckGo, Brave, and Startpage to contribute reliably; the live evidence shows they are frequently blocked from this host.
+- Build source-specific AfDB recovery through a reliable document API, mirror, or browser-mediated path before retrying the Cloudflare-protected detail queue.
+- Add or tighten source parsers/filters for UNICEF calendars, UN Women contract-award pages, and configured-source policy/manual pages so broad acquisition creates fewer non-solicitation source rows.
+
 ### 2026-05-30 - Recover UNDP SharePoint Package Acquisition
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
