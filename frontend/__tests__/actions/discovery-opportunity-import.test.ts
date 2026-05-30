@@ -752,7 +752,7 @@ describe("discoverAndImportOpportunities", () => {
 			data: {
 				markdown: [
 					"# Data Platform RFP",
-					"[Contract awards above USD100K 2025](/docs/UN-Women-contract-awards-above-USD100K-2025-en.pdf)",
+					"[Contract awards above USD100K 2025](/docs/UNwomen-ContractAwardsAboveUSD100K-2025.pdf)",
 					"[Annual report](/docs/annual-report.pdf)",
 					"[Request for proposal](/docs/data-platform-rfp.pdf)",
 				].join("\n\n"),

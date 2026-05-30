@@ -333,7 +333,7 @@ const DOCUMENT_LINK_KEYWORDS = [
 	"terms of reference",
 	"tor",
 ];
-const LOW_VALUE_DISCOVERY_DOCUMENT_LINK_PATTERN = /(?:\bannual[-_\s]?report\b|\bcontract[-_\s]?awards?\b|\bawards?[-_\s]?above\b|\baward[-_\s]?notice\b|\bprocurement[-_\s]?plan\b|\bvendor[-_\s]?profile\b|\bsupplier[-_\s]?(?:code|conduct)\b|\bcode[-_\s]?of[-_\s]?conduct\b|\bfinancial[-_\s]?(?:statement|report)\b|\baudit[-_\s]?report\b|\bnewsletter\b|\bpress[-_\s]?release\b|\bprivacy[-_\s]?notice\b|\bterms[-_\s]?of[-_\s]?use\b)/i;
+const LOW_VALUE_DISCOVERY_DOCUMENT_LINK_PATTERN = /(?:\bannual[-_\s]?report\b|\bcontract[-_\s]?awards?\b|\bcontractawards?\b|\bawards?[-_\s]?above\b|\baward[-_\s]?notice\b|\bprocurement[-_\s]?plan\b|\bvendor[-_\s]?profile\b|\bsupplier[-_\s]?(?:code|conduct)\b|\bcode[-_\s]?of[-_\s]?conduct\b|\bfinancial[-_\s]?(?:statement|report)\b|\baudit[-_\s]?report\b|\bnewsletter\b|\bpress[-_\s]?release\b|\bprivacy[-_\s]?notice\b|\bterms[-_\s]?of[-_\s]?use\b)/i;
 const AFDB_SEARCH_FALLBACK_QUERIES = [
 	"afdb procurement reoi pdf consulting services",
 	"afdb project related procurement request for expressions of interest pdf",

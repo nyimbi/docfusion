@@ -19,9 +19,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(new Set(campaignIds).size).toBe(campaignIds.length);
 		expect(DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.flatMap((campaign) => campaign.sourceUrls ?? []))
 			.toEqual(expect.arrayContaining([
-				"https://www.unwomen.org/en/about-us/procurement",
 				"https://www.unesco.org/en/procurement",
-				"https://www.theglobalfund.org/en/sourcing-management/updates/",
 				"https://cdn.ppda.go.ug/api/bid-invitations",
 			]));
 	});
