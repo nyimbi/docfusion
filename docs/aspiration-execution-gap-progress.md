@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Expand Detail-Page RFP Acquisition and World Bank Recovery
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: aggressively convert the next viable source-document backlog into parser-ready RFP text by draining current NGO/CDB/World Bank detail pages and replacing World Bank's thin client-rendered procurement pages with the public procurement notice API.
+
+Changes in this slice:
+- Added a World Bank procurement-detail fetch path that extracts the `OP...` notice ID, fetches `search.worldbank.org/api/v2/procnotices`, and renders the public notice JSON into parseable HTML.
+- Preserved the lightweight extraction path: World Bank notices now use local HTML extraction and only fall back to generic scraping if the JSON notice endpoint fails.
+- Added regression coverage proving World Bank procurement-detail rows use the notice API before Firecrawl/browser shell-page recovery.
+
+Live runs:
+- Dry run `source_doc_intake_html_detail_sources_dry_20260530T_next` selected 28 current detail-page source documents across Save the Children, Mercy Corps, Caribbean Development Bank, and World Bank.
+- Live run `source_doc_intake_html_detail_sources_live_20260530T_next` selected 28, downloaded 28, failed 0, parsed 17 immediately, timed out 0, and extracted 133 requirements from the rows with usable generic HTML extraction.
+- Live World Bank retry reprocessed 22 active downloaded World Bank rows that previously had no extracted text; all 22 completed parser jobs through the new notice-API HTML path and extracted 219 requirements.
+- Post-fix dry run `source_doc_intake_html_detail_after_worldbank_dry_20260530T_next` selected 0 rows for the same detail-source group, proving that current eligible Save the Children/Mercy Corps/CDB/World Bank detail rows are drained.
+
+Verification:
+- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-service.test.ts` with 42 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Updated live database snapshot: 4,413 opportunities; 942 RFP documents; 6,541 extracted requirements; 1,650 source-document rows; 988 downloaded source documents.
+- World Bank snapshot: 53 selected downloaded World Bank source documents now have extracted text; 0 selected downloaded World Bank source documents remain without extracted text.
+
+Remaining after this slice:
+- Configured Source Scrape remains the largest queue, but current samples are dominated by duplicated award-summary/procurement-page residue and protected hosts; address with source-specific cleanup rather than blind parser drains.
+- UN Procurement, UNICEF, AfDB, UNDP SharePoint, Ghana, Kenya, and Zambia still have selected discovered rows, but current direct-only dry runs do not select the national rows because they are duplicate/expired/detail residues under the existing safeguards.
+- Search fanout remains noisy; source/API-backed collection continues to be the highest-yield path.
+
 ### 2026-05-30 - Repair Rwanda UMUCYO Per-Tender Acquisition
 
 Status: live-run completed, stale queue cleaned, parser dry-run verified, and live database verified.

@@ -138,6 +138,7 @@ type SourceDocumentFetchMethod =
   | "direct"
   | "umucyo_detail_html"
   | "nest_release_json"
+  | "world_bank_procurement_notice_json"
   | "searxng_direct"
   | "firecrawl_link"
   | "firecrawl_landing_page_html"
@@ -1141,6 +1142,16 @@ async function fetchSourceDocument(
     });
   }
 
+  if (isWorldBankProcurementDetailUrl(sourceUrl)) {
+    const notice = await fetchWorldBankProcurementNoticeDocument(sourceUrl, documentName);
+    if (notice.ok) return notice.document;
+    logger.warn("[RFP Document Service] World Bank procurement notice fetch failed; trying generic source recovery", {
+      sourceUrl: sourceUrl.toString(),
+      status: notice.status,
+      error: notice.error,
+    });
+  }
+
   const direct = await tryFetchSourceDocumentUrl(sourceUrl, documentName, "direct");
   if (direct.ok) return direct.document;
 
@@ -1173,6 +1184,16 @@ function isUmucyoTenderDetailUrl(url: URL): boolean {
 function isNestTanzaniaReleaseUrl(url: URL): boolean {
   return url.hostname.toLowerCase() === "nest.go.tz"
     && /^\/gateway\/nest-data-portal-api\/api\/releases\/[^/]+\/[^/]+\/?$/i.test(url.pathname);
+}
+
+function isWorldBankProcurementDetailUrl(url: URL): boolean {
+  return url.hostname.toLowerCase() === "projects.worldbank.org"
+    && /^\/[a-z]{2}\/projects-operations\/procurement-detail\/OP\d+\/?$/i.test(url.pathname);
+}
+
+function worldBankProcurementNoticeId(url: URL): string | undefined {
+  const match = url.pathname.match(/\/procurement-detail\/(OP\d+)\/?$/i);
+  return match?.[1]?.toUpperCase();
 }
 
 async function fetchNestTanzaniaReleaseDocument(
@@ -1232,6 +1253,159 @@ async function fetchNestTanzaniaReleaseDocument(
       method: "nest_release_json",
     },
   };
+}
+
+async function fetchWorldBankProcurementNoticeDocument(
+  url: URL,
+  documentName: string
+): Promise<SourceFetchAttempt> {
+  const noticeId = worldBankProcurementNoticeId(url);
+  if (!noticeId) {
+    return { ok: false, error: "World Bank procurement detail URL is missing notice ID" };
+  }
+
+  const apiUrl = new URL("https://search.worldbank.org/api/v2/procnotices");
+  apiUrl.searchParams.set("format", "json");
+  apiUrl.searchParams.set("apilang", "en");
+  apiUrl.searchParams.set("fl", "*");
+  apiUrl.searchParams.set("id", noticeId);
+
+  const response = await fetchPublicHttpUrl(apiUrl, {
+    headers: {
+      ...browserLikeDocumentHeaders(apiUrl),
+      Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+    },
+    timeoutMs: SOURCE_DOCUMENT_FETCH_TIMEOUT_MS,
+  }, "World Bank procurement notice API");
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `HTTP ${response.status}: ${response.statusText}`,
+    };
+  }
+
+  const raw = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return {
+      ok: false,
+      status: response.status,
+      error: "World Bank procurement notice API did not return valid JSON",
+    };
+  }
+
+  const notices = arrayValue(asRecord(payload).procnotices).map((entry) => asRecord(entry));
+  const notice = notices.find((entry) => stringValue(entry.id).toUpperCase() === noticeId) ?? notices[0];
+  if (!notice) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `World Bank procurement notice API returned no notice for ${noticeId}`,
+    };
+  }
+
+  const html = buildWorldBankProcurementNoticeHtml(notice, url);
+  const text = cleanExtractedText(html.replace(/<[^>]+>/g, " "));
+  if (!HTML_RFP_TEXT_SIGNAL.test(text) || text.length < MIN_HTML_EXTRACTED_TEXT_LENGTH) {
+    return {
+      ok: false,
+      status: response.status,
+      error: `World Bank procurement notice did not include usable procurement text: HTTP ${response.status}`,
+    };
+  }
+
+  const filename = replaceFileExtension(documentName, ".html");
+  const buffer = Buffer.from(html, "utf8");
+  assertSourceDocumentBufferSize(buffer);
+  return {
+    ok: true,
+    document: {
+      buffer,
+      mimeType: "text/html",
+      effectiveUrl: url.toString(),
+      originalUrl: url.toString(),
+      filename,
+      extractionFilename: filename,
+      method: "world_bank_procurement_notice_json",
+    },
+  };
+}
+
+function buildWorldBankProcurementNoticeHtml(notice: Record<string, unknown>, url: URL): string {
+  const rows = [
+    ["Notice ID", stringValue(notice.id)],
+    ["Notice type", stringValue(notice.notice_type)],
+    ["Notice status", stringValue(notice.notice_status)],
+    ["Title", stringValue(notice.noticetitle) || stringValue(notice.bid_description)],
+    ["Project", stringValue(notice.project_name)],
+    ["Project ID", stringValue(notice.project_id)],
+    ["Country", stringValue(notice.project_ctry_name)],
+    ["Region", stringValue(notice.regionname)],
+    ["Agency", stringValue(notice.agency_name)],
+    ["Procurement method", stringValue(notice.procurement_method_name)],
+    ["Procurement group", stringValue(notice.procurement_group_desc)],
+    ["Market approach", stringValue(notice.market_approach_name)],
+    ["Bid reference", stringValue(notice.bid_reference_no)],
+    ["Estimated amount", [stringValue(notice.bid_currency_code), stringValue(notice.bid_estimate_amount)].filter(Boolean).join(" ")],
+    ["Submission deadline", [stringValue(notice.submission_deadline_date), stringValue(notice.submission_deadline_time)].filter(Boolean).join(" ")],
+    ["Contact", [stringValue(notice.contact_name), stringValue(notice.contact_email), stringValue(notice.contact_phone_no)].filter(Boolean).join("; ")],
+    ["Contact organization", stringValue(notice.contact_organization)],
+  ].filter(([, value]) => value);
+  const noticeText = htmlToPlainText(stringValue(notice.notice_text));
+  const classifications = arrayValue(notice.unspsc_classification)
+    .map((entry) => asRecord(entry))
+    .map((entry) => [
+      stringValue(entry.seg_title),
+      stringValue(entry.family_title),
+      stringValue(entry.class_title),
+      stringValue(entry.cmdty_title),
+    ].filter(Boolean).join(" / "))
+    .filter(Boolean);
+
+  return [
+    "<!doctype html><html><head><meta charset=\"utf-8\">",
+    `<title>World Bank procurement notice ${escapeHtml(stringValue(notice.id) || url.pathname)}</title>`,
+    "</head><body><main>",
+    "<h1>World Bank procurement notice source document</h1>",
+    "<p>This page stores the public World Bank procurement notice JSON as parseable HTML for RFP and tender requirement extraction.</p>",
+    rows.length > 0 ? [
+      "<section><h2>Notice summary</h2><dl>",
+      ...rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`),
+      "</dl></section>",
+    ].join("") : "",
+    noticeText ? [
+      "<section><h2>Notice text</h2>",
+      `<p>${escapeHtml(noticeText).replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>")}</p>`,
+      "</section>",
+    ].join("") : "",
+    classifications.length > 0 ? [
+      "<section><h2>UNSPSC classifications</h2><ul>",
+      ...classifications.map((entry) => `<li>${escapeHtml(entry)}</li>`),
+      "</ul></section>",
+    ].join("") : "",
+    "<section><h2>Original World Bank notice JSON</h2>",
+    `<pre>${escapeHtml(JSON.stringify(notice, null, 2))}</pre>`,
+    "</section>",
+    "</main></body></html>",
+  ].join("");
+}
+
+function htmlToPlainText(value: string): string {
+  return cleanExtractedText(value
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\/p>|<br\s*\/?>|<\/li>|<\/div>|<\/h[1-6]>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;|&apos;/gi, "'"));
 }
 
 function buildNestTanzaniaReleaseHtml(release: unknown, url: URL): string {

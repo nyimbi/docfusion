@@ -1000,13 +1000,20 @@ describe("RFP document fetch storage", () => {
 				updates.push(value);
 			},
 		}));
-		fetchPublicHttpUrlMock.mockResolvedValue(new Response(shellHtml, {
-			status: 200,
-			headers: {
-				"content-length": String(Buffer.byteLength(shellHtml)),
-				"content-type": "text/html",
-			},
-		}));
+		fetchPublicHttpUrlMock
+			.mockResolvedValueOnce(new Response("not-json", {
+				status: 200,
+				headers: {
+					"content-type": "application/json",
+				},
+			}))
+			.mockResolvedValueOnce(new Response(shellHtml, {
+				status: 200,
+				headers: {
+					"content-length": String(Buffer.byteLength(shellHtml)),
+					"content-type": "text/html",
+				},
+			}));
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,
 			data: {
@@ -1051,6 +1058,106 @@ describe("RFP document fetch storage", () => {
 			extractedText: expect.stringContaining("bidder qualifications"),
 			metadata: expect.objectContaining({
 				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
+	it("uses the World Bank procurement notice API before generic shell-page scraping", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const sourceUrl = "https://projects.worldbank.org/en/projects-operations/procurement-detail/OP00447573";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Acquire and deploy of an upgraded Hard and Soft ICT Infrastructure.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000452", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000552" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(JSON.stringify({
+			total: "1",
+			procnotices: [{
+				id: "OP00447573",
+				notice_type: "Invitation for Bids",
+				notice_status: "Published",
+				noticetitle: "Acquire and deploy of an upgraded Hard and Soft ICT Infrastructure",
+				project_name: "Revenue Improvement and Spending Efficiency Program-for-Results Operation",
+				project_ctry_name: "Rwanda",
+				agency_name: "Ministry of Finance and Economic Planning",
+				procurement_method_name: "Request for Bids",
+				bid_reference_no: "RW-MINECOFIN-536508-GO-RFB",
+				submission_deadline_date: "2026-06-26T00:00:00Z",
+				submission_deadline_time: "12:30",
+				notice_text: [
+					"<p>The Ministry invites eligible companies to submit bids for acquisition of AI/ML infrastructure, data, ML models, and AI platform licenses.</p>",
+					"<p>The bids shall be accompanied by a bid security and remain valid for 120 days from the submission deadline.</p>",
+					"<p>Bidding will be conducted in accordance with the Law governing Public Procurement.</p>",
+					"<p>The scope includes deployment planning, integration services, acceptance testing, warranty support, training, documentation, and operational handover requirements.</p>",
+					"<p>Submissions must include technical specifications, implementation methodology, delivery schedule, company qualifications, similar project references, signed bid forms, and priced schedules.</p>",
+				].join(""),
+				unspsc_classification: [{
+					seg_title: "Engineering and Research and Technology Based Services",
+					family_title: "Computer services",
+					class_title: "Software or hardware engineering",
+					cmdty_title: "System or application programming management service",
+				}],
+			}],
+		}), {
+			status: 200,
+			headers: {
+				"content-type": "application/json",
+			},
+		}));
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "world_bank_procurement_notice_json",
+			}),
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hostname: "search.worldbank.org",
+				pathname: "/api/v2/procnotices",
+			}),
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: expect.stringContaining("application/json"),
+				}),
+			}),
+			"World Bank procurement notice API"
+		);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("AI/ML infrastructure"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("bid security"),
+			metadata: expect.objectContaining({
+				downloadMethod: "world_bank_procurement_notice_json",
 			}),
 		});
 	});
