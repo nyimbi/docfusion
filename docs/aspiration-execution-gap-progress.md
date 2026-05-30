@@ -25,20 +25,25 @@ Purpose: convert the newly acquired RFP document backlog into extracted requirem
 Live runs:
 - `queued_parse_backlog_dry_20260530T_next` selected 40 queued parser jobs and skipped 15 low-value candidates before apply mode.
 - `queued_parse_backlog_drain_20260530T_next` processed 40 parser jobs, completed 40, failed 0, and extracted 251 requirements.
+- `queued_parse_remaining_dry_20260530T_next` then selected 29 additional processable queued parser jobs and skipped the same 15 low-value candidates.
+- `queued_parse_remaining_drain_20260530T_next` processed those 29 jobs, completed 29, failed 0, and extracted 136 requirements.
+- `queued_parse_after_remaining_dry_20260530T_next` selected 0 remaining processable parser jobs under the low-value filter; the only queued parser jobs left are the 15 intentionally skipped low-value candidates.
 - The batch covered PDFs, DOCX, and HTML/detail source documents. It included newly acquired eTenders, DAI, UNDP, ZPPA, Tanzania NeST, and South Africa tender documents.
 - Some scanned/weak-text generator tender PDFs completed with 0 extracted requirements, matching the earlier Docling fallback weakness, but they did not block the queue.
 
 Live database movement:
-- RFP requirements increased from 6,735 to 6,986.
-- Queued parser jobs decreased from 84 to 44.
+- RFP requirements increased from 6,735 to 7,122.
+- Queued parser jobs decreased from 84 to 15, and the remaining 15 are skipped by the current low-value filter.
 - RFP documents remained 1,035; this slice improved parse depth rather than acquisition breadth.
 
 Verification:
-- The parser drain command exited successfully with `completed: 40`, `failed: 0`, and `skippedLowValueCandidates: 15`.
-- Direct database verification confirmed 6,986 RFP requirements and 44 remaining queued parser jobs.
+- The first parser drain command exited successfully with `completed: 40`, `failed: 0`, and `skippedLowValueCandidates: 15`.
+- The second parser drain command exited successfully with `completed: 29`, `failed: 0`, and `skippedLowValueCandidates: 15`.
+- Direct database verification confirmed 7,122 RFP requirements and 15 remaining queued parser jobs.
+- Final dry-run verification selected 0 remaining processable parser jobs under the low-value filter.
 
 Remaining after this slice:
-- Continue draining the remaining 44 queued parser jobs.
+- Decide whether the remaining 15 low-value queued parser jobs should be hard-failed, archived, or processed with a separate low-priority policy.
 - Fix Docling fallback reliability for weak/scanned PDFs so zero-requirement parser completions are less common.
 - Move high-value parsed opportunities through response package/backfill flows once parser backlog is lower.
 
