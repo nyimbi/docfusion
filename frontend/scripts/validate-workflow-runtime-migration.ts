@@ -16,6 +16,8 @@ const REQUIRED_TABLES = [
 	"scraper_runs",
 	"scraper_sources",
 	"opportunities",
+	"proposal_tasks",
+	"task_activity",
 ];
 
 const REQUIRED_COLUMNS: Record<string, string[]> = {
@@ -117,12 +119,48 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
 		"decision_status",
 		"search_vector",
 	],
+	proposal_tasks: [
+		"organization_id",
+		"opportunity_id",
+		"task_number",
+		"title",
+		"description",
+		"task_type",
+		"task_category",
+		"requirement_id",
+		"assigned_to",
+		"assigned_by",
+		"assigned_at",
+		"due_date",
+		"status",
+		"priority",
+		"updated_at",
+		"compliance_requirements",
+		"source_type",
+		"source_id",
+		"created_by",
+		"created_at",
+	],
+	task_activity: [
+		"task_id",
+		"activity_type",
+		"description",
+		"previous_value",
+		"new_value",
+		"change_field",
+		"user_id",
+		"user_name",
+		"metadata",
+	],
 };
 
 const REQUIRED_INDEXES = [
 	"opportunities_search_vector_idx",
 	"opportunities_title_trgm_idx",
 	"opportunities_organization_trgm_idx",
+	"proposal_tasks_organization_idx",
+	"proposal_tasks_opportunity_idx",
+	"task_activity_task_id_idx",
 ];
 
 const REQUIRED_TRIGGERS = [

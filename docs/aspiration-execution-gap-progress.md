@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Repair Proposal Task Projection For Response Workflow
+
+Status: implemented, live-migrated, typechecked, and live-validated.
+
+Purpose: restore the response workflow's ability to project accepted RFP requirements into governed proposal tasks. The live `proposal_tasks` and `task_activity` tables were still on the older minimal shape, so the requirement acceptance backfill correctly disabled proposal-task projection even though the TypeScript schema expected richer task columns.
+
+Changes in this slice:
+- Added idempotent migration `0033_proposal_tasks_projection_repair.sql` to add the missing proposal task projection columns, widen `assigned_to` from UUID-only storage to actor strings, backfill `organization_id`, and add missing task activity metadata columns.
+- Added the repair migration to the workflow runtime migration runner.
+- Tightened workflow runtime DB validation so `proposal_tasks`, `task_activity`, their projection columns, and key indexes are now required.
+
+Live evidence:
+- `npm run workflow:migrate-db` applied `0033_proposal_tasks_projection_repair.sql` to the live database.
+- `npm run workflow:validate-db` returned `ok: true` with `proposal_tasks`, `task_activity`, `proposal_tasks_organization_idx`, `proposal_tasks_opportunity_idx`, and `task_activity_task_id_idx` present.
+- A live dry run of `run-requirement-acceptance-backfill.ts` with run id `proposal_task_projection_after_migration_dry_20260530T_next` found 5 candidates and reported `proposalTaskProjection: supported`. The selected candidates were skipped only by data gates such as missing due dates or expired opportunity deadlines, not by schema support.
+- Direct `psql` verification confirmed the repaired live columns and indexes are present.
+
+Verification:
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live workflow migration passed: `npm run workflow:migrate-db`.
+- Live workflow validation passed: `npm run workflow:validate-db`.
+- Live dry requirement acceptance backfill passed and proved proposal task projection is now schema-supported.
+
+Remaining after this slice:
+- Run requirement acceptance in apply mode only when eligible parsed response packages have owners and valid future due dates.
+- Continue the broader workflow-domain tenant predicate audit carried forward from the response-readiness work.
+
 ### 2026-05-30 - Reject Reference-Site Search Noise
 
 Status: implemented, focused-test verified, typechecked, and live-probed.
