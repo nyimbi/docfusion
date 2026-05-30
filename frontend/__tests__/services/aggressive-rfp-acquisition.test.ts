@@ -15,12 +15,17 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"africa_national",
 			"high_intent_search",
 			"document_search",
+			"global_public_sector",
+			"global_regional_search",
+			"donor_ngo_search",
 		]);
 		expect(new Set(campaignIds).size).toBe(campaignIds.length);
 		expect(DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.flatMap((campaign) => campaign.sourceUrls ?? []))
 			.toEqual(expect.arrayContaining([
 				"https://www.unesco.org/en/procurement",
 				"https://cdn.ppda.go.ug/api/bid-invitations",
+				"https://www.contractsfinder.service.gov.uk/Search",
+				"https://canadabuys.canada.ca/en/tender-opportunities",
 			]));
 	});
 
@@ -68,6 +73,33 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);
 		expect(run.input.downloadDiscoveredDocuments).toBe(false);
+	});
+
+	it("builds mixed global public-sector campaigns with search fanout and direct sources", () => {
+		const [run] = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["global_public_sector"],
+			limitPerQuery: 5,
+			sourceScrapeLimit: 20,
+			scrapeLimit: 2,
+			browserFallbackLimit: 2,
+			downloadLimit: 6,
+			downloadParseMode: "queued",
+		});
+
+		expect(run.campaign.id).toBe("global_public_sector");
+		expect(run.input.queries).toEqual(expect.arrayContaining([
+			"site:sam.gov \"solicitation\" \"proposal due\"",
+			"site:canadabuys.canada.ca \"request for proposal\" \"closing date\"",
+		]));
+		expect(run.input.sourceUrls).toEqual(expect.arrayContaining([
+			"https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
+			"https://www.tenders.gov.au/atm",
+			"https://www.gets.govt.nz/ExternalIndex.htm",
+		]));
+		expect(run.input.searchEngineFanout).toBe(true);
+		expect(run.input.scrapeTopResults).toBe(true);
+		expect(run.input.scrapeLimit).toBe(2);
+		expect(run.input.downloadLimit).toBe(6);
 	});
 
 	it("selects requested campaigns by id", () => {

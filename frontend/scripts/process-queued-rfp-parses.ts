@@ -3,6 +3,7 @@ import "./load-env";
 import { and, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as schema from "@/lib/db/schema";
+import { isLowValueProcurementDocumentLink } from "@/lib/services/rfp-document-link-filter";
 import { forceLocalEnv } from "./env-utils";
 
 type Runtime = {
@@ -32,18 +33,26 @@ type ProcessQueuedResult = {
 	requirementsExtracted?: number | null;
 };
 
+type QueuedParseSelection = {
+	rows: QueuedParseRow[];
+	candidateLimit: number;
+	skippedLowValueCandidates: number;
+};
+
 const RUN_ID = process.env.RFP_PARSE_QUEUE_RUN_ID ?? `rfp_parse_queue_${new Date().toISOString().replace(/[:.]/g, "-")}`;
 const LIMIT = boundedNumber(process.env.RFP_PARSE_QUEUE_LIMIT, 10, 1, 100);
 const DRY_RUN = process.env.RFP_PARSE_QUEUE_DRY_RUN !== "0";
 const USER_ID = (process.env.RFP_PARSE_QUEUE_USER_ID ?? "system").slice(0, 100);
 const ORGANIZATION_ID = process.env.RFP_PARSE_QUEUE_ORGANIZATION_ID?.trim();
+const SKIP_LOW_VALUE = process.env.RFP_PARSE_QUEUE_SKIP_LOW_VALUE !== "0";
 
 let runtime: Runtime | undefined;
 
 async function main() {
 	forceLocalEnv(["DATABASE_URL"]);
 	runtime = await loadRuntime();
-	const queued = await findQueuedParses();
+	const selection = await findQueuedParses();
+	const queued = selection.rows;
 	const results: ProcessQueuedResult[] = [];
 
 	try {
@@ -95,6 +104,9 @@ async function main() {
 		runId: RUN_ID,
 		dryRun: DRY_RUN,
 		limit: LIMIT,
+		skipLowValue: SKIP_LOW_VALUE,
+		candidateLimit: selection.candidateLimit,
+		skippedLowValueCandidates: selection.skippedLowValueCandidates,
 		selected: queued.length,
 		completed: results.filter((result) => result.status === "completed").length,
 		failed: results.filter((result) => result.status === "failed").length,
@@ -120,11 +132,12 @@ async function loadRuntime(): Promise<Runtime> {
 	};
 }
 
-async function findQueuedParses(): Promise<QueuedParseRow[]> {
+async function findQueuedParses(): Promise<QueuedParseSelection> {
 	if (!runtime) throw new Error("Runtime not initialized");
 	const orgCondition = ORGANIZATION_ID
 		? sql`AND d.organization_id = ${ORGANIZATION_ID}`
 		: sql``;
+	const candidateLimit = SKIP_LOW_VALUE ? Math.min(500, LIMIT * 10) : LIMIT;
 	const result = await runtime.db.execute(sql<QueuedParseRow>`
 		SELECT
 			j.id::text AS "jobId",
@@ -146,9 +159,32 @@ async function findQueuedParses(): Promise<QueuedParseRow[]> {
 		  )
 		  ${orgCondition}
 		ORDER BY j.queued_at ASC, j.created_at ASC
-		LIMIT ${LIMIT}
+		LIMIT ${candidateLimit}
 	`);
-	return result.rows as QueuedParseRow[];
+	const rows = result.rows as QueuedParseRow[];
+	if (!SKIP_LOW_VALUE) {
+		return {
+			rows: rows.slice(0, LIMIT),
+			candidateLimit,
+			skippedLowValueCandidates: 0,
+		};
+	}
+
+	const selected: QueuedParseRow[] = [];
+	let skippedLowValueCandidates = 0;
+	for (const row of rows) {
+		if (isLowValueProcurementDocumentLink({ label: row.filename, url: row.filename })) {
+			skippedLowValueCandidates++;
+			continue;
+		}
+		selected.push(row);
+		if (selected.length >= LIMIT) break;
+	}
+	return {
+		rows: selected,
+		candidateLimit,
+		skippedLowValueCandidates,
+	};
 }
 
 function boundedNumber(raw: string | undefined, defaultValue: number, min: number, max: number): number {

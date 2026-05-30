@@ -26,6 +26,7 @@ import {
 	type SearxngResult,
 	type SearxngUnresponsiveEngine,
 } from "@/lib/services/searxng-client";
+import { isLowValueProcurementDocumentLink } from "@/lib/services/rfp-document-link-filter";
 import type { ImportConfig, ImportRecordResult, ImportSourceHealth, OpportunityInput } from "@/lib/types/opportunity";
 import {
 	createImportRecord,
@@ -307,6 +308,12 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/(?:www\.)?un\.org\/procurement/i,
 	/\/\/(?:www\.)?unicef\.org\/supply\/.*tender/i,
 	/\/\/(?:www\.)?giz\.de\/.*\/tenders/i,
+	/\/\/(?:www\.)?contractsfinder\.service\.gov\.uk\/Search/i,
+	/\/\/canadabuys\.canada\.ca\/.*tender-opportunities/i,
+	/\/\/(?:www\.)?tenders\.gov\.au\/atm/i,
+	/\/\/(?:www\.)?gets\.govt\.nz\//i,
+	/\/\/(?:www\.)?grants\.gov\/search-grants/i,
+	/\/\/(?:www\.)?usaid\.gov\/business-forecast/i,
 ];
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
@@ -333,7 +340,6 @@ const DOCUMENT_LINK_KEYWORDS = [
 	"terms of reference",
 	"tor",
 ];
-const LOW_VALUE_DISCOVERY_DOCUMENT_LINK_PATTERN = /(?:\bannual[-_\s]?report\b|\bcontract[-_\s]?awards?\b|\bcontractawards?\b|\bawards?[-_\s]?above\b|\baward[-_\s]?notice\b|\bprocurement[-_\s]?plan\b|\bvendor[-_\s]?profile\b|\bsupplier[-_\s]?(?:code|conduct)\b|\bcode[-_\s]?of[-_\s]?conduct\b|\bfinancial[-_\s]?(?:statement|report)\b|\baudit[-_\s]?report\b|\bnewsletter\b|\bpress[-_\s]?release\b|\bprivacy[-_\s]?notice\b|\bterms[-_\s]?of[-_\s]?use\b)/i;
 const AFDB_SEARCH_FALLBACK_QUERIES = [
 	"afdb procurement reoi pdf consulting services",
 	"afdb project related procurement request for expressions of interest pdf",
@@ -717,7 +723,7 @@ function addDocumentLinkCandidate(
 	link: DiscoveryDocumentLink
 ): void {
 	if (isLowValueDiscoveryUrl(link.url)) return;
-	if (isLowValueDiscoveryDocumentLink(link)) return;
+	if (isLowValueProcurementDocumentLink(link)) return;
 	const existingIndex = seenUrls.get(link.url);
 	if (existingIndex === undefined) {
 		seenUrls.set(link.url, candidates.length);
@@ -731,19 +737,6 @@ function addDocumentLinkCandidate(
 		...link,
 		label: link.label || existing.label,
 	};
-}
-
-function isLowValueDiscoveryDocumentLink(link: Pick<DiscoveryDocumentLink, "label" | "url">): boolean {
-	const haystack = `${link.label ?? ""} ${safeDecodeUrl(link.url)}`;
-	return LOW_VALUE_DISCOVERY_DOCUMENT_LINK_PATTERN.test(haystack);
-}
-
-function safeDecodeUrl(url: string): string {
-	try {
-		return decodeURIComponent(url);
-	} catch {
-		return url;
-	}
 }
 
 function extractDocumentLinks(

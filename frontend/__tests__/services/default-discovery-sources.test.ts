@@ -66,8 +66,21 @@ describe("default discovery sources", () => {
 			"site:nocopo.bpp.gov.ng/Open-Data Nigeria public procurement tender OCID",
 			"site:cpbn.com.na/index/external/2 open bids Namibia closing date",
 			"site:esppra.co.sz/sppra/tender.php Eswatini tender submission deadline",
+			"site:contractsfinder.service.gov.uk tender closing date request for proposal",
+			"site:canadabuys.canada.ca \"request for proposal\" closing date",
+			"site:tenders.gov.au ATM close date request for tender",
+			"site:gets.govt.nz \"Request for Proposal\" deadline",
+			"site:usaid.gov \"request for proposals\" deadline",
+			"site:grants.gov forecasted opportunity deadline",
+			"\"request for proposals\" \"submission deadline\" \"Latin America\"",
+			"\"request for proposals\" \"submission deadline\" Caribbean",
+			"\"expression of interest\" \"consulting services\" Asia deadline",
+			"\"request for proposals\" \"Middle East\" procurement deadline",
+			"\"call for proposals\" \"digital transformation\" deadline global",
 			"filetype:pdf \"request for proposals\" \"submission deadline\"",
 			"filetype:pdf \"terms of reference\" \"proposal\" \"deadline\"",
+			"filetype:pdf \"solicitation\" \"proposal due date\"",
+			"filetype:pdf \"tender document\" \"closing date\" ICT",
 			"filetype:docx \"request for proposals\" procurement",
 		]);
 		expect(DEFAULT_DISCOVERY_SEARCH_ENGINES).toEqual(["google", "duckduckgo", "bing", "brave"]);
@@ -110,6 +123,12 @@ describe("default discovery sources", () => {
 			"https://esppra.co.sz/sppra/tender.php",
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
+			"https://www.contractsfinder.service.gov.uk/Search",
+			"https://canadabuys.canada.ca/en/tender-opportunities",
+			"https://www.tenders.gov.au/atm",
+			"https://www.gets.govt.nz/ExternalIndex.htm",
+			"https://www.grants.gov/search-grants",
+			"https://www.usaid.gov/business-forecast",
 		]);
 		expect(new Set(DEFAULT_DISCOVERY_QUERIES).size).toBe(DEFAULT_DISCOVERY_QUERIES.length);
 		expect(new Set(DEFAULT_DISCOVERY_SOURCE_URLS).size).toBe(DEFAULT_DISCOVERY_SOURCE_URLS.length);
