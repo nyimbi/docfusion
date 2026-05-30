@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Fix UN Procurement Row-Level PDF Acquisition
+
+Status: implemented, focused-test verified, typechecked, live-proved, live intake completed, and live database verified.
+
+Purpose: stop UN Procurement opportunities from inheriting the same page-wide PDF and turn current UN solicitation cards into row-level downloadable and parseable source documents.
+
+Changes in this slice:
+- Updated the UN Procurement parser to extract the `PDF Instructions` link from each solicitation card and store it as that opportunity's `documentUrl`.
+- Captured the UNGM express-interest URL in parser metadata while keeping the PDF as the primary RFP/source document link.
+- Switched UN Procurement card deadline parsing to prefer the card end date instead of the opening/start date.
+- Added parser/import regression coverage proving a UN Procurement card seeds its own PDF source-document row.
+
+Verification:
+- Focused parser/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/un-procurement-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 60 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live UN Procurement source-only rerun updated 12 existing opportunities, failed 0, created 10 new row-level source-document rows, reused 2 existing source-document rows, and reported healthy source health with 0 warnings.
+- Dry-run `un_procurement_row_pdf_intake_dry_20260530T1243` selected 9 currently eligible UN Procurement PDFs after the parser fix.
+- Live run `un_procurement_row_pdf_intake_live_20260530T1244` selected 9, downloaded 9, failed 0, parsed 9, timed out 0, and extracted 97 requirements using lightweight `local_pdftotext`.
+- Updated live database snapshot: 4,333 opportunities; 846 RFP documents; 5,924 extracted requirements; 23 UN Procurement opportunities; 56 UN Procurement source-document rows; 12 UN Procurement source documents downloaded.
+
+Remaining after this slice:
+- Older UN Procurement rows/source-document associations still include historical duplicated PDFs from before row-level extraction; forward acquisition now updates current cards with the correct row-level PDF.
+- Only the first 12 current UN Procurement cards were refreshed in this proof. Continue paginated/source-specific UN Procurement coverage before treating the full UNPD queue as clean.
+
 ### 2026-05-30 - Parse Active Plan International Package
 
 Status: live-run completed and live database verified.

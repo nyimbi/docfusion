@@ -16,6 +16,9 @@ const DESCRIPTION_PATTERN = /<div\b[^>]*class=["'][^"']*\bviews-field-field-text
 const COMMODITY_PATTERN = /<span\b[^>]*class=["'][^"']*\bfield-content\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
 const DATETIME_PATTERN = /<time\b[^>]*datetime=["']([^"']+)["'][^>]*>/i;
 const START_DATE_PATTERN = /<span\b[^>]*class=["'][^"']*\bstart\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i;
+const END_DATE_PATTERN = /<span\b[^>]*class=["'][^"']*\bend\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/i;
+const PDF_LINK_PATTERN = /<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>/i;
+const EXPRESS_INTEREST_LINK_PATTERN = /<a\b[^>]*href=["']([^"']+)["'][^>]*aria-label=["'][^"']*Express interest[^"']*["'][^>]*>/i;
 
 function decodeHtmlEntities(value: string): string {
 	return value
@@ -34,6 +37,18 @@ function stripTags(value: string | undefined): string {
 function extractFirst(pattern: RegExp, value: string): string | undefined {
 	const match = value.match(pattern);
 	return stripTags(match?.[1]) || undefined;
+}
+
+function absoluteUrl(rawUrl: string | undefined, sourceUrl: string): string | undefined {
+	if (!rawUrl) return undefined;
+	try {
+		const url = new URL(decodeHtmlEntities(rawUrl), sourceUrl);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return undefined;
+	}
 }
 
 function sourceIdFromNotice(noticeId: string, title: string): string {
@@ -59,9 +74,19 @@ function extractCommodity(row: string): string | undefined {
 }
 
 function parseOpeningDate(row: string): Date | undefined {
+	const endDate = extractFirst(END_DATE_PATTERN, row);
+	if (endDate) return parseDate(endDate);
 	const datetime = row.match(DATETIME_PATTERN)?.[1];
 	if (datetime) return parseDate(datetime);
 	return parseDate(extractFirst(START_DATE_PATTERN, row));
+}
+
+function extractDocumentUrl(row: string, sourceUrl: string): string | undefined {
+	return absoluteUrl(row.match(PDF_LINK_PATTERN)?.[1], sourceUrl);
+}
+
+function extractExpressInterestUrl(row: string, sourceUrl: string): string | undefined {
+	return absoluteUrl(row.match(EXPRESS_INTEREST_LINK_PATTERN)?.[1], sourceUrl);
 }
 
 function buildSummary(title: string, noticeId: string, commodity: string | undefined, deadline: Date | undefined): string {
@@ -83,6 +108,8 @@ function parseRows(markdownOrHtml: string | undefined, sourceUrl: string): Oppor
 		const commodity = extractCommodity(row);
 		const deadline = parseOpeningDate(row);
 		const sourceId = sourceIdFromNotice(noticeId, title);
+		const documentUrl = extractDocumentUrl(row, sourceUrl);
+		const expressInterestUrl = extractExpressInterestUrl(row, sourceUrl);
 
 		opportunities.push({
 			title,
@@ -94,7 +121,8 @@ function parseRows(markdownOrHtml: string | undefined, sourceUrl: string): Oppor
 			category: commodity ?? "UN Procurement",
 			opportunityType: "tender",
 			portalUrl: sourceUrl,
-			rfpLink: sourceUrl,
+			documentUrl,
+			rfpLink: documentUrl ?? expressInterestUrl ?? sourceUrl,
 			deadline,
 			projectSummary: buildSummary(title, noticeId, commodity, deadline),
 			submissionMethod: "Monitor UN Procurement solicitation details and follow the published tender instructions.",
@@ -104,6 +132,7 @@ function parseRows(markdownOrHtml: string | undefined, sourceUrl: string): Oppor
 					sourceUrl,
 					noticeId,
 					commodityGroup: commodity ?? null,
+					expressInterestUrl: expressInterestUrl ?? null,
 				},
 			},
 		});

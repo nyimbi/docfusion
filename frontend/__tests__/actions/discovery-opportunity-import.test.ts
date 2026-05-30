@@ -2838,12 +2838,19 @@ describe("discoverAndImportOpportunities", () => {
 					<li class="views-row">
 						<div class="views-field views-field-title custom-card-title">WS2006276746</div>
 						<span class="start">09 Jun 2026 </span>
+						<span class="end">12 Jun 2026</span>
 						<time datetime="2026-06-09T15:00:00Z" class="datetime">15:00</time>
 						<div class="views-field views-field-field-text-75-1 custom-card-title-field">
 							<div class="field-content">Provision of Cisco Core, Distribution and Datacenter Solutions</div>
 						</div>
 						<div class="views-field views-field-name tender-custom-field tender-commodity-group-field">
 							<span class="field-content">Communications Equipment</span>
+						</div>
+						<div class="views-field views-field-nothing card-buttons">
+							<div class="field-content">
+								<a href="https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/pdf/eoi24446.pdf" target="_blank" class="download-pdf-btn btn btn-secondary">PDF Instructions</a>
+								<a href="https://www.ungm.org/Public/Notice/302351" class="btn btn-secondary" target="_blank" aria-label="Express interest for WS2006276746">Express Interest</a>
+							</div>
 						</div>
 					</li>
 				`,
@@ -2860,6 +2867,7 @@ describe("discoverAndImportOpportunities", () => {
 
 		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
 		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Provision of Cisco Core, Distribution and Datacenter Solutions",
 			source: "un_procurement",
@@ -2869,11 +2877,13 @@ describe("discoverAndImportOpportunities", () => {
 			sourceFile: "source:https://www.un.org/procurement/solicitations-opportunities",
 			category: "Communications Equipment",
 			opportunityType: "tender",
+			documentUrl: "https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/pdf/eoi24446.pdf",
 			tags: ["external-discovery", "source-scrape", "un-procurement", "unpd", "solicitation"],
 			metadata: expect.objectContaining({
 				unProcurement: expect.objectContaining({
 					noticeId: "WS2006276746",
 					commodityGroup: "Communications Equipment",
+					expressInterestUrl: "https://www.ungm.org/Public/Notice/302351",
 				}),
 				discovery: expect.objectContaining({
 					scrapedWithBrowserSource: true,
@@ -2881,6 +2891,9 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 			}),
 		}));
+		const insertedSourceUrl = (vi.mocked(db.insert).mock.results[0].value as { values: ReturnType<typeof vi.fn> })
+			.values.mock.calls[0][0].sourceUrl;
+		expect(insertedSourceUrl).toBe("https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/pdf/eoi24446.pdf");
 		expect(result.warnings).toEqual([]);
 	});
 
