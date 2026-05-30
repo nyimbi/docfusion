@@ -155,6 +155,15 @@ describe("source document intake selection helpers", () => {
 		expect(isDirectDocumentIntakeSource(source)).toBe(true);
 	});
 
+	it("accepts UNDP SharePoint package folders for notice-detail recovery", () => {
+		const source = {
+			documentName: "AllItems.aspx",
+			sourceUrl: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?env=Embedded&FilterField1=NegotiationNumber&FilterValue1=UNDP-IND-00772%2C1",
+		};
+		expect(isSupportedDocumentSource(source)).toBe(true);
+		expect(isDirectDocumentIntakeSource(source)).toBe(false);
+	});
+
 	it("accepts Rwanda UMUCYO per-tender detail endpoints without accepting the shared list page", () => {
 		expect(isSupportedDocumentSource({
 			documentName: "selectAdvertisingDtlInfo.do",

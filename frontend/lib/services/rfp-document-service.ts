@@ -137,6 +137,7 @@ interface StoredFetchedRfpDocument {
 type SourceDocumentFetchMethod =
   | "direct"
   | "spc_tender_detail_link"
+  | "undp_notice_detail_html"
   | "umucyo_detail_html"
   | "nest_release_json"
   | "world_bank_procurement_notice_json"
@@ -182,6 +183,10 @@ interface QueuedRfpParsing {
 }
 
 type OpportunityDocumentRow = typeof opportunityDocuments.$inferSelect;
+type SourceDocumentOpportunityContext = Pick<
+  typeof opportunities.$inferSelect,
+  "id" | "title" | "portalUrl" | "documentUrl" | "rfpLink"
+>;
 
 export type OpportunityDocumentWithParseReference = OpportunityDocumentRow & {
   rfpDocumentId: string | null;
@@ -744,8 +749,12 @@ export async function downloadDocument(
       })
       .where(eq(opportunityDocuments.id, documentId));
 
+    const opportunity = await db.query.opportunities.findFirst({
+      where: eq(opportunities.id, doc.opportunityId),
+    }).catch(() => null);
+
     let fetched = await prepareFetchedDocumentForIntake(
-      await fetchSourceDocument(safeSourceUrl, doc.documentName)
+      await fetchSourceDocument(safeSourceUrl, doc.documentName, { opportunity })
     );
 
     // Extract text before queueing so the parser does not have to re-fetch
@@ -1121,7 +1130,8 @@ export async function extractDocumentText(documentId: string): Promise<string | 
 
 async function fetchSourceDocument(
   sourceUrl: URL,
-  documentName: string
+  documentName: string,
+  context: { opportunity?: SourceDocumentOpportunityContext | null } = {}
 ): Promise<FetchedSourceDocument> {
   if (isNestTanzaniaReleaseUrl(sourceUrl)) {
     const release = await fetchNestTanzaniaReleaseDocument(sourceUrl, documentName);
@@ -1150,6 +1160,16 @@ async function fetchSourceDocument(
       sourceUrl: sourceUrl.toString(),
       status: notice.status,
       error: notice.error,
+    });
+  }
+
+  if (isUndpSharePointPackageUrl(sourceUrl)) {
+    const detail = await fetchUndpSharePointPackageDocument(sourceUrl, documentName, context.opportunity);
+    if (detail.ok) return detail.document;
+    logger.warn("[RFP Document Service] UNDP SharePoint package recovery failed; trying generic source recovery", {
+      sourceUrl: sourceUrl.toString(),
+      status: detail.status,
+      error: detail.error,
     });
   }
 
@@ -1207,9 +1227,52 @@ function isSpcTenderDetailUrl(url: URL): boolean {
   return host === "spc.int" && /^\/procurement\/tenders\/[^/]+\/?$/i.test(url.pathname);
 }
 
+function isUndpSharePointPackageUrl(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  return host === "undp.sharepoint.com"
+    && /^\/sites\/Docs-Public\/Procurement\/Forms\/AllItems\.aspx$/i.test(url.pathname)
+    && Boolean(url.searchParams.get("FilterValue1"));
+}
+
+function undpNoticeDetailUrlFromOpportunity(
+  opportunity: SourceDocumentOpportunityContext | null | undefined
+): URL | undefined {
+  for (const value of [opportunity?.portalUrl, opportunity?.documentUrl, opportunity?.rfpLink]) {
+    if (!value) continue;
+    try {
+      const url = new URL(value);
+      if (url.hostname.toLowerCase() !== "procurement-notices.undp.org") continue;
+      if (/^\/view_(negotiation|notice)\.cfm$/i.test(url.pathname)) return url;
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
 function worldBankProcurementNoticeId(url: URL): string | undefined {
   const match = url.pathname.match(/\/procurement-detail\/(OP\d+)\/?$/i);
   return match?.[1]?.toUpperCase();
+}
+
+async function fetchUndpSharePointPackageDocument(
+  url: URL,
+  documentName: string,
+  opportunity: SourceDocumentOpportunityContext | null | undefined
+): Promise<SourceFetchAttempt> {
+  const detailUrl = undpNoticeDetailUrlFromOpportunity(opportunity);
+  if (!detailUrl) {
+    return {
+      ok: false,
+      error: "UNDP SharePoint package URL has no associated public UNDP notice detail URL",
+    };
+  }
+
+  return tryFetchSourceDocumentUrl(
+    detailUrl,
+    replaceFileExtension(documentName, ".html"),
+    "undp_notice_detail_html"
+  );
 }
 
 async function fetchSpcTenderDetailDocument(

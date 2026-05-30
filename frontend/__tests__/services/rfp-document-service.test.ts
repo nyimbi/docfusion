@@ -51,6 +51,9 @@ const storageConfig = {
 
 const dbMock = vi.hoisted(() => ({
 	query: {
+		opportunities: {
+			findFirst: vi.fn(),
+		},
 		opportunityDocuments: {
 			findFirst: vi.fn(),
 			findMany: vi.fn(),
@@ -211,6 +214,13 @@ beforeEach(() => {
 	dnsLookupMock.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
 	dbMock.$count.mockResolvedValue(1);
 	dbMock.select.mockImplementation(() => createChain({ result: [] }));
+	dbMock.query.opportunities.findFirst.mockResolvedValue({
+		id: baseDocument.opportunityId,
+		title: "Main RFP",
+		portalUrl: "https://buyer.example/tenders/main",
+		documentUrl: baseDocument.sourceUrl,
+		rfpLink: baseDocument.sourceUrl,
+	});
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(null);
 	dbMock.query.userWorkspaces.findFirst.mockResolvedValue({
 		id: "00000000-0000-4000-8000-000000000701",
@@ -663,6 +673,96 @@ describe("RFP document fetch storage", () => {
 				ingestWorkflow: expect.objectContaining({
 					sourceOpportunityDocumentId: baseDocument.id,
 					downloadMethod: "nest_release_json",
+				}),
+			}),
+		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
+	});
+
+	it("recovers UNDP SharePoint package folders through the public notice detail page", async () => {
+		const updates: Record<string, unknown>[] = [];
+		const insertedValues: Record<string, unknown>[] = [];
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "AllItems.aspx",
+			sourceUrl: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?env=Embedded&FilterField1=NegotiationNumber&FilterValue1=UNDP-IND-00772%2C1",
+		});
+		dbMock.query.opportunities.findFirst.mockResolvedValue({
+			id: baseDocument.opportunityId,
+			title: "Wool handloom value chain",
+			portalUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+			documentUrl: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-IND-00772%2C1",
+			rfpLink: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-IND-00772%2C1",
+		});
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000401", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000501" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		const noticeHtml = [
+			"<!doctype html><html><body><main>",
+			"<h2>Wool handloom value chain, Livelihood Enterprise Development & Community Conservation Services</h2>",
+			"<section><h6>Procurement Process</h6><p>RFP - Request for proposal</p></section>",
+			"<section><h6>Deadline</h6><p>09-Jun-26 @ 08:00 AM (New York time)</p></section>",
+			"<section><h6>Reference Number</h6><p>UNDP-IND-00772,1</p></section>",
+			"<section><h2>Introduction</h2><p>Request For Proposal for wool handloom value chain services.</p>",
+			"<p>The bidder shall submit a technical proposal, financial proposal, methodology, work plan, team qualifications,",
+			"experience evidence, deliverables, procurement forms, evaluation criteria, bid validity, and signed submission forms.</p>",
+			"<p>Proposal submission must follow the UNDP Quantum supplier portal instructions before the deadline.</p></section>",
+			"<section><h2>Documents</h2><a href=\"https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?FilterValue1=UNDP-IND-00772%2C1\">Negotiation Document(s)</a></section>",
+			"</main></body></html>",
+		].join("");
+		fetchPublicHttpUrlMock.mockResolvedValueOnce(new Response(noticeHtml, {
+			status: 200,
+			headers: {
+				"content-length": String(Buffer.byteLength(noticeHtml)),
+				"content-type": "text/html",
+			},
+		}));
+
+		const result = await downloadDocument(baseDocument.id, "capture-user");
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+				originalSourceUrl: "https://undp.sharepoint.com/sites/Docs-Public/Procurement/Forms/AllItems.aspx?env=Embedded&FilterField1=NegotiationNumber&FilterValue1=UNDP-IND-00772%2C1",
+				downloadMethod: "undp_notice_detail_html",
+			}),
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenCalledWith(
+			new URL("https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879"),
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: expect.stringContaining("text/html"),
+				}),
+			}),
+			"Document source URL"
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			mimeType: "text/html",
+			extractedText: expect.stringContaining("UNDP Quantum supplier portal"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "AllItems.html",
+			fileType: "html",
+			extractedText: expect.stringContaining("Request For Proposal"),
+			metadata: expect.objectContaining({
+				sourceUrl: "https://procurement-notices.undp.org/view_negotiation.cfm?nego_id=45879",
+				ingestWorkflow: expect.objectContaining({
+					sourceOpportunityDocumentId: baseDocument.id,
+					downloadMethod: "undp_notice_detail_html",
 				}),
 			}),
 		});

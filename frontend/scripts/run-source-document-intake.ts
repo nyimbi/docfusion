@@ -26,6 +26,9 @@ export const MAX_SOURCE_DOCUMENT_INTAKE_HOST_LIMIT = MAX_SOURCE_DOCUMENT_INTAKE_
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN = /(?:https:\/\/(?:www\.ghaneps\.gov\.gh|eprocure\.zppa\.org\.zm)\/epps\/cft\/downloadNoticeForAdvSearch\.do\?[^#\s]*\bresourceId=\d+\b|https:\/\/www\.umucyo\.gov\.rw\/eb\/bav\/selectAdvertisingDtlInfo\.do\?[^#\s]*\btendReferNo=|https:\/\/nest\.go\.tz\/gateway\/nest-data-portal-api\/api\/releases\/[^#\s/]+\/[^#\s/]+|https:\/\/procurement-notices\.undp\.org\/view_negotiation\.cfm\?[^#\s]*\bnego_id=\d+\b|https:\/\/procurement-notices\.undp\.org\/view_notice\.cfm\?[^#\s]*\bnotice_id=\d+\b)/i;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
 	"(https://(www\\.ghaneps\\.gov\\.gh|eprocure\\.zppa\\.org\\.zm)/epps/cft/downloadNoticeForAdvSearch\\.do\\?[^#[:space:]]*\\mresourceId=[0-9]+\\M|https://www\\.umucyo\\.gov\\.rw/eb/bav/selectAdvertisingDtlInfo\\.do\\?[^#[:space:]]*\\mtendReferNo=|https://nest\\.go\\.tz/gateway/nest-data-portal-api/api/releases/[^#[:space:]/]+/[^#[:space:]/]+|https://procurement-notices\\.undp\\.org/view_negotiation\\.cfm\\?[^#[:space:]]*\\mnego_id=[0-9]+\\M|https://procurement-notices\\.undp\\.org/view_notice\\.cfm\\?[^#[:space:]]*\\mnotice_id=[0-9]+\\M)";
+const TRUSTED_HTML_DETAIL_ENDPOINT_PATTERN = /https:\/\/undp\.sharepoint\.com\/sites\/Docs-Public\/Procurement\/Forms\/AllItems\.aspx\?[^#\s]*\bFilterValue1=[^#\s]+/i;
+const TRUSTED_HTML_DETAIL_ENDPOINT_SQL_PATTERN =
+	"https://undp\\.sharepoint\\.com/sites/Docs-Public/Procurement/Forms/AllItems\\.aspx\\?[^#[:space:]]*\\mFilterValue1=";
 const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|(?:^|[^a-z0-9])procurement[-_\s]?(?:plan|report)\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bbidder[-_\s]?instructions\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b|\bsenior[-_\s]?procurement[-_\s]?executive[-_\s]?message\b|\blapse[-_\s]?in[-_\s]?appropriations\b|\bjustification[-_\s]?and[-_\s]?approval\b|\bother[-_\s]?than[-_\s]?full[-_\s]?and[-_\s]?open[-_\s]?competition\b|\btips\.pdf\b|\bconduct[-_\s]?english\.pdf\b|\b(?:supplier|vendor)[-_\s]?(?:code[-_\s]?of[-_\s]?)?conduct\b|(?:^|[^a-z0-9])(?:procurement|vendor|supplier)[-_\s]?(?:guide|manual|handbook)(?:\b|[-_\s])|\bglobal[-_\s]?marketplace[-_\s]?guide\b|\bgbg[-_\s]?master\b|\bun\.org\/.*\/pm\.pdf\b|\bguide[-_\s]?\d*[-_\s]?submit[-_\s]?quotations[-_\s]?bids[-_\s]?proposals\b|\bentities[-_\s]*[-_\s]?20\d{2}[-_\s]?quarter\b|\bnpm[-_.\s]?no\.?[-_.\s]?\d+(?:[-_.\s]?\d+)?\b|corrigendum|\bannex(?:ure)?[-_\s]?[cde]\b|\blocal[-_\s]?(?:and[-_\s]?)?imported[-_\s]?content[-_\s]?declaration\b)/i;
 const PROTECTED_403_RETRY_HOSTS = new Set(["www.dgmarket.com", "dgmarket.com"]);
 
@@ -202,7 +205,8 @@ async function selectDiscoveredDocuments(
 	);
 	const documentSourceCondition = or(
 		extensionCondition,
-		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN}`
+		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN}`,
+		sql`${opportunityDocuments.sourceUrl} ~* ${TRUSTED_HTML_DETAIL_ENDPOINT_SQL_PATTERN}`
 	);
 	const directDocumentCondition = or(
 		...DIRECT_DOCUMENT_PATTERNS.flatMap((extension) => [
@@ -354,7 +358,8 @@ export function isLikelySolicitationSource(value: { documentName: string; source
 export function isSupportedDocumentSource(value: { documentName: string; sourceUrl: string }): boolean {
 	const haystack = `${value.documentName} ${decodeURIComponent(value.sourceUrl)}`.toLowerCase();
 	return SUPPORTED_DOCUMENT_PATTERNS.some((extension) => haystack.includes(extension))
-		|| TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN.test(value.sourceUrl);
+		|| TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN.test(value.sourceUrl)
+		|| TRUSTED_HTML_DETAIL_ENDPOINT_PATTERN.test(value.sourceUrl);
 }
 
 export function isDirectDocumentIntakeSource(value: { documentName: string; sourceUrl: string }): boolean {

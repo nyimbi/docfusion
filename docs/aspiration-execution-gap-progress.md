@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Recover UNDP SharePoint Package Acquisition
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: convert active UNDP opportunities whose package links point at public SharePoint `AllItems.aspx` folders into downloadable and parseable source documents by recovering through the associated public UNDP procurement notice page when SharePoint rejects server-side fetches.
+
+Changes in this slice:
+- Added UNDP SharePoint package-folder URLs to source-document intake support without treating them as direct binary documents.
+- Added a UNDP document recovery path that maps SharePoint package-folder source documents back to the opportunity's public `procurement-notices.undp.org/view_negotiation.cfm` or `view_notice.cfm` detail URL.
+- Stored the recovered public notice detail HTML with provenance method `undp_notice_detail_html`, preserving the original SharePoint source URL in provenance.
+- Added regression coverage for intake selection and download recovery so UNDP SharePoint package rows remain eligible and recover through the public notice detail page instead of failing on SharePoint 403s.
+
+Live runs:
+- `undp_sharepoint_recovery_dry_20260530T1532` selected 21 active UNDP SharePoint package rows that had previously been unsupported by source-document intake.
+- `undp_sharepoint_recovery_live_20260530T1533` selected 21, downloaded 21, failed 0, parsed 6 immediately, timed out 0, and extracted 29 requirements from the newly created public-notice HTML documents. The remaining selected rows were downloaded and duplicate-linked rather than re-parsed.
+- `undp_sharepoint_recovery_after_dry_20260530T1537` selected 0 UNDP rows, proving the active UNDP selected queue is drained under the deadline-aware selector.
+
+Verification:
+- Focused regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/rfp-document-service.test.ts` with 58 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- `git diff --check` passed.
+- Updated live database snapshot: 4,425 opportunities; 956 RFP documents; 6,574 extracted requirements; 1,730 source-document rows; 1,016 downloaded source documents.
+- UNDP snapshot: 220 downloaded source documents; 0 active selected UNDP source documents remaining; 6 new `undp_notice_detail_html` RFP documents with extracted text lengths from 3,109 to 5,527 characters.
+
+Remaining after this slice:
+- UN Procurement and African Union selected rows currently visible in raw backlog are duplicate-attempt suppressed because identical URLs already have downloaded/attempted source documents.
+- Continue with AfDB, UNICEF, and configured-source cleanup next; those queues are more likely to need source-specific attachment recovery or noise filtering than blind intake.
+
 ### 2026-05-30 - Pacific Community Source-Specific RFP Acquisition
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
