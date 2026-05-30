@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Bound Public Search Fallback Spend
+
+Status: implemented, focused-test verified, typechecked, and live-probed.
+
+Purpose: keep broad RFP acquisition reliable without wasting search budget on public SearXNG instances that are currently rejecting server-side traffic.
+
+Changes in this slice:
+- Changed SearXNG fallback ordering so degraded searches try direct DuckDuckGo HTML before public `searx.space` fanout whenever DuckDuckGo is eligible, not only for DuckDuckGo-only searches.
+- Lowered the default public SearXNG fallback fanout width from 8 instances to 2; `SEARXNG_PUBLIC_FALLBACK_LIMIT` still allows deliberate wider probes.
+- Kept existing public-fallback behavior covered by tests through explicit opt-out of direct-first mode where the test is meant to exercise `searx.space` fanout.
+
+Live evidence:
+- `general_only_search_probe_20260530T_next` ran the high-intent and document search campaigns after the general-category change. It completed 2/2 campaigns, accepted 14 records, updated 14 existing opportunities, imported 0 new opportunities, created 0 source documents, and emitted 121 warnings. The warning mix no longer showed the earlier news/torrent/file-engine noise, but public fallback instances still returned many 403/429/418 responses.
+- A one-query live probe after this slice attempted only 2 public fallback instances (`searxng.website`, `search.undertale.uk`) before returning the primary `search.lindela.io` Bing results, proving the default fallback width is now bounded. The result was still low-quality dictionary content, so query/source strategy remains more important than wider public fallback fanout.
+
+Verification:
+- Focused SearXNG regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/searxng-client-config.test.ts` with 22 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Tiny live probe confirmed the new public fallback width used two public instances rather than the previous eight.
+
+Remaining after this slice:
+- Repair primary `search.lindela.io` engine health or configure a trusted private `SEARXNG_FALLBACK_URLS` pool; public fallback instances remain too throttled for reliable broad RFP growth.
+- Improve high-intent query shaping or source/API routes because some broad Bing results still match dictionary pages rather than procurement opportunities.
+
 ### 2026-05-30 - Keep Broad Search Fanout on General Web Engines
 
 Status: implemented, focused-test verified, and typechecked.

@@ -322,6 +322,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "afdb procurement",
@@ -441,6 +442,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -612,6 +614,7 @@ describe("SearXNG client configuration", () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",
@@ -722,6 +725,57 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://html.duckduckgo.com");
 	});
 
+	it("uses direct DuckDuckGo before public SearXNG fanout for mixed-engine searches", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 1,
+				results: [{
+					title: "Primary Bing RFP",
+					url: "https://buyer.example/primary",
+					content: "Request for proposals.",
+					engine: "bing",
+					score: 1,
+				}],
+				unresponsive_engines: [{ engine: "duckduckgo", error: "timeout" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(`
+				<!doctype html>
+				<html>
+					<body>
+						<div class="result results_links results_links_deep web-result">
+							<h2 class="result__title">
+								<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Fdirect-rfp&amp;rut=abc">Direct RFP</a>
+							</h2>
+							<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fbuyer.example%2Fdirect-rfp&amp;rut=abc">Request for proposals with deadline.</a>
+						</div>
+					</body>
+				</html>
+			`, { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google", "duckduckgo", "bing"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://primary.example",
+			sourceInstances: ["https://primary.example", "https://html.duckduckgo.com"],
+			fallbackFrom: "https://primary.example",
+			fallbackReason: expect.stringContaining("before public SearXNG fallback fanout"),
+			number_of_results: 2,
+		});
+		expect(result.results.map((item) => item.title)).toEqual([
+			"Primary Bing RFP",
+			"Direct RFP",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(new URL(fetchMock.mock.calls[0][0] as string).origin).toBe("https://primary.example");
+		expect(new URL(fetchMock.mock.calls[1][0] as string).origin).toBe("https://html.duckduckgo.com");
+	});
+
 	it("fans out across multiple searx.space fallback instances and dedupes results", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
@@ -811,10 +865,64 @@ describe("SearXNG client configuration", () => {
 		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://slow.example");
 	});
 
+	it("keeps default public SearXNG fanout narrow unless explicitly widened", async () => {
+		process.env.SEARXNG_URL = "https://primary.example";
+		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+				unresponsive_engines: [{ engine: "google", error: "access denied" }],
+			}), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({
+				instances: {
+					"https://fast.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.1 } } },
+					},
+					"https://medium.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.2 } } },
+					},
+					"https://slow.example/": {
+						network_type: "normal",
+						git_url: "https://github.com/searxng/searxng",
+						http: { status_code: 200 },
+						timing: { search: { success_percentage: 100, all: { median: 0.9 } } },
+					},
+				},
+			}), { status: 200 }))
+			.mockImplementation(async () => new Response(JSON.stringify({
+				query: "rfp",
+				number_of_results: 0,
+				results: [],
+			}), { status: 200 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { searchSearxng } = await import("@/lib/services/searxng-client");
+
+		const result = await searchSearxng("rfp", { engines: ["google"] });
+
+		expect(result).toMatchObject({
+			sourceInstance: "https://primary.example",
+			number_of_results: 0,
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(new URL(fetchMock.mock.calls[2][0] as string).origin).toBe("https://fast.example");
+		expect(new URL(fetchMock.mock.calls[3][0] as string).origin).toBe("https://medium.example");
+	});
+
 	it("merges primary results with searx.space fanout when requested engines are partially degraded", async () => {
 		process.env.SEARXNG_URL = "https://primary.example";
 		process.env.SEARXNG_SPACE_INSTANCES_URL = "https://searx.space/data/instances.json";
 		process.env.SEARXNG_PUBLIC_FALLBACK_LIMIT = "1";
+		process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS = "0";
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce(new Response(JSON.stringify({
 				query: "rfp",

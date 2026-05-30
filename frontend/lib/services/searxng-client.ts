@@ -12,7 +12,7 @@ const SEARXNG_BASE_URL = SEARXNG_URL.replace(/\/$/, "");
 const SEARXNG_SPACE_INSTANCES_URL = process.env.SEARXNG_SPACE_INSTANCES_URL || "https://searx.space/data/instances.json";
 const SEARXNG_FALLBACK_CACHE_MS = 60 * 60 * 1000;
 const SEARXNG_FALLBACK_SUPPRESSION_MS = 10 * 60 * 1000;
-const DEFAULT_SEARXNG_FALLBACK_LIMIT = 8;
+const DEFAULT_SEARXNG_FALLBACK_LIMIT = 2;
 const DUCKDUCKGO_HTML_BASE_URL = "https://html.duckduckgo.com";
 
 export function getSearxngBaseUrl(): string {
@@ -495,8 +495,7 @@ function shouldUseDirectDuckduckgoFallback(options: SearchOptions): boolean {
 
 function shouldPreferDirectDuckduckgoBeforePublicFallback(options: SearchOptions): boolean {
   if (process.env.DUCKDUCKGO_DIRECT_FIRST_FALLBACKS === "0") return false;
-  const engines = requestedSearchEngines(options);
-  return engines.length === 1 && engines[0] === "duckduckgo";
+  return shouldUseDirectDuckduckgoFallback(options);
 }
 
 function duckduckgoTimeRangeParam(timeRange: SearchOptions["time_range"]): string | undefined {
