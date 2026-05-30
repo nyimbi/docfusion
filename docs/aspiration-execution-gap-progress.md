@@ -33,12 +33,16 @@ Verification:
 - Direct mixed-source live intake `source_doc_intake_direct_only_mix_live_20260530T0329` selected 25, downloaded 22, failed 3, skipped 0, completed 20 parser jobs, timed out 0 parser jobs, and had 0 parser failures.
 - The live direct-only batch used local `pdftotext` or local DOCX/DOC fallback for successful documents where applicable; Docling was not needed for the successful PDF/DOCX rows.
 - The live direct-only batch added extracted requirements across ESPPRA Eswatini, Mauritius CEB, South Africa eTenders, UN Procurement, Kenya PPIP, and AIIB. Batch verification by source showed 5 ESPPRA documents with 44 requirements, 5 Mauritius CEB documents with 31 requirements, 4 South Africa eTenders documents with 38 requirements, 2 UN Procurement documents with 24 requirements, 1 Kenya PPIP document with 5 requirements, and 3 AIIB documents with 19 requirements.
+- Follow-up reliable-source dry-run `source_doc_intake_direct_only_reliable_noaiib_dry_20260530T0348` selected 25 direct/endpoint rows after excluding AIIB spreadsheet/ZIP rows: ESPPRA Eswatini PDFs, Mauritius CEB DOCX/PDFs, Kenya PPIP PDFs, IOM procurement files, and Rwanda UMUCYO detail endpoints.
+- Follow-up reliable-source live intake `source_doc_intake_direct_only_reliable_noaiib_live_20260530T0349` selected 25, downloaded 25, failed 0, skipped 0, completed 25 parser jobs, timed out 0 parser jobs, and had 0 parser failures.
+- The follow-up live batch added 156 requirements: 5 Kenya PPIP documents with 39 requirements, 5 Rwanda UMUCYO documents with 44 requirements, 5 ESPPRA documents with 37 requirements, 5 Mauritius CEB documents with 25 requirements, and 5 IOM documents with 11 requirements.
 - Focused regression `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` passed with 9 tests.
 - Typecheck `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false` passed.
-- Updated live database snapshot: 3,947 total opportunities, 1,800 RFP-typed opportunities, 368 RFP documents with extracted text, 32,804,159 extracted text characters, and 2,808 extracted `rfp_requirements`.
+- Updated live database snapshot after both direct-only drains: 3,947 total opportunities, 1,800 RFP-typed opportunities, 393 RFP documents with extracted text, 34,830,686 extracted text characters, and 2,964 extracted `rfp_requirements`.
 
 Remaining after this slice:
 - AFDB remains a recovery gap: multiple direct AFDB PDFs returned HTTP 403, and two AFDB rows were marked downloaded by recovery without producing linked RFP document records. Fix AFDB recovery/status handling before spending large batches there.
+- IOM direct media URLs are blocked by 403 in this environment; recovery can still store source-page surrogates, but several IOM rows produced zero requirements. Keep IOM bounded unless source-specific download recovery improves.
 - Add a local-first `.doc` extraction path before Docling; the Mauritius CEB `.doc` succeeded through local binary fallback only after Docling returned no text.
 - Continue direct-only drains across the remaining high-yield national and multilateral source-document queue.
 
