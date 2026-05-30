@@ -16,6 +16,39 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Timeout-Isolated Wide Source Acquisition and RFP Drain
+
+Status: live-proved on the production database, with acquisition and parse evidence captured.
+
+Purpose: aggressively expand RFP acquisition by using the timeout-isolated source acquisition path, then immediately drain newly usable direct-document source rows into RFP documents instead of leaving discovered opportunities idle.
+
+Live runs:
+- `timeout_isolated_source_refresh_20260530T_next` ran 6 configured/source-backed acquisition campaigns with per-source timeout isolation enabled. All 6 campaigns completed, with 658 records, 10 imported opportunities, 646 updated opportunities, 10 source documents created, and 156 warnings. The AfDB source timed out cleanly after 30 seconds inside its campaign instead of stopping later source groups.
+- The live database moved from 4,561 opportunities and 1,854 source-document rows to 4,571 opportunities and 1,864 source-document rows after the timeout-isolated acquisition run.
+- `post_timeout_source_refresh_dry_20260530T_next` selected 30 active source-document rows ready for intake, led by South Africa eTenders PDFs and supported direct endpoints from DAI, Tanzania NeST, Zambia ZPPA, and UNDP notices.
+- `post_timeout_source_refresh_live_20260530T_next` selected 25 direct-document rows, downloaded 24, failed 1 timed-out eTenders URL, and skipped 0. The successful downloads used lightweight local extraction heavily: `local_pdftotext` for PDFs and `local_html_text` for HTML/detail endpoints. Docling was attempted only after weak local PDF extraction; the Docling service on `84.247.181.100:3600` refused or dropped fallback requests during this run.
+- The intake run raised downloaded source documents from 1,023 to 1,047 and RFP documents from 963 to 986.
+- `post_timeout_source_refresh_parse_drain_20260530T_next` processed 10 queued parser jobs, completed 10, failed 0, skipped 15 low-value candidates, and extracted 115 requirements. Three of those completed parser jobs came from the newly acquired direct-document batch.
+
+Final live snapshot after this slice:
+- 4,571 opportunities.
+- 986 RFP documents.
+- 6,735 extracted RFP requirements.
+- 1,864 source-document rows.
+- 1,047 downloaded source documents.
+
+Verification:
+- Live acquisition artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-timeout_isolated_source_refresh_20260530T_next/aggressive-rfp-acquisition.json`.
+- Live intake artifact: `.omx/logs/platform-completion/source-document-intake-post_timeout_source_refresh_live_20260530T_next/source-document-intake.json`.
+- Direct database verification confirmed the final counts above.
+- Parser drain command completed successfully with 10/10 parser jobs completed and 115 requirements extracted.
+
+Remaining after this slice:
+- Keep source/API-backed acquisition and direct-document intake as the highest-throughput path while search-engine fanout remains degraded.
+- Fix or restart Docling on `84.247.181.100:3600`; local `pdftotext` is correctly first, but fallback reliability is currently weak.
+- Investigate the two UNGM update failures from the timeout-isolated run; the run still completed, but those records should not remain recurring import failures.
+- Continue draining queued parser jobs in larger chunks, now that the acquisition side has added another batch of RFP documents.
+
 ### 2026-05-30 - Expand Search Depth and Direct Google Recovery For RFP Acquisition
 
 Status: implemented, focused-test verified, typechecked, and live-probed.
