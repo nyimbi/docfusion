@@ -53,17 +53,20 @@ Verification:
   - UNDP live run `source_doc_intake_undp_detail_50_live_20260530T_acq8`: selected 50, downloaded 50, failed 0, parsed 50, timed out 0, extracted 287 requirements using local HTML extraction.
   - UNDP dry-run `source_doc_intake_undp_detail_100_dry_20260530T_acq9`: selected 82 remaining direct-eligible UNDP negotiation detail pages at `SOURCE_DOCUMENT_INTAKE_LIMIT=100`, `SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=100`, and `SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST=100`.
   - UNDP live run `source_doc_intake_undp_detail_100_live_20260530T_acq9`: selected 82, downloaded 82, failed 0, initially parsed 81, timed out 0. One parser job failed on duplicate requirement numbers, then commit `55a867ee` hardened parser numbering and retrying job `f0c019e9-981d-4779-995b-42ab81340e7a` completed successfully with 14 requirements.
-- Combined aggressive live drain result across `acq1` through `acq9` after the parser retry cleanup: 304 selected rows, 297 downloads, 7 failed downloads, 296 completed parser jobs, 0 remaining parser failures, 0 parser timeouts, and 1,911 extracted requirements.
+  - UN Procurement/UNICEF dry-run `source_doc_intake_un_proc_unicef_dry_20260530T_acq10`: selected 0 direct-only rows, proving those queues need source-specific handling before live drains.
+  - National remaining dry-run `source_doc_intake_national_remaining_dry_20260530T_acq10`: selected only 1 previously failed Ghana retry row, so no live batch was spent on that path.
+  - Small remaining direct live run `source_doc_intake_remaining_direct_live_20260530T_acq10`: selected 4, downloaded 2, failed 2, parsed 2, timed out 0, extracted 11 requirements. The Rockefeller Foundation PDF used local `pdftotext`; the recovered GTAI HTML parsed with 0 requirements, and British Council/archive.org retries remained failed.
+- Combined aggressive live drain result across `acq1` through `acq10` after the parser retry cleanup: 308 selected rows, 299 downloads, 9 failed downloads, 298 completed parser jobs, 0 remaining parser failures, 0 parser timeouts, and 1,922 extracted requirements.
 - Combined UNDP detail live result across `acq6` through `acq9` after the parser retry cleanup: 182 selected rows, 182 downloads, 182 completed parser jobs, 0 remaining failures, 0 parser timeouts, and 1,135 extracted requirements.
-- Current live database snapshot: 4,089 total opportunities, 1,869 RFP-ish opportunities, 1,337 selected source documents, 835 selected documents downloaded, 498 selected documents still queued under the attempts cap, 789 RFP documents with extracted text, 49,602,296 extracted text characters, and 5,385 extracted `rfp_requirements`.
-- Current remaining selected queue by source: Configured Source Scrape 188 queued, Rwanda UMUCYO 48, UN Procurement 42, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, UNDP 24, Kenya PPIP 21, Zambia ZPPA 20, SearXNG 15, Caribbean Development Bank 13, IOM 11, SAM.gov 11, World Bank 11, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
+- Current live database snapshot: 4,089 total opportunities, 1,869 RFP-ish opportunities, 1,337 selected source documents, 837 selected documents downloaded, 495 selected documents still queued under the attempts cap, 791 RFP documents with extracted text, 49,638,483 extracted text characters, and 5,396 extracted `rfp_requirements`.
+- Current remaining selected queue by source: Configured Source Scrape 188 queued, Rwanda UMUCYO 48, UN Procurement 42, UNICEF Supply Division 30, Ghana GHANEPS 28, African Development Bank 26, UNDP 24, Kenya PPIP 21, Zambia ZPPA 20, Caribbean Development Bank 13, SearXNG 12, IOM 11, SAM.gov 11, World Bank 11, African Union 4, asa_ind_0072 4, Asian Infrastructure Investment Bank 1, and EBRD 1.
 
 Remaining after this slice:
 - Treat UNDP negotiation detail intake as mostly drained for the current direct-eligible queue; 24 selected UNDP rows remain and need a separate eligibility/recovery pass.
 - Do not spend routine acquisition batches on AFDB direct PDFs until 403 recovery is improved.
 - Treat the remaining Rwanda UMUCYO queue as non-detail/shared-list residue; the dedicated dry-run selected 0 direct-eligible rows.
 - Split broad search/discovery imports by targeted source group because public search fanout is rate-limited and one oversized run is operationally noisy.
-- Investigate Configured Source Scrape, UN Procurement, UNICEF, and the remaining UNDP rows separately; they remain large queues but are not proven direct drains yet.
+- Investigate Configured Source Scrape, UN Procurement, UNICEF, and the remaining UNDP rows separately; direct-only dry-runs selected no usable UN Procurement/UNICEF rows, so they need source-specific detail/document extraction rather than more blind direct drains.
 
 ### 2026-05-30 - Drain High-Yield Direct National Documents
 
