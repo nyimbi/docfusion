@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Drain RTI and Abt Source Documents Into Parsed Requirements
+
+Status: live-proved.
+
+Purpose: convert the newly acquired RTI and Abt opportunities from source-backed discovery into response-usable RFP intake records. The prior acquisition slice intentionally disabled downloads; this slice verifies that the discovered source documents can be downloaded, text-extracted, parsed, and converted into requirements.
+
+Live run:
+- `source_document_intake_rti_abt_dry_20260531T` selected exactly the 14 RTI/Abt source documents created by the acquisition proof: 8 RTI documents and 6 Abt documents.
+- `source_document_intake_rti_abt_20260531T` then ran actual intake with parsing enabled for source platforms `RTI International` and `Abt Global`.
+- The run selected 14 source documents, downloaded 14, failed 0, skipped 0, completed 14 parses, failed 0 parses, and timed out 0 parses.
+- The document service used the lightweight local parser path for the acquired files: `local_pdftotext` for PDFs and `local_docx_parse` for the Abt DOCX RFQ.
+- Completed parses extracted requirements from every document. Per-document extraction counts were 3, 7, 9, 6, 1, 12, 4, 11, 11, 2, 28, 4, 5, and 12, for 115 requirements total.
+
+Verification:
+- Live source-document intake proof completed with 14/14 downloads and 14/14 completed parses.
+- No source-document download failures, parser failures, or parser timeouts occurred.
+- The proof exercised both RTI PDF links and Abt PDF/DOCX links from the newly source-backed donor/implementer acquisition lane.
+
+Remaining after this slice:
+- The resulting parsed requirements still need downstream response-package/backfill and pursuit-readiness passes for any opportunities selected as worth pursuing.
+- Search fanout degradation remains unresolved; this slice proves that source-backed acquisition can still proceed from opportunity discovery into parsed RFP requirements despite search-provider instability.
+
 ### 2026-05-31 - Add RTI and Abt Source-Backed Donor Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
