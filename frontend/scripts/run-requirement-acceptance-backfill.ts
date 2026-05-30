@@ -1,7 +1,7 @@
 import "./load-env";
 
 import path from "node:path";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -30,6 +30,8 @@ const APPLY = process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_APPLY === "1";
 const USER_ID = (process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_USER_ID ?? process.env.DISCOVERY_IMPORT_USER_ID ?? "system").slice(0, 100);
 const DEFAULT_ASSIGNED_TO = optionalString(process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_DEFAULT_ASSIGNED_TO);
 const DEFAULT_DUE_DATE = optionalDate(process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_DEFAULT_DUE_DATE);
+const TARGET_OPPORTUNITY_IDS = csvStrings(process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_OPPORTUNITY_IDS);
+const SOURCE_PLATFORMS = csvStrings(process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_SOURCE_PLATFORMS);
 const REFRESH_OPPORTUNITY_IDS = csvStrings(process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_REFRESH_OPPORTUNITY_IDS);
 const REASON = process.env.LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_REASON?.trim()
 	|| "Accepted by service backfill after parse-confidence review passed.";
@@ -53,6 +55,8 @@ type AcceptanceBackfillProof = {
 	completedAt?: string;
 	apply: boolean;
 	limit: number;
+	targetOpportunityIds: string[];
+	sourcePlatforms: string[];
 	candidatesFound: number;
 	accepted: Array<{
 		requirementId: string;
@@ -95,6 +99,8 @@ async function main() {
 		startedAt: new Date().toISOString(),
 		apply: APPLY,
 		limit: LIMIT,
+		targetOpportunityIds: TARGET_OPPORTUNITY_IDS,
+		sourcePlatforms: SOURCE_PLATFORMS,
 		candidatesFound: 0,
 		accepted: [],
 		skipped: [],
@@ -190,6 +196,8 @@ async function selectAcceptanceCandidates(): Promise<CandidateRow[]> {
 				select 1 from proposal_documents
 				where proposal_documents.opportunity_id = ${rfpRequirements.opportunityId}
 			)`,
+			...(TARGET_OPPORTUNITY_IDS.length > 0 ? [inArray(opportunities.id, TARGET_OPPORTUNITY_IDS)] : []),
+			...(SOURCE_PLATFORMS.length > 0 ? [inArray(opportunities.sourcePlatform, SOURCE_PLATFORMS)] : []),
 		))
 		.orderBy(asc(rfpRequirements.createdAt))
 		.limit(LIMIT);

@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Promote RTI and Abt Parsed RFPs to Review-Ready Response Packages
+
+Status: implemented, typechecked, and live-proved.
+
+Purpose: carry the new RTI/Abt acquisition lane beyond parsed requirements into actual response-package readiness. This verifies that source-backed opportunities can move through response drafting, requirement acceptance, compliance/readiness checks, and workflow/task projection.
+
+Changes in this slice:
+- Added `LIVE_RESPONSE_BACKFILL_SOURCE_PLATFORMS` and `LIVE_RESPONSE_BACKFILL_OPPORTUNITY_IDS` filters to `run-response-package-backfill.ts` so response-package proofs can target a specific acquisition source instead of sweeping unrelated parsed RFPs.
+- Added `LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_SOURCE_PLATFORMS` and `LIVE_REQUIREMENT_ACCEPTANCE_BACKFILL_OPPORTUNITY_IDS` filters to `run-requirement-acceptance-backfill.ts` so requirement acceptance can be scoped to the response packages created by a source-backed acquisition lane.
+
+Live runs:
+- `response_package_backfill_rti_abt_dry_20260531T` validated 5 RTI/Abt parsed RFP candidates and confirmed each could build a ready source response package, blocked only by pending requirement acceptance.
+- `response_package_backfill_rti_abt_apply_20260531T` persisted response packages for 5 RTI/Abt opportunities, creating 30 proposal documents and 5 win themes. Pursuit fit scores were 78, 85, 100, 100, and 100.
+- `requirement_acceptance_rti_abt_apply_20260531T` accepted 41 parsed requirements for those source platforms, projected proposal tasks, and refreshed response-package workflow receipts.
+- `response_readiness_rti_abt_apply_20260531T` assessed the 5 target opportunities and marked all 5 `ready_for_review` with no blockers.
+
+Verification:
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Readiness proof covered 5/5 targeted RTI/Abt opportunities. Each had requirement coverage 1, source citation coverage 1, evidence citation coverage 1, evidence checklist coverage 1, review gate coverage 1, draft artifact integrity coverage 1, and no missing requirement IDs.
+- Final ready-for-review opportunities were:
+  - `Service Provider to Support the Energy Regulatory Commission (ERC) in Relation to Electricity Tariff Setting for Nuclear Power Plants`
+  - `FPSP-RFP-2026-043: Request for Proposal - Fiji Public Service Leadership Initiative`
+  - `Service Provider for Pre-Feasibility Study for Small Modular Reactor (SMR) Deployment in the Luzon Economic Corridor (LEC) Supporting Pax Silica Industrial Zones`
+  - `ROI - National Tertiary Hospital Project`
+  - `Provision of Office Pest Control Services`
+
+Remaining after this slice:
+- The 5 packages are ready for human review, not final submission. They still need final package rendering/submission-record proof if selected for pursuit.
+- The remaining RTI/Abt parsed documents outside these 5 candidates can be backfilled in later bounded passes after confirming they are worth pursuing.
+
 ### 2026-05-31 - Drain RTI and Abt Source Documents Into Parsed Requirements
 
 Status: live-proved.

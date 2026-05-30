@@ -1,7 +1,7 @@
 import "./load-env";
 
 import path from "node:path";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
 	appendEvidenceRecords,
 	createProofLogDir,
@@ -35,6 +35,8 @@ const MIN_PURSUIT_FIT_SCORE = boundedNumber(process.env.LIVE_RESPONSE_BACKFILL_M
 const REQUIRE_PARSE_REVIEW_READY = process.env.LIVE_RESPONSE_BACKFILL_REQUIRE_PARSE_REVIEW_READY !== "0";
 const DRY_RUN = process.env.LIVE_RESPONSE_BACKFILL_DRY_RUN !== "0";
 const USER_ID = (process.env.LIVE_RESPONSE_BACKFILL_USER_ID ?? process.env.DISCOVERY_IMPORT_USER_ID ?? "system").slice(0, 100);
+const TARGET_OPPORTUNITY_IDS = csvStrings(process.env.LIVE_RESPONSE_BACKFILL_OPPORTUNITY_IDS);
+const SOURCE_PLATFORMS = csvStrings(process.env.LIVE_RESPONSE_BACKFILL_SOURCE_PLATFORMS);
 
 let db: typeof import("@/lib/db")["db"];
 let closeDatabaseConnection: typeof import("@/lib/db")["closeDatabaseConnection"] = async () => undefined;
@@ -75,6 +77,8 @@ type BackfillProof = {
 	minSourceTextChars: number;
 	minPursuitFitScore: number;
 	requireParseReviewReady: boolean;
+	targetOpportunityIds: string[];
+	sourcePlatforms: string[];
 	candidatesFound: number;
 	selected: Array<{
 		opportunityId: string;
@@ -107,6 +111,8 @@ async function main() {
 		minSourceTextChars: MIN_SOURCE_TEXT_CHARS,
 		minPursuitFitScore: MIN_PURSUIT_FIT_SCORE,
 		requireParseReviewReady: REQUIRE_PARSE_REVIEW_READY,
+		targetOpportunityIds: TARGET_OPPORTUNITY_IDS,
+		sourcePlatforms: SOURCE_PLATFORMS,
 		candidatesFound: 0,
 		selected: [],
 		persisted: [],
@@ -219,6 +225,12 @@ async function selectBackfillCandidates(): Promise<CandidateRow[]> {
 	if (REQUIRE_PARSE_REVIEW_READY) {
 		conditions.push(sql`coalesce(${rfpDocuments.metadata}->'parseReview'->>'state', '') in ('accepted', 'auto_accepted')`);
 		conditions.push(sql`coalesce(jsonb_array_length(coalesce(${rfpDocuments.metadata}->'parseReview'->'qualitySignals', '[]'::jsonb)), 0) = 0`);
+	}
+	if (TARGET_OPPORTUNITY_IDS.length > 0) {
+		conditions.push(inArray(opportunities.id, TARGET_OPPORTUNITY_IDS));
+	}
+	if (SOURCE_PLATFORMS.length > 0) {
+		conditions.push(inArray(opportunities.sourcePlatform, SOURCE_PLATFORMS));
 	}
 
 	const rows = await db
@@ -655,6 +667,10 @@ function compactText(value: string, maxLength: number): string {
 
 function stringArray(value: unknown): string[] {
 	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function csvStrings(raw: string | undefined): string[] {
+	return [...new Set(raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? [])];
 }
 
 function recordObject(value: unknown): Record<string, unknown> {
