@@ -16,6 +16,21 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Parse Active Plan International Package
+
+Status: live-run completed and live database verified.
+
+Purpose: turn the active Plan International package acquired by the new source parser into a downloaded and parsed RFP document without spending parser capacity on expired packages.
+
+Live run:
+- Dry run `plan_international_package_intake_dry_20260530T1235` targeted `sourcePlatform = Plan International`, direct documents only, and selected 1 currently eligible package under the existing `deadline >= now()` intake rule.
+- Live run `plan_international_package_intake_live_20260530T1236` selected 1 package, downloaded 1, failed 0, parsed 1, timed out 0, and extracted 19 requirements.
+- The downloaded package was `LC-FY26-003-Agricola-Ferreteria.pdf`; extraction used lightweight `local_pdftotext`.
+- Updated live database snapshot: 4,333 total opportunities; 837 RFP documents; 5,827 extracted requirements; 10 canonical Plan International source-document rows; 1 Plan source document downloaded.
+
+Remaining after this slice:
+- The other canonical Plan packages are currently excluded by the intake selector because their deadlines are before May 30, 2026. Keep them as discovered source documents for audit/history, but do not spend normal parser capacity on them unless explicitly doing retrospective ingestion.
+
 ### 2026-05-30 - Add Plan International Tender Package Parser
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
