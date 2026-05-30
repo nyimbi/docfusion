@@ -479,6 +479,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "au.int" && safeUrlPathname(sourceUrl).startsWith("/en/bids")) sourceId = "african_union";
 	else if (host.includes("aiib.org") && safeUrlPathname(sourceUrl).includes("/project-procurement/")) sourceId = "aiib";
 	else if (host === "mercycorps.org" || host.endsWith(".mercycorps.org")) sourceId = "mercy_corps";
+	else if ((host === "plan-international.org" || host.endsWith(".plan-international.org")) && safeUrlPathname(sourceUrl).startsWith("/calls-tender")) sourceId = "plan_international";
 	else if (host === "savethechildren.net" || host.endsWith(".savethechildren.net")) sourceId = "save_children";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
 	else if (host === "un.org" && safeUrlPathname(sourceUrl).startsWith("/procurement/")) sourceId = "un_procurement";
@@ -919,6 +920,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "iom") return "IOM";
 	if (opportunity?.source === "giz") return "GIZ";
 	if (opportunity?.source === "mercy_corps") return "Mercy Corps";
+	if (opportunity?.source === "plan_international") return "Plan International";
 	if (opportunity?.source === "save_children") return "Save the Children International";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
@@ -957,6 +959,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
 		...(opportunity?.source === "mercy_corps" ? ["mercy-corps", "ngo", "source-documents"] : []),
+		...(opportunity?.source === "plan_international" ? ["plan-international", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "umucyo_rwanda" ? ["umucyo", "rwanda", "national-procurement"] : []),
@@ -1278,7 +1281,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "save_children"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

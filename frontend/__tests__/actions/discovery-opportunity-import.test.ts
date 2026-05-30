@@ -1546,6 +1546,58 @@ describe("discoverAndImportOpportunities", () => {
 		expect(insertedSourceUrl).toBe("https://www.savethechildren.net/tenders/lebanon-country-office-tender-drinking-water-treatment-station");
 	});
 
+	it("imports Plan International tender sections with ZIP packages as source documents", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				html: `
+					<h2 class="wp-block-heading">Calls for tender</h2>
+					<h3 class="wp-block-heading">RFQ FY26-214 Child Protection and Humanitarian Diplomacy </h3>
+					<p>Plan International Global Hub invites proposals for child protection and humanitarian diplomacy.</p>
+					<p>Responses should be submitted no later than 23:59 (GMT) on 27th April 2026.</p>
+					<div class="wp-block-qala-blocks-download-block">
+						<p class="wp-block-qala-blocks-download-block__title">RFQ FY26-214</p>
+						<a href="/uploads/2026/04/RFQ-FY26-214-1.zip" class="wp-block-button__link">Download</a>
+					</div>
+				`,
+				markdown: "",
+				links: ["https://plan-international.org/uploads/2026/04/unrelated-page-wide.pdf"],
+				metadata: { title: "Calls for tender" },
+			},
+		});
+		selectResultsQueue.push([], []);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://plan-international.org/calls-tender/"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFQ FY26-214 Child Protection and Humanitarian Diplomacy",
+			source: "plan_international",
+			sourcePlatform: "Plan International",
+			noticeId: undefined,
+			portalUrl: "https://plan-international.org/calls-tender/",
+			documentUrl: "https://plan-international.org/uploads/2026/04/RFQ-FY26-214-1.zip",
+			tags: expect.arrayContaining(["plan-international", "ngo", "source-documents"]),
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentLinks: [
+						expect.objectContaining({
+							url: "https://plan-international.org/uploads/2026/04/RFQ-FY26-214-1.zip",
+							source: "opportunity_document_url",
+						}),
+					],
+				}),
+			}),
+		}));
+		const insertedSourceUrl = (vi.mocked(db.insert).mock.results[0].value as { values: ReturnType<typeof vi.fn> })
+			.values.mock.calls[0][0].sourceUrl;
+		expect(insertedSourceUrl).toBe("https://plan-international.org/uploads/2026/04/RFQ-FY26-214-1.zip");
+	});
+
 	it("paginates configured source URLs before applying the source scrape limit", async () => {
 		firecrawlScrapeMock
 			.mockResolvedValueOnce({

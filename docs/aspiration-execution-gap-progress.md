@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Add Plan International Tender Package Parser
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: convert Plan International from generic source scraping into reliable package-level acquisition, so each tender row gets its matching ZIP/PDF package instead of inheriting unrelated page-wide documents.
+
+Changes in this slice:
+- Added a source-specific Plan International parser for `plan-international.org/calls-tender/`, extracting tender headings, references, deadlines, summaries, and matching download packages.
+- Made the parser resilient to Plan's malformed empty `<h3>` separator between ITT FY26-002 and its download block.
+- Expanded Plan title detection to include RFI/RF1 labels and Spanish `Licitacion` tenders, including the El Salvador FY26-003 package.
+- Routed Plan configured source imports to canonical `plan_international` source IDs, platform labels, and tags.
+- Added parser and discovery-import regression coverage proving Plan ZIP/PDF packages are attached from the tender section itself, not from unrelated page-wide links.
+
+Verification:
+- Focused parser/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/plan-international-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 60 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Initial live Plan source-only proof imported 7 Plan tenders and created 7 source-document rows with downloads disabled.
+- After the malformed-heading/RFI/Licitacion fix, the live Plan rerun processed 9 candidates, imported 2, updated 7, failed 0, created 3 additional source-document rows, reused 6 existing source-document rows, and reported healthy source health with 0 warnings.
+- Updated live database snapshot: 4,333 total opportunities; 9 canonical `plan_international` opportunities; 13 Plan source-file opportunities; 14 Plan upload source-document rows. The canonical Plan rows now include RF1 FY26-218, ITT FY26-001, ITT FY26-002, ITT FY26-0219, ITT FY26-0221, RFQ FY26-214, RFQ FY26-215, RFQ FY26-216, and Licitacion FY26-003.
+
+Remaining after this slice:
+- Plan source documents were intentionally not downloaded during proof; a bounded source-document intake pass should download and parse the 14 Plan upload rows once parser capacity is allocated.
+- Four earlier generic `source-scrape` Plan rows remain historical noise from before the source-specific parser; canonical `plan_international` rows are now the forward path.
+
 ### 2026-05-30 - Drain Post-Acquisition RFP Parse Queue
 
 Status: implemented, focused-test verified, typechecked, live-run completed, and live database verified.
