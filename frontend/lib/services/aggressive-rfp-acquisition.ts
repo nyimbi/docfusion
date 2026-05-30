@@ -84,6 +84,8 @@ const SOURCE_URLS: Record<string, string> = {
 	fhi360BusinessOpportunities: "https://solicitations.fhi360.org/Solicitation.aspx",
 	palladiumTenders: "https://thepalladiumgroup.com/tenders",
 	jhpiegoWorkWithUs: "https://jhpiego.org/work-with-us/",
+	dtGlobalProposals: "https://dt-global.com/proposals/",
+	careRfps: "https://www.care.org/about-us/contact-us/request-for-proposals/",
 	tetraTechEuropeTenders: "https://intdev.tetratecheurope.com/work-with-us/tender-opportunities/",
 	tetraTechAustraliaPartner: "https://intdev.tetratech.com.au/partner-with-us/",
 	idbProcurementNotices: "https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
@@ -249,6 +251,8 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			SOURCE_URLS.fhi360BusinessOpportunities,
 			SOURCE_URLS.palladiumTenders,
 			SOURCE_URLS.jhpiegoWorkWithUs,
+			SOURCE_URLS.dtGlobalProposals,
+			SOURCE_URLS.careRfps,
 		],
 		queries: [
 			"site:giz.de \"tenders\" \"deadline\" \"request for proposals\"",
@@ -268,6 +272,9 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"site:fhi360.org/partner-us-business-opportunities solicitations \"Closing date\"",
 			"site:thepalladiumgroup.com/tenders RFP tender closing date",
 			"site:jhpiego.org/work-with-us \"RFP\" \"Close Date\"",
+			"site:dt-global.com/proposals RFP \"Application Deadline\"",
+			"site:care.org/about-us/contact-us/request-for-proposals \"Tender submission deadline\"",
+			"site:cowater.com/wp-content/uploads/2026 RFP deadline",
 		],
 	},
 ];

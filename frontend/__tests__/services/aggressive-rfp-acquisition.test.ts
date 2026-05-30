@@ -33,6 +33,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://solicitations.fhi360.org/Solicitation.aspx",
 				"https://thepalladiumgroup.com/tenders",
 				"https://jhpiego.org/work-with-us/",
+				"https://dt-global.com/proposals/",
+				"https://www.care.org/about-us/contact-us/request-for-proposals/",
 				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 				"https://intdev.tetratech.com.au/partner-with-us/",
 			]));
@@ -154,6 +156,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://solicitations.fhi360.org/Solicitation.aspx",
 			"https://thepalladiumgroup.com/tenders",
 			"https://jhpiego.org/work-with-us/",
+			"https://dt-global.com/proposals/",
+			"https://www.care.org/about-us/contact-us/request-for-proposals/",
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
@@ -164,6 +168,9 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:fhi360.org/partner-us-business-opportunities solicitations \"Closing date\"",
 			"site:thepalladiumgroup.com/tenders RFP tender closing date",
 			"site:jhpiego.org/work-with-us \"RFP\" \"Close Date\"",
+			"site:dt-global.com/proposals RFP \"Application Deadline\"",
+			"site:care.org/about-us/contact-us/request-for-proposals \"Tender submission deadline\"",
+			"site:cowater.com/wp-content/uploads/2026 RFP deadline",
 		]));
 		expect(donor.input.scrapeTopResults).toBe(true);
 	});

@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add DT Global and CARE Source-Backed RFP Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: aggressively expand donor/implementer RFP acquisition with more official source pages that expose current proposal records directly, reducing dependence on degraded generic search fanout while still adding targeted Google/DuckDuckGo/SearXNG query coverage.
+
+Changes in this slice:
+- Added a DT Global proposals parser for `https://dt-global.com/proposals/`, including proposal-card extraction, detail-page support, deadline parsing, expired-entry filtering, stable source IDs, and source-document seeding via proposal detail/document links.
+- Added a CARE RFP/RFQ parser for `https://www.care.org/about-us/contact-us/request-for-proposals/`, including current-opportunity extraction, supporting-document links, deadline parsing, and expired-entry filtering so stale visible postings are not imported.
+- Registered DT Global and CARE in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added targeted search queries for DT Global, CARE, and Cowater direct-upload RFP PDFs so Google/DuckDuckGo/Bing/Brave fanout can still find direct RFP files when source pages do not expose a clean current listing.
+- Routed DT Global and CARE configured source URLs through dedicated parsers, labeled imported opportunities as `DT Global` or `CARE`, and preserved source-document tags for downstream intake.
+
+Live runs:
+- `live_discovery_import_dt_global_care_20260531T` ran only the new DT Global and CARE source URLs with source scraping enabled, search-result scraping disabled, downloads enabled, and queued parse mode.
+- DT Global source health was healthy: 1 candidate, 1 imported, 0 failed, and 0 warnings.
+- The run created 1 source-document row, attempted 1 download, downloaded 1, and had 0 source-document download failures.
+- The document service used lightweight `local_html_text` extraction for `RFP - Review of Regulations and Laws related to Land Trustees.html`; Docling fallback was not needed.
+- CARE source health was empty with 1 warning because the current live page content was reachable but the visible postings were already expired; the parser correctly did not import stale CARE entries.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/dt-global-parser.test.ts __tests__/scrapers/care-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 79 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_dt_global_care_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- DT Global imported one current opportunity; run response-package backfill only if its extracted source text is rich enough for a useful proposal package.
+- CARE should remain monitored; the current parser is intentionally expiry-filtered and will collect future CARE postings when the page is refreshed.
+- Cowater currently lacks a clean current listing page; keep the direct-upload search query and revisit with a parser only if a reliable source index is found.
+
 ### 2026-05-31 - Promote FHI 360 RFA to Review-Ready Response Package
 
 Status: live-proved.

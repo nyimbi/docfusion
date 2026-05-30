@@ -3070,6 +3070,81 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes DT Global and CARE configured sources through active RFP parsers", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockImplementation(async (url: string) => {
+			if (url.includes("dt-global.com/proposals")) {
+				return new Response(`
+					<div id="div_block-23-4572-1" class="ct-div-block">
+						<h5 id="headline-35-4572-1">
+							<a href="https://dt-global.com/proposals/rfp-review-of-regulations-and-laws-related-to-land-trustees/">RFP - Review of Regulations and Laws related to Land Trustees</a>
+						</h5>
+						<div id="text_block-47-4572-1"><p>Support to the Solomon Islands Threshold Program.</p></div>
+						<div id="text_block-100-4572-1"><span>2 June 2099, 17.00 (5.00pm) Melbourne Time.</span></div>
+					</div>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response(`
+				<h3 class="title">Impact Market Growth Advisory Platform - Commercialization</h3>
+				<p><strong>Description:</strong><br />CARE seeks to engage an FS-TA Commercialization Consultant.</p>
+				<p><strong>Supporting documents:<br /></strong>
+					<a href="https://www.care.org/wp-content/uploads/2099/04/SOW_IMGA_Platform.docx">Click here to view the SOW</a>
+				</p>
+				<p><strong>Tender submission deadline:</strong><br />May 5, 2099</p>
+			`, { status: 200, headers: { "content-type": "text/html" } });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [
+				"https://dt-global.com/proposals/",
+				"https://www.care.org/about-us/contact-us/request-for-proposals/",
+			],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 2,
+			imported: 2,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP - Review of Regulations and Laws related to Land Trustees",
+			source: "dt_global",
+			sourcePlatform: "DT Global",
+			sourceFile: "source:https://dt-global.com/proposals/",
+			rfpLink: "https://dt-global.com/proposals/rfp-review-of-regulations-and-laws-related-to-land-trustees/",
+			tags: ["external-discovery", "source-scrape", "dt-global", "donor-implementer", "source-documents"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Impact Market Growth Advisory Platform - Commercialization",
+			source: "care",
+			sourcePlatform: "CARE",
+			sourceFile: "source:https://www.care.org/about-us/contact-us/request-for-proposals/",
+			rfpLink: "https://www.care.org/wp-content/uploads/2099/04/SOW_IMGA_Platform.docx",
+			tags: ["external-discovery", "source-scrape", "care", "ngo", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://dt-global.com/proposals/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.care.org/about-us/contact-us/request-for-proposals/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
