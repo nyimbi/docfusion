@@ -719,10 +719,6 @@ describe("discoverAndImportOpportunities", () => {
 							url: "https://procurement.example.com/docs/grants-management-bid-form.docx",
 							source: "scraped_link",
 						}),
-						expect.objectContaining({
-							url: "https://procurement.example.com/docs/annual-report.pdf",
-							source: "scraped_markdown",
-						}),
 					]),
 				}),
 			}),
@@ -736,6 +732,66 @@ describe("discoverAndImportOpportunities", () => {
 			"https://procurement.example.com/docs/grants-management-bid-form.docx",
 		]);
 		expect(insertedSourceUrls).not.toContain("https://procurement.example.com/docs/annual-report.pdf");
+	});
+
+	it("drops award and report PDFs before choosing source documents", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Data platform request for proposals",
+					url: "https://procurement.example.com/tenders/data-platform",
+					content: "Request for proposal with submission deadline.",
+					engine: "google",
+					score: 12,
+					category: "general",
+				},
+			],
+		});
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Data Platform RFP",
+					"[Contract awards above USD100K 2025](/docs/UN-Women-contract-awards-above-USD100K-2025-en.pdf)",
+					"[Annual report](/docs/annual-report.pdf)",
+					"[Request for proposal](/docs/data-platform-rfp.pdf)",
+				].join("\n\n"),
+				links: [
+					"/docs/vendor-profile.xlsx",
+					"/docs/procurement-plan-2026.pdf",
+				],
+				metadata: {
+					title: "Data Platform RFP",
+					description: "Active data platform procurement notice.",
+				},
+			},
+		});
+		selectResultsQueue.push([], [], []);
+
+		const result = await discoverAndImportOpportunities({
+			query: "data platform request for proposals",
+			scrapeTopResults: true,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			documentUrl: "https://procurement.example.com/docs/data-platform-rfp.pdf",
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentLinks: [
+						expect.objectContaining({
+							url: "https://procurement.example.com/docs/data-platform-rfp.pdf",
+						}),
+					],
+				}),
+			}),
+		}));
+		const insertedSourceUrls = vi.mocked(db.insert).mock.results.map((result) => {
+			const insertBuilder = result.value as { values: ReturnType<typeof vi.fn> };
+			return insertBuilder.values.mock.calls[0][0].sourceUrl;
+		});
+		expect(insertedSourceUrls).toEqual(["https://procurement.example.com/docs/data-platform-rfp.pdf"]);
 	});
 
 	it("imports multiple GIZ country tenders that share a portal page", async () => {
