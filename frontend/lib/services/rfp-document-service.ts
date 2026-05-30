@@ -136,6 +136,7 @@ interface StoredFetchedRfpDocument {
 
 type SourceDocumentFetchMethod =
   | "direct"
+  | "spc_tender_detail_link"
   | "umucyo_detail_html"
   | "nest_release_json"
   | "world_bank_procurement_notice_json"
@@ -1152,6 +1153,16 @@ async function fetchSourceDocument(
     });
   }
 
+  if (isSpcTenderDetailUrl(sourceUrl)) {
+    const detail = await fetchSpcTenderDetailDocument(sourceUrl, documentName);
+    if (detail.ok) return detail.document;
+    logger.warn("[RFP Document Service] SPC tender detail attachment fetch failed; trying generic source recovery", {
+      sourceUrl: sourceUrl.toString(),
+      status: detail.status,
+      error: detail.error,
+    });
+  }
+
   const direct = await tryFetchSourceDocumentUrl(sourceUrl, documentName, "direct");
   if (direct.ok) return direct.document;
 
@@ -1191,9 +1202,46 @@ function isWorldBankProcurementDetailUrl(url: URL): boolean {
     && /^\/[a-z]{2}\/projects-operations\/procurement-detail\/OP\d+\/?$/i.test(url.pathname);
 }
 
+function isSpcTenderDetailUrl(url: URL): boolean {
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  return host === "spc.int" && /^\/procurement\/tenders\/[^/]+\/?$/i.test(url.pathname);
+}
+
 function worldBankProcurementNoticeId(url: URL): string | undefined {
   const match = url.pathname.match(/\/procurement-detail\/(OP\d+)\/?$/i);
   return match?.[1]?.toUpperCase();
+}
+
+async function fetchSpcTenderDetailDocument(
+  url: URL,
+  documentName: string
+): Promise<SourceFetchAttempt> {
+  const page = await tryFetchSourceDocumentUrl(url, replaceFileExtension(documentName, ".html"), "direct");
+  if (!page.ok) return page;
+
+  const html = page.document.buffer.toString("utf8");
+  const links = extractDocumentLinksFromScrape({ html }, url, url, documentName)
+    .filter((link) => /\/sites\/default\/files\/tenderfiles\//i.test(link.pathname));
+  if (links.length === 0) {
+    return {
+      ok: false,
+      status: 200,
+      error: "SPC tender detail page did not expose downloadable tender files",
+    };
+  }
+
+  let lastError = "No SPC tender detail attachment could be downloaded";
+  for (const link of links) {
+    const fetched = await tryFetchSourceDocumentUrl(link, decodeURIComponent(link.pathname.split("/").pop() || documentName), "spc_tender_detail_link");
+    if (fetched.ok) return fetched;
+    lastError = fetched.error;
+  }
+
+  return {
+    ok: false,
+    status: 200,
+    error: lastError,
+  };
 }
 
 async function fetchNestTanzaniaReleaseDocument(

@@ -221,6 +221,7 @@ function parserForSourceUrl(sourceUrl: string) {
 	if (host === "un.org" && new URL(sourceUrl).pathname.startsWith("/procurement/")) return getParser("un_procurement") ?? genericParser;
 	if (host.includes("iom.int") && new URL(sourceUrl).pathname.startsWith("/procurement-opportunities")) return getParser("iom") ?? genericParser;
 	if (host.includes("unicef.org")) return getParser("unicef") ?? genericParser;
+	if (host === "spc.int" && new URL(sourceUrl).pathname.startsWith("/procurement")) return getParser("spc") ?? genericParser;
 	if (host.includes("procurement-notices.undp.org")) return getParser("undp") ?? genericParser;
 	if (host.includes("ungm.org")) return getParser("ungm") ?? genericParser;
 	if (host.includes("worldbank.org")) return getParser("world_bank") ?? genericParser;

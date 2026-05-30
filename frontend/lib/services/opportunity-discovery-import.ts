@@ -481,6 +481,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "mercycorps.org" || host.endsWith(".mercycorps.org")) sourceId = "mercy_corps";
 	else if ((host === "plan-international.org" || host.endsWith(".plan-international.org")) && safeUrlPathname(sourceUrl).startsWith("/calls-tender")) sourceId = "plan_international";
 	else if (host === "savethechildren.net" || host.endsWith(".savethechildren.net")) sourceId = "save_children";
+	else if (host === "spc.int" && safeUrlPathname(sourceUrl).startsWith("/procurement")) sourceId = "spc";
 	else if (host.includes("tenders.go.ke")) sourceId = "kenya_ppip";
 	else if (host === "un.org" && safeUrlPathname(sourceUrl).startsWith("/procurement/")) sourceId = "un_procurement";
 	else if (host.includes("procurement-notices.undp.org")) sourceId = "undp";
@@ -922,6 +923,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "mercy_corps") return "Mercy Corps";
 	if (opportunity?.source === "plan_international") return "Plan International";
 	if (opportunity?.source === "save_children") return "Save the Children International";
+	if (opportunity?.source === "spc") return "Pacific Community";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
 	if (opportunity?.source === "ghaneps") return "Ghana GHANEPS";
@@ -961,6 +963,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "mercy_corps" ? ["mercy-corps", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "plan_international" ? ["plan-international", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),
+		...(opportunity?.source === "spc" ? ["spc", "pacific-community", "regional-procurement", "source-documents"] : []),
 		...(opportunity?.source === "egp_uganda" ? ["egp-uganda", "national-procurement"] : []),
 		...(opportunity?.source === "umucyo_rwanda" ? ["umucyo", "rwanda", "national-procurement"] : []),
 		...(opportunity?.source === "ghaneps" ? ["ghaneps", "ghana", "national-procurement"] : []),
@@ -1281,7 +1284,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

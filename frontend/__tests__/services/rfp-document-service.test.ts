@@ -1162,6 +1162,100 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("downloads SPC tender package attachments from detail pages instead of storing only the shell HTML", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.spc.int/procurement/tenders/supply-and-installation-of-warehouse-racking-systems-and-equipment-for-the-ndmo";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Supply and Installation of Warehouse Racking Systems and Equipment.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000452", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000552" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock
+			.mockResolvedValueOnce(new Response(`
+				<html><body>
+					<h1>Supply and Installation of Warehouse Racking Systems and Equipment</h1>
+					<a href="/sites/default/files/tenderfiles/2026-05/RFP26-10247%20-%20Supply%20and%20Installation%20Works%20for%20the%20NDMO%20Warehouse%2C%20Honiara%2C%20SI.pdf">
+						RFP26-10247 - Supply and Installation Works for the NDMO Warehouse, Honiara, SI.pdf
+					</a>
+					<a href="/sites/default/files/tenderfiles/2026-05/Annex%201%20-%20Bidders%20Letter%20of%20Application.docx">
+						Annex 1 - Bidders Letter of Application.docx
+					</a>
+				</body></html>
+			`, {
+				status: 200,
+				headers: {
+					"content-type": "text/html",
+				},
+			}))
+			.mockResolvedValueOnce(new Response("downloaded-pdf", {
+				status: 200,
+				headers: {
+					"content-length": "14",
+					"content-type": "application/pdf",
+				},
+			}));
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "application/pdf",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl: "https://www.spc.int/sites/default/files/tenderfiles/2026-05/RFP26-10247%20-%20Supply%20and%20Installation%20Works%20for%20the%20NDMO%20Warehouse%2C%20Honiara%2C%20SI.pdf",
+				downloadMethod: "spc_tender_detail_link",
+			}),
+		});
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				hostname: "www.spc.int",
+				pathname: "/procurement/tenders/supply-and-installation-of-warehouse-racking-systems-and-equipment-for-the-ndmo",
+			}),
+			expect.any(Object),
+			"Document source URL"
+		);
+		expect(fetchPublicHttpUrlMock).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				hostname: "www.spc.int",
+				pathname: "/sites/default/files/tenderfiles/2026-05/RFP26-10247%20-%20Supply%20and%20Installation%20Works%20for%20the%20NDMO%20Warehouse%2C%20Honiara%2C%20SI.pdf",
+			}),
+			expect.any(Object),
+			"Document source URL"
+		);
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: expect.stringContaining("Extracted RFP text"),
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "pdf",
+			metadata: expect.objectContaining({
+				downloadMethod: "spc_tender_detail_link",
+			}),
+		});
+	});
+
 	it("queues substantive HTML procurement pages after local extraction", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const updates: Record<string, unknown>[] = [];

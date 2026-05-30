@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-30 - Pacific Community Source-Specific RFP Acquisition
+
+Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
+
+Purpose: replace generic SPC page scraping with a source-specific Pacific Community parser that extracts tender rows, filters inactive awards/cancellations, seeds detail-page source documents, and resolves SPC tender detail pages to the actual attached RFP package files.
+
+Changes in this slice:
+- Added an SPC procurement parser for `https://www.spc.int/procurement` that reads Drupal tender rows, normalizes reference/title/deadline/country/unit/category/status, keeps non-awarded procurement rows, and uses each tender detail URL as the source-document handoff.
+- Registered SPC in configured-source routing, source platform naming, source tags, and live source-discovery proof routing so imported rows are labeled `Pacific Community` instead of generic `Configured Source Scrape`.
+- Added an SPC document recovery path in RFP document download: SPC tender detail pages are fetched, `/sites/default/files/tenderfiles/...` attachments are ranked, and the selected RFP/PDF/DOCX package is downloaded instead of storing only thin detail-page HTML.
+
+Live runs:
+- `spc_source_parser_live_20260530T1504` imported 80 SPC candidates from the browser-rendered source page: 12 new opportunities, 68 updates, 0 failures, 0 warnings, and 80 source-document rows created.
+- `spc_source_detail_intake_20260530T1506` downloaded 7 eligible SPC detail documents, failed 0, parsed 7, timed out 0, and extracted 4 requirements from the one detail page with enough inline requirement text.
+- A live re-download of SPC source document `1cf1e49e-7a23-43d5-94c2-2f9208d6c501` proved the new attachment handoff: the detail URL resolved to `RFP26-10247 - Supply and Installation Works for the NDMO Warehouse, Honiara, SI.pdf`, downloaded 1.69 MB, used `local_pdftotext`, extracted 67,498 characters, stored the PDF in Linode E3, and queued parser job `a6c2e12b-82b6-47ea-9b24-4a8652320f5d`.
+
+Verification:
+- Focused regressions passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/spc-parser.test.ts __tests__/services/rfp-document-service.test.ts` with 45 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- `git diff --check` passed.
+- Updated live database snapshot: 4,425 opportunities; 950 RFP documents; 6,545 extracted requirements; 1,730 source-document rows; 995 downloaded source documents.
+- Pacific Community snapshot: 80 opportunities, all 80 with document URLs; 125 source-document rows total; 7 downloaded; 118 still discovered for later intake.
+
+Remaining after this slice:
+- Re-run SPC detail intake after queued parser capacity drains, prioritizing direct package downloads now that detail-page attachments are resolved.
+- Generalize the same detail-page attachment fanout pattern to other sources that expose packages behind HTML tender pages.
+
 ### 2026-05-30 - Expand Detail-Page RFP Acquisition and World Bank Recovery
 
 Status: implemented, focused-test verified, typechecked, live-proved, and live database verified.
