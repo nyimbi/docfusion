@@ -4,6 +4,7 @@ import {
 	isDirectDocumentIntakeSource,
 	isLikelySolicitationSource,
 	isRoutineSourceCandidate,
+	parseSourceDocumentHostLimit,
 	parseSourceDocumentIntakeLimit,
 	isSupportedDocumentSource,
 	parseCsvList,
@@ -104,6 +105,13 @@ describe("source document intake selection helpers", () => {
 		expect(parseSourceDocumentIntakeLimit("250")).toBe(100);
 		expect(parseSourceDocumentIntakeLimit("0")).toBe(1);
 		expect(parseSourceDocumentIntakeLimit(undefined)).toBe(5);
+	});
+
+	it("allows explicit high per-host caps for proven single-host drains", () => {
+		expect(parseSourceDocumentHostLimit("50", 2)).toBe(50);
+		expect(parseSourceDocumentHostLimit("250", 2)).toBe(100);
+		expect(parseSourceDocumentHostLimit("0", 2)).toBe(1);
+		expect(parseSourceDocumentHostLimit(undefined, 2)).toBe(2);
 	});
 
 	it("accepts trusted national notice download endpoints without file extensions", () => {

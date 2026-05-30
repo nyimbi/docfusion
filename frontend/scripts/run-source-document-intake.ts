@@ -22,6 +22,7 @@ const EVIDENCE_PATH = path.resolve(WORKSPACE_ROOT, ".omx", "state", "platform-so
 const SUPPORTED_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"];
 const DIRECT_DOCUMENT_PATTERNS = [".pdf", ".doc", ".docx", ".xlsx", ".xls", ".zip"];
 export const MAX_SOURCE_DOCUMENT_INTAKE_LIMIT = 100;
+export const MAX_SOURCE_DOCUMENT_INTAKE_HOST_LIMIT = MAX_SOURCE_DOCUMENT_INTAKE_LIMIT;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_PATTERN = /(?:https:\/\/(?:www\.ghaneps\.gov\.gh|eprocure\.zppa\.org\.zm)\/epps\/cft\/downloadNoticeForAdvSearch\.do\?[^#\s]*\bresourceId=\d+\b|https:\/\/www\.umucyo\.gov\.rw\/eb\/bav\/selectAdvertisingDtlInfo\.do\?[^#\s]*\btendReferNo=|https:\/\/nest\.go\.tz\/gateway\/nest-data-portal-api\/api\/releases\/[^#\s/]+\/[^#\s/]+|https:\/\/procurement-notices\.undp\.org\/view_negotiation\.cfm\?[^#\s]*\bnego_id=\d+\b)/i;
 const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
 	"(https://(www\\.ghaneps\\.gov\\.gh|eprocure\\.zppa\\.org\\.zm)/epps/cft/downloadNoticeForAdvSearch\\.do\\?[^#[:space:]]*\\mresourceId=[0-9]+\\M|https://www\\.umucyo\\.gov\\.rw/eb/bav/selectAdvertisingDtlInfo\\.do\\?[^#[:space:]]*\\mtendReferNo=|https://nest\\.go\\.tz/gateway/nest-data-portal-api/api/releases/[^#[:space:]/]+/[^#[:space:]/]+|https://procurement-notices\\.undp\\.org/view_negotiation\\.cfm\\?[^#[:space:]]*\\mnego_id=[0-9]+\\M)";
@@ -106,7 +107,7 @@ type SourceDocumentIntakeProof = {
 async function main() {
 	forceLocalEnv(["DATABASE_URL"]);
 	const runtime = await loadRuntime();
-	const maxPerHost = boundedNumber(process.env.SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST, 2, 1, 10);
+	const maxPerHost = parseSourceDocumentHostLimit(process.env.SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST, 2);
 	const proof: SourceDocumentIntakeProof = {
 		runId: RUN_ID,
 		startedAt: new Date().toISOString(),
@@ -122,11 +123,9 @@ async function main() {
 			dryRun: process.env.SOURCE_DOCUMENT_INTAKE_DRY_RUN === "1",
 			retryFailed: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_FAILED === "0" ? false : true,
 			maxPerHost,
-			fillMaxPerHost: boundedNumber(
+			fillMaxPerHost: parseSourceDocumentHostLimit(
 				process.env.SOURCE_DOCUMENT_INTAKE_FILL_MAX_PER_HOST,
-				Math.min(25, Math.max(maxPerHost * 3, maxPerHost)),
-				1,
-				25
+				Math.min(25, Math.max(maxPerHost * 3, maxPerHost))
 			),
 			retryProtectedHosts: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS === "1",
 			sourcePlatforms: parseCsvList(process.env.SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS),
@@ -537,6 +536,10 @@ function boundedNumber(
 
 export function parseSourceDocumentIntakeLimit(raw: string | undefined): number {
 	return boundedNumber(raw, 5, 1, MAX_SOURCE_DOCUMENT_INTAKE_LIMIT);
+}
+
+export function parseSourceDocumentHostLimit(raw: string | undefined, defaultValue: number): number {
+	return boundedNumber(raw, defaultValue, 1, MAX_SOURCE_DOCUMENT_INTAKE_HOST_LIMIT);
 }
 
 export function parseCsvList(raw: string | undefined): string[] {
