@@ -1454,6 +1454,40 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("does not attach unrelated page-wide documents to generic configured-source candidates", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"[Tender for Digital Records Platform](https://buyer.example/tenders/records)",
+					"",
+					"Deadline: 31 December 2026",
+				].join("\n"),
+				links: ["/docs/other-procurement-rfp.pdf"],
+				metadata: { title: "Buyer Tenders" },
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://buyer.example/tenders"],
+			sourceScrapeLimit: 5,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Tender for Digital Records Platform",
+			documentUrl: undefined,
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					documentLinks: [],
+				}),
+			}),
+		}));
+		expect(db.insert).not.toHaveBeenCalled();
+	});
+
 	it("paginates configured source URLs before applying the source scrape limit", async () => {
 		firecrawlScrapeMock
 			.mockResolvedValueOnce({

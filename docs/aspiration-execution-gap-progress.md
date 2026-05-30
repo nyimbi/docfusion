@@ -25,11 +25,12 @@ Purpose: rerun donor/regional acquisition after the raw-HTML generic parser and 
 Changes in this slice:
 - Extended the shared low-value procurement document filter to reject `Notice of Award ...` filenames/labels and supplier guides/manuals before source-document rows are seeded, downloaded, or selected from the queued parser backlog.
 - Added focused coverage for the SPC-style `Notice of Award RFP...` pattern, JAGGAER supplier-guide filenames, and the discovery import path that chooses source-document links.
+- Stopped generic configured-source candidates from inheriting unrelated page-wide document links unless the candidate itself points at a document; this prevents one source listing page from attaching unrelated PDFs to every imported tender card.
 
 Verification:
 - Post-fix live run `aggressive_rfp_acquisition_donor_regional_postfix_20260530T1046` completed 2 campaigns, failed 0, accepted 25 records, imported 22 new opportunities, updated 3, created 61 source-document rows, downloaded 9 source documents, and had 0 source-document download failures.
 - Productive source-health signals from that run: SPC imported 12 candidates; IDB corporate procurement imported 1; Mercy Corps imported 2; Save the Children imported 2 and updated 3; FCDO procurement imported 1; FCDO Services imported 1. CRS and Plan still failed through browser/protection paths; DAI and GTAI remained empty.
-- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-link-filter.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 58 tests.
+- Focused regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/services/rfp-document-link-filter.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 59 tests.
 - Parser queue dry-run `rfp_parse_queue_donor_regional_postfix_filter_dry_20260530b` inspected up to 100 queued candidates, skipped 10 low-value award/supplier-guide candidates, and selected 0 parser jobs, proving the newly tightened filter protects parse capacity before a live parser drain.
 - Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
 - Updated live database snapshot after this run: 4,211 total opportunities; 1,860 `rfp`; 2,109 tender/TENDER; 20 Mercy Corps/Save the Children/SPC-matching donor-regional opportunities; 816 stored RFP documents; 5,670 extracted `rfp_requirements`.

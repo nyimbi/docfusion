@@ -842,8 +842,10 @@ function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): Discovery
 			.map(({ order: _order, ...candidateLink }) => candidateLink);
 	}
 
-	for (const link of extractDocumentLinks(candidate.scrape?.markdown, candidate.scrape?.links, candidate.result.url)) {
-		addDocumentLinkCandidate(candidates, seenUrls, link);
+	if (shouldAttachPageWideDocumentLinks(candidate)) {
+		for (const link of extractDocumentLinks(candidate.scrape?.markdown, candidate.scrape?.links, candidate.result.url)) {
+			addDocumentLinkCandidate(candidates, seenUrls, link);
+		}
 	}
 
 	return candidates
@@ -851,6 +853,11 @@ function collectCandidateDocumentLinks(candidate: DiscoveryCandidate): Discovery
 		.sort((a, b) => b.score - a.score || a.order - b.order)
 		.slice(0, MAX_DISCOVERY_SOURCE_DOCUMENTS)
 		.map(({ order: _order, ...candidateLink }) => candidateLink);
+}
+
+function shouldAttachPageWideDocumentLinks(candidate: DiscoveryCandidate): boolean {
+	return candidate.discoveryMethod !== "source_scrape"
+		|| candidate.opportunity?.source !== "generic";
 }
 
 function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
