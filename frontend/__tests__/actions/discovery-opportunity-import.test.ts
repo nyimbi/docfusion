@@ -2946,6 +2946,79 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes RTI and Abt configured sources through static source parsers", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockImplementation(async (url: string) => {
+			if (url.includes("rti.org/current-opportunities")) {
+				return new Response(`
+					<p><strong>Request for Quote/Proposal (RFQ/RFP)</strong></p>
+					<p><strong>Title:</strong> Service Provider for Physics-Constrained Graph Neural Network Development</p>
+					<p><strong>Project:</strong> Energy Systems Planning and Analysis</p>
+					<p><strong>RFP/Q Number:</strong> ESP-RFP-2099-027</p>
+					<p><strong>Date Proposal Due:</strong> June 12, 2099 at 5:00 PM Manila time</p>
+					<p><strong>Attachment:</strong> <a href="/sites/default/files/rfp-027.pdf">Request for Proposal</a></p>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response(`
+				<h3 class="accordion__item--header-title">FPSP-RFP-2099-043: Request for Proposal - Fiji Public Service Leadership Initiative</h3>
+				<div class="accordion__item--body">
+					<p>Proposals must be submitted electronically before 5:00pm Fiji Time on 26 June 2099.</p>
+					<p><a href="/sites/default/files/fpsp-rfp-2099-043.pdf">RFP documentation</a></p>
+				</div>
+			`, { status: 200, headers: { "content-type": "text/html" } });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [
+				"https://www.rti.org/current-opportunities",
+				"https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
+			],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 2,
+			imported: 2,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Service Provider for Physics-Constrained Graph Neural Network Development",
+			source: "rti",
+			sourcePlatform: "RTI International",
+			sourceFile: "source:https://www.rti.org/current-opportunities",
+			rfpLink: "https://www.rti.org/sites/default/files/rfp-027.pdf",
+			tags: ["external-discovery", "source-scrape", "rti", "donor-implementer"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "FPSP-RFP-2099-043: Request for Proposal - Fiji Public Service Leadership Initiative",
+			source: "abt_global",
+			sourcePlatform: "Abt Global",
+			sourceFile: "source:https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
+			rfpLink: "https://www.abtglobal.com/sites/default/files/fpsp-rfp-2099-043.pdf",
+			tags: ["external-discovery", "source-scrape", "abt-global", "donor-implementer"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.rti.org/current-opportunities",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("treats direct HTTP bot protection as blocked content instead of an empty source", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: true,

@@ -28,6 +28,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.contractsfinder.service.gov.uk/Search",
 				"https://canadabuys.canada.ca/en/tender-opportunities",
 				"https://www.mercycorps.org/tenders",
+				"https://www.rti.org/current-opportunities",
+				"https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
 				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 			]));
 	});
@@ -139,11 +141,16 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.crs.org/bid-opportunities",
 			"https://www.dai.com/our-work/supplier-registration-portal",
 			"https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+			"https://www.rti.org/current-opportunities",
+			"https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
 			"site:dai.com/uploads \"request for proposals\" DAI",
 			"site:plan-international.org/calls-tender tender deadline",
+			"site:rti.org/current-opportunities \"Request for Quote/Proposal\" \"Date Proposal Due\"",
+			"site:abtglobal.com/doing-business-with-abt/commercial-opportunities \"RFP\" \"Closing\"",
+			"site:fhi360.org/partner-us-business-opportunities solicitations",
 		]));
 		expect(donor.input.scrapeTopResults).toBe(true);
 	});

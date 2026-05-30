@@ -79,6 +79,8 @@ const SOURCE_URLS: Record<string, string> = {
 	fcdoProcurement: "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office/about/procurement",
 	fcdoServicesSupplier: "https://www.fcdoservices.gov.uk/why-choose-us/becoming-a-supplier/",
 	gtaiTenders: "https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
+	rtiCurrentOpportunities: "https://www.rti.org/current-opportunities",
+	abtCommercialOpportunities: "https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities",
 	idbProcurementNotices: "https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 	idbCorporateProcurement: "https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
 	pacificCommunityProcurement: "https://www.spc.int/procurement",
@@ -233,6 +235,8 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			SOURCE_URLS.fcdoProcurement,
 			SOURCE_URLS.fcdoServicesSupplier,
 			SOURCE_URLS.gtaiTenders,
+			SOURCE_URLS.rtiCurrentOpportunities,
+			SOURCE_URLS.abtCommercialOpportunities,
 		],
 		queries: [
 			"site:giz.de \"tenders\" \"deadline\" \"request for proposals\"",
@@ -247,6 +251,9 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"site:crs.org \"request for proposals\" \"deadline\"",
 			"site:savethechildren.net \"request for proposal\" procurement",
 			"site:plan-international.org/calls-tender tender deadline",
+			"site:rti.org/current-opportunities \"Request for Quote/Proposal\" \"Date Proposal Due\"",
+			"site:abtglobal.com/doing-business-with-abt/commercial-opportunities \"RFP\" \"Closing\"",
+			"site:fhi360.org/partner-us-business-opportunities solicitations",
 		],
 	},
 ];

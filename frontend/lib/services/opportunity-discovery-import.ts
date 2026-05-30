@@ -522,6 +522,8 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
 	else if (host.includes("giz.de") && safeUrlPathname(sourceUrl).endsWith("/tenders")) sourceId = "giz";
 	else if (host === "gtai.de" && /^\/en\/(?:trade\/tenders|meta\/search\/kfw-tenders)/.test(safeUrlPathname(sourceUrl))) sourceId = "gtai_kfw";
+	else if (host === "rti.org" && safeUrlPathname(sourceUrl).startsWith("/current-opportunities")) sourceId = "rti";
+	else if (host === "abtglobal.com" && safeUrlPathname(sourceUrl).startsWith("/doing-business-with-abt/commercial-opportunities")) sourceId = "abt_global";
 	else if (host.includes("egpuganda.go.ug") && safeUrlPathname(sourceUrl).startsWith("/bid-notices")) sourceId = "egp_uganda";
 	else if (host === "cdn.ppda.go.ug" && safeUrlPathname(sourceUrl).startsWith("/api/bid-invitations")) sourceId = "egp_uganda";
 	else if (host === "umucyo.gov.rw" && safeUrlPathname(sourceUrl).startsWith("/eb/bav/selectListAdvertisingListForGU.do")) sourceId = "umucyo_rwanda";
@@ -959,6 +961,8 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "plan_international") return "Plan International";
 	if (opportunity?.source === "save_children") return "Save the Children International";
 	if (opportunity?.source === "spc") return "Pacific Community";
+	if (opportunity?.source === "rti") return "RTI International";
+	if (opportunity?.source === "abt_global") return "Abt Global";
 	if (opportunity?.source === "egp_uganda") return "Uganda eGP";
 	if (opportunity?.source === "umucyo_rwanda") return "Rwanda UMUCYO";
 	if (opportunity?.source === "ghaneps") return "Ghana GHANEPS";
@@ -1319,7 +1323,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 
@@ -1737,6 +1741,13 @@ async function scrapeAndParseConfiguredSource(
 		lastScrapeResult = scrapeResult;
 		if (!scrapeResult.success || !scrapeResult.data) {
 			if (attempt < maxAttempts) continue;
+			const directHttpResult = await maybeParseConfiguredSourceWithDirectHttp(parser, sourceUrl, limitPerSource);
+			if (directHttpResult.parseResult.opportunities.length > 0) {
+				return {
+					parser,
+					...directHttpResult,
+				};
+			}
 			if (options.browserFallback) {
 				return {
 					parser,
@@ -1745,7 +1756,8 @@ async function scrapeAndParseConfiguredSource(
 						sourceUrl,
 						scrapeResult,
 						lastParseResult,
-						attempt
+						attempt,
+						lastEmptyMessage
 					),
 				};
 			}
@@ -1755,6 +1767,7 @@ async function scrapeAndParseConfiguredSource(
 				scrapeResult,
 				attempts: attempt,
 				method: "firecrawl",
+				lastEmptyMessage: directHttpResult.lastEmptyMessage,
 			};
 		}
 

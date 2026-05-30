@@ -16,6 +16,37 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add RTI and Abt Source-Backed Donor Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand reliable donor/implementer RFP acquisition with source-backed static procurement pages that can produce current opportunities even when generic SearXNG/search fanout is degraded. RTI and Abt Global both publish current RFQ/RFP/EOI/RFA style opportunities with deadlines and document links on crawlable pages.
+
+Changes in this slice:
+- Added an RTI current opportunities parser for `https://www.rti.org/current-opportunities`, including RFQ/RFP heading variants, solicitation IDs, deadlines, document links, source tags, and expired-row filtering.
+- Added an Abt Global commercial opportunities parser for `https://www.abtglobal.com/doing-business-with-abt/commercial-opportunities`, including accordion opportunity extraction, deadline parsing, notice IDs, document links, source tags, and expired-row filtering.
+- Routed RTI and Abt configured source URLs through dedicated parsers and preserved their source identity, source platform, and tags when imported.
+- Moved direct HTTP fallback ahead of browser fallback when Firecrawl fails, so static configured sources can recover cheaply before spending browser capacity.
+- Added RTI, Abt, and FHI 360 targeted queries to the donor/NGO search lane; RTI and Abt are now also default configured discovery sources.
+
+Live run:
+- `aggressive_rfp_acquisition_rti_abt_source_retry_20260531T` ran the donor/NGO acquisition lane with source scraping enabled and downloads disabled for proof isolation.
+- The run completed 1 campaign, failed 0 campaigns, accepted 45 records, imported 14 new opportunities, updated 31 existing opportunities, and created 14 source-document rows with no download or parse work attempted.
+- Source health showed RTI healthy with 8 candidates, 8 imports, 0 warnings, and 0 failures.
+- Source health showed Abt Global healthy with 6 candidates, 6 imports, 0 warnings, and 0 failures.
+- The same run kept other donor sources productive: Mercy Corps 2 updates, CRS 2 updates, Save the Children 16 updates, Plan International 9 updates, FCDO procurement 1 update, and FCDO Services 1 update.
+
+Verification:
+- Focused acquisition/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/rti-parser.test.ts __tests__/scrapers/abt-global-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 75 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Local live-page parser probe parsed 8 active RTI opportunities and 6 active Abt opportunities from current fetched HTML.
+- Live donor/NGO acquisition proof completed successfully with 45 accepted records, 14 imports, 31 updates, 14 source documents created, and 0 campaign failures.
+
+Remaining after this slice:
+- `search.lindela.io` remained degraded in the search portion of the run: Brave rate limits, DuckDuckGo timeouts/suspensions, Google access denial/429, Startpage CAPTCHA, and public fallback errors still appeared. The successful RTI/Abt yield came from configured source acquisition, not search results.
+- FHI 360 is currently query-seeded only; its solicitation portal still needs a browser/API-backed route before it can become source-backed like RTI and Abt.
+- Downloads were intentionally disabled for this proof; the 14 new source-document rows need later document download/parse if they are response-worthy.
+
 ### 2026-05-31 - Add UN Women Source-Backed Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
