@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add New Zealand GETS Current Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand official public-sector RFP acquisition with New Zealand GETS current tenders, replacing generic page scraping for this high-volume portal with deterministic listing pagination and detail-page enrichment.
+
+Changes in this slice:
+- Added a New Zealand GETS parser for `https://www.gets.govt.nz/ExternalIndex.htm?orderBy=date`, including RFx ID extraction, reference capture, tender-type mapping, close-date parsing, expired-deadline filtering, buyer extraction, and detail-page category/region/contact enrichment.
+- Routed GETS listing and tender-detail URLs through the direct source parser path, labeled imported records as `New Zealand GETS`, and preserved GETS metadata and detail-page links for downstream source-document intake.
+- Updated default discovery and the aggressive global public-sector campaign to use the stable current-tenders URL with explicit `orderBy=date`.
+- Kept GETS attachment handling conservative: many attachment flows can require supplier interaction/login, so broad acquisition preserves detail pages first and leaves selected document downloads for pursued opportunities.
+
+Live run:
+- `live_discovery_import_gets_50_20260531T` ran two GETS listing pages with detail-page enrichment enabled for up to 50 notices, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 50 candidates, 45 created, 5 updated, 0 failed, and 0 warnings.
+- The run created 50 source-document rows from GETS detail pages. Downloads and parsing were intentionally disabled for this proof to verify acquisition breadth without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/gets-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 88 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_gets_50_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Increase `GETS_MAX_PAGES` for scheduled broad harvesting when we want more than the first two pages of current GETS tenders.
+- Run selected source-document intake for high-fit GETS imports; authenticated attachment retrieval may require supplier-session or browser-backed handling later.
+
 ### 2026-05-31 - Add CanadaBuys Open Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

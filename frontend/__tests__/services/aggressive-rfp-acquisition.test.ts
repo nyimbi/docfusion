@@ -123,7 +123,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 			"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
 			"https://www.tenders.gov.au/atm",
-			"https://www.gets.govt.nz/ExternalIndex.htm",
+			"https://www.gets.govt.nz/ExternalIndex.htm?orderBy=date",
 		]));
 		expect(run.input.searchEngineFanout).toBe(true);
 		expect(run.input.scrapeTopResults).toBe(true);

@@ -174,6 +174,8 @@ afterEach(() => {
 	delete process.env.GRANTS_GOV_MAX_API_PAGES;
 	delete process.env.CANADABUYS_MAX_PAGES;
 	delete process.env.CANADABUYS_DETAIL_LIMIT;
+	delete process.env.GETS_MAX_PAGES;
+	delete process.env.GETS_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1410,6 +1412,88 @@ describe("discoverAndImportOpportunities", () => {
 			tags: ["external-discovery", "source-scrape", "canadabuys", "canada", "public-procurement", "source-documents"],
 		}));
 		expect(result.sourceDocumentsCreated).toBe(2);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl,
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
+	it("routes New Zealand GETS configured sources through the current tender parser", async () => {
+		process.env.GETS_MAX_PAGES = "1";
+		process.env.GETS_DETAIL_LIMIT = "5";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		const sourceUrl = "https://www.gets.govt.nz/ExternalIndex.htm?orderBy=date";
+		fetchMock
+			.mockResolvedValueOnce(new Response(`
+				<table>
+					<tbody>
+						<tr id="tender-34016603" class="tender blueRow">
+							<td><a href="MSD/ExternalTenderDetails.htm?id=34016603">34016603</a></td>
+							<td><a href="MSD/ExternalTenderDetails.htm?id=34016603">12802</a></td>
+							<td><a href="MSD/ExternalTenderDetails.htm?id=34016603">Debt Collection Services - RFP</a></td>
+							<td><abbr title="Request for Proposals">RFP</abbr></td>
+							<td>12:00 PM 3 Jun 2099 (Pacific/Auckland UTC+12:00)</td>
+							<td>Ministry of Social Development</td>
+						</tr>
+					</tbody>
+				</table>
+			`, { status: 200, headers: { "content-type": "text/html" } }))
+			.mockResolvedValueOnce(new Response(`
+				<table id="tender-details-info-tbl">
+					<tr><td class="label-cell">RFx ID&nbsp;:</td><td>34016603</td></tr>
+					<tr><td class="label-cell">Reference #&nbsp;:</td><td>12802</td></tr>
+					<tr><td class="label-cell">Close Date&nbsp;:</td><td>12:00 PM 3 Jun 2099 (Pacific/Auckland UTC+12:00)</td></tr>
+					<tr><td class="label-cell">Tender Type&nbsp;:</td><td>Request for Proposals (RFP)</td></tr>
+					<tr><td class="label-cell">Categories&nbsp;:</td><td>Finance and Insurance Services; Debt collection services</td></tr>
+					<tr><td class="label-cell">Regions&nbsp;:</td><td>Auckland; Wellington</td></tr>
+					<tr><td class="label-cell">Contact&nbsp;:</td><td>All submissions to be made through the GETS website</td></tr>
+				</table>
+			`, { status: 200, headers: { "content-type": "text/html" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [sourceUrl],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenNthCalledWith(1, sourceUrl, expect.objectContaining({
+			headers: expect.objectContaining({
+				Accept: expect.stringContaining("text/html"),
+				"Accept-Language": "en-NZ,en;q=0.9",
+			}),
+		}));
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://www.gets.govt.nz/MSD/ExternalTenderDetails.htm?id=34016603",
+			expect.any(Object)
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Debt Collection Services - RFP",
+			source: "new_zealand_gets",
+			sourceId: "gets-34016603",
+			noticeId: "12802",
+			sourcePlatform: "New Zealand GETS",
+			sourceFile: `source:${sourceUrl}`,
+			rfpLink: "https://www.gets.govt.nz/MSD/ExternalTenderDetails.htm?id=34016603",
+			portalUrl: "https://www.gets.govt.nz/MSD/ExternalTenderDetails.htm?id=34016603",
+			documentUrl: "https://www.gets.govt.nz/MSD/ExternalTenderDetails.htm?id=34016603",
+			countryRegion: "New Zealand - Auckland; Wellington",
+			tags: ["external-discovery", "source-scrape", "gets", "new-zealand", "public-procurement", "source-documents"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl,
