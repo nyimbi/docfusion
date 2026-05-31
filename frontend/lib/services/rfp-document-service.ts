@@ -1241,6 +1241,11 @@ function isSpcTenderDetailUrl(url: URL): boolean {
   return host === "spc.int" && /^\/procurement\/tenders\/[^/]+\/?$/i.test(url.pathname);
 }
 
+function isDgMarketTenderDetailUrl(url: URL): boolean {
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  return host === "dgmarket.com" && /^\/tender\/\d+\/?$/i.test(url.pathname);
+}
+
 function isUndpSharePointPackageUrl(url: URL): boolean {
   const host = url.hostname.toLowerCase();
   return host === "undp.sharepoint.com"
@@ -2476,6 +2481,16 @@ function shouldRecoverUnusableFetchedHtmlDocument(fetched: FetchedSourceDocument
   );
   if (isChallengeOrErrorPage(text)) return true;
   if (fetched.method !== "direct" && fetched.method !== "searxng_direct") return false;
+
+  let sourceUrl: URL | undefined;
+  try {
+    sourceUrl = new URL(fetched.effectiveUrl);
+  } catch {
+    sourceUrl = undefined;
+  }
+  if (sourceUrl && isDgMarketTenderDetailUrl(sourceUrl) && !isUsableHtmlExtractedText(text)) {
+    return true;
+  }
 
   const lower = html.toLowerCase();
   const hasClientAppRoot =

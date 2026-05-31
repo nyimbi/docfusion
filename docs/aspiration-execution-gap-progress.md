@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - DGMarket Detail Recovery And Requirement Parsing
+
+Status: code repaired, tests passed, live-proved, and parsed requirements persisted.
+
+Purpose: close the DGMarket follow-on gap from the marketplace acquisition slice. DGMarket source acquisition was creating useful opportunities, but direct tender-detail HTML could be too sparse for local HTML extraction, causing downloads to stop at `not_queued`. The document intake path now treats sparse DGMarket tender detail HTML as recoverable and uses the existing Firecrawl/browser/CloakBrowser recovery ladder before deciding the page is unparseable.
+
+Live proof:
+- `source_document_intake_dgmarket_recovery_live_20260601T` retried DGMarket protected-host source documents with `SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS=DGMarket`, `limit=3`, and protected-host retry enabled.
+- The run selected 2 previously failed DGMarket detail pages, downloaded 2, failed 0, completed 2 parse jobs, had 0 zero-requirement parses, 0 `not_queued` parses, and 0 timeouts.
+- Both selected pages first produced sparse direct HTML, then recovered through scrape recovery and local HTML extraction.
+- The parser extracted 3 requirements from `Закупка принтеров для печати с комплектом расходных материалов.html` and 4 requirements from `Financial Manager.html`, adding 2 RFP documents and 7 persisted requirements.
+- Current live totals are 6,281 total opportunities, 6,280 non-rejected opportunities, 1,961 RFP documents, and 13,810 persisted RFP requirements.
+- DGMarket source-document status improved to 4 downloaded and 1 discovered, with no remaining failed DGMarket source documents.
+
+Verification:
+- `npm run test -- --run __tests__/services/rfp-document-service.test.ts` passed: 46 tests.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_dgmarket_recovery_live_20260601T ... npm run source-docs:intake` passed with 2 downloads, 2 completed parses, and 7 extracted requirements.
+- Live DB checks confirmed the document/requirement total increase and DGMarket source-document status improvement.
+
+Remaining after this slice:
+- One DGMarket source document remains discovered; it should be tried in a follow-on intake pass if it is still current and selected.
+- DGMarket detail recovery is now good enough for sparse direct HTML pages, but future marketplace sources should still be evaluated source by source because not all aggregator detail pages expose proposal-grade text.
+
 ### 2026-06-01 - DGMarket Global South Marketplace Acquisition
 
 Status: code expanded, tests passed, live-proved, and follow-on source-document intake measured.

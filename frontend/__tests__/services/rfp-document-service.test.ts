@@ -2243,6 +2243,77 @@ describe("RFP document fetch storage", () => {
 		});
 	});
 
+	it("recovers sparse DGMarket detail HTML through scrape recovery before queueing", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const sourceUrl = "https://www.dgmarket.com/tender/108981718";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "Invitation for Bids for Sino-French Wuhan Smart Water Utilities.html",
+			sourceUrl,
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000462", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000562" }],
+			}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(
+			"<!doctype html><html><body><h1>Invitation for Bids</h1><p>Open</p></body></html>",
+			{
+				status: 200,
+				statusText: "OK",
+				headers: {
+					"content-type": "text/html",
+					"content-length": "78",
+				},
+			}
+		));
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: [
+					"# Invitation for Bids for Sino-French Wuhan Ecological Demonstration City Smart Water Utilities",
+					"The purchaser invites sealed bids from eligible bidders for procurement, supply, installation, configuration, integration, testing, commissioning, training, warranty, and maintenance of smart water utility systems.",
+					"The bidding document includes instructions to bidders, qualification criteria, technical requirements, implementation schedule, bid security requirements, contract conditions, and evaluation methodology for responsive bids.",
+					"Interested firms must submit complete technical and financial proposals before the deadline, including company registration, similar contract experience, audited financial statements, staff qualifications, and manufacturer authorization.",
+					"Clarification requests, site visit procedures, bid opening rules, and award notification requirements are described in the procurement notice.",
+				].join("\n\n"),
+				links: [],
+			},
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+			provenance: expect.objectContaining({
+				sourceUrl,
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
+		expect(insertedValues[0]).toMatchObject({
+			fileType: "html",
+			extractedText: expect.stringContaining("qualification criteria"),
+			metadata: expect.objectContaining({
+				downloadMethod: "firecrawl_landing_page_html",
+			}),
+		});
+	});
+
 	it("keeps multilingual tender pages eligible after scrape recovery", async () => {
 		const insertedValues: Record<string, unknown>[] = [];
 		const sourceUrl = "https://www.dgmarket.com/tender/108981620";
