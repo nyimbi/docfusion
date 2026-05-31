@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Sierra Leone Consulting REOI Direct Intake Drain
+
+Status: live-proved, persisted, and ready for a larger follow-up batch.
+
+Purpose: expand African consulting and public-sector reform opportunity coverage by draining Sierra Leone Ministry of Finance direct REOI/consulting PDFs.
+
+Live proof:
+- `source_document_intake_africa_global_south_next_probe_20260531T` dry-selected 40 direct documents across Africa/Global South sources and showed Sierra Leone Ministry of Finance as the cleanest immediate block: direct REOI and consulting PDFs with little selector noise.
+- `source_document_intake_sierra_leone_direct_20260531T` selected 18 Sierra Leone Ministry of Finance direct documents, downloaded 18, completed 18 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 171 requirements in the run summary.
+- Every Sierra Leone document used local `pdftotext`; Docling was not needed.
+- The batch covered debt-management REOIs, digital-skills training, tourism policy, SME policy/regulations, revenue mobilization, solid-waste strategy, Sani Abacha road REOI, line-of-credit REOI, beneficiary satisfaction survey, and emergency operations centre consulting documents.
+- Current Sierra Leone source-document counts after the drain: 52 discovered and 29 downloaded source-document rows, 29 RFP documents, and 171 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,348 RFP documents, and 9,327 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_sierra_leone_direct_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed global totals and Sierra Leone downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Sierra Leone is high-yield and local-extraction friendly; run a larger follow-up direct drain after recording this proof.
+- Use the cross-source dry probe to stage separate drains for Africa CDC, ECOWAS, DBSA, and South Africa eTenders, filtering procurement plans, amendments, and result notices before mixed live batches.
+
 ### 2026-05-31 - Mali and Togo Direct Intake Expansion
 
 Status: live-proved, persisted, selector-hardened, focused-tested, typechecked, and pushed.
