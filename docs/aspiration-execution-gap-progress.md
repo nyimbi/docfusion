@@ -26,6 +26,8 @@ Changes in this slice:
 - Added Inter-American Development Bank `idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=...` endpoints to the trusted direct-document intake patterns.
 - Kept these endpoints eligible for `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1` even though the URL and filename do not include a `.pdf` extension.
 - Added selector coverage so future IDB rows are not left stranded as discovered source documents.
+- Added a narrow parser-queue allowance for trusted IDB `getdocument.aspx` HTML shells that have no extracted text, so they can use the existing opportunity-metadata fallback instead of stopping at `not_queued`.
+- Bypassed binary hash dedupe for those trusted HTML-shell fallback records because multiple valid IDB opportunities can share identical placeholder bytes but require separate opportunity-specific RFP records.
 
 Live proof:
 - Before the patch, `source_document_intake_idb_global_south_20260531T` selected 0 IDB documents because the endpoints lacked file extensions.
@@ -37,16 +39,21 @@ Live proof:
 - Batch 3 used local `pdftotext` for 9 PDFs and Docling for 1 PDF where local text was unusable; all 10 still completed successfully.
 - A fourth drain, `source_document_intake_idb_global_south_direct_batch4_20260531T`, selected 12 more IDB direct documents, downloaded 12, completed 11 parse jobs, found 1 duplicate RFP document, failed 0, timed out 0, and extracted 67 additional requirements.
 - Batch 4 again used local `pdftotext` for all newly parsed PDFs; two very short-text notices still produced 5 extracted requirements through the parser and metadata fallback path.
-- Current IDB source-document counts after batch 4: 38 discovered, 34 downloaded, 33 RFP documents, and 225 extracted requirements.
-- Current live totals after this drain: 6,082 opportunities and 8,306 persisted RFP requirements.
+- A fifth drain, `source_document_intake_idb_global_south_direct_batch5_20260531T`, selected 12 IDB direct documents, downloaded 12, completed 6 parses, found 2 duplicate RFP documents, failed 0, timed out 0, and extracted 44 additional requirements; 4 sparse IDB HTML shells were stored but not queued before the HTML-shell queue patch.
+- The 4 not-queued IDB rows were reprocessed after the patch: 2 linked to an existing duplicate PDF RFP, 1 PDF parsed with 7 requirements, and 1 trusted HTML shell parsed with 5 requirements.
+- A sixth drain, `source_document_intake_idb_global_south_direct_batch6_20260531T`, selected 12 more IDB direct documents, downloaded 12, completed 12 parse jobs, failed 0, timed out 0, had 0 `not_queued`, and extracted 60 additional requirements.
+- Batch 6 proved the intended extraction order: PDFs used local `pdftotext` where possible, Docling was used only after `pdftotext` failed, and sparse trusted IDB HTML shells completed through metadata fallback instead of being dropped.
+- Current IDB source-document counts after batch 6: 14 discovered, 58 downloaded, 53 RFP documents, and 341 extracted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,237 RFP documents, and 8,422 persisted RFP requirements.
 
 Verification:
+- `npm test -- --run __tests__/services/rfp-document-service.test.ts` passed with 45 tests.
 - `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests.
 - `npx tsc --noEmit --pretty false` passed.
 - Live DB checks confirmed IDB downloaded document, RFP document, and requirement counts.
 
 Remaining after this slice:
-- Continue draining the remaining 38 IDB discovered source documents in bounded batches.
+- Continue draining the remaining 14 IDB discovered source documents in bounded batches.
 - Add more direct-document endpoint patterns for Global South sources discovered by search fanout when valid document URLs do not use file extensions.
 
 ### 2026-05-31 - Global South Search Fanout Acquisition Pass
