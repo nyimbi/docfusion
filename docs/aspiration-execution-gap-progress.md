@@ -16,6 +16,22 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Refresh African National And Regional Acquisition
+
+Status: live-run and recorded.
+
+Purpose: convert the African/Global South focus into immediate database coverage by running the existing African national/regional configured-source campaign with downloads and parsing disabled.
+
+Live runs:
+- `aggressive_rfp_acquisition_africa_national_20260531T` ran the `africa_national` campaign across Kenya PPIP, South Africa eTenders, NeST Tanzania, Uganda PPDA, Rwanda UMUCYO, Ghana GHANEPS, Zambia ZPPA, Malawi MANEPS, Nigeria NOCOPO, Namibia CPBN, Eswatini ESPPRA, AU, COMESA, and GIZ Africa sources.
+- The campaign processed 241 African procurement records: 32 created, 209 updated, 0 failed, 32 source-document rows created, and downloads/parsing intentionally disabled.
+- Source health was healthy for 14 of 15 sources. The AU source had one transient `fetch failed` warning during the batch.
+- `live_discovery_import_african_union_retry_20260531T` immediately retried AU alone and succeeded with 13 candidates updated, healthy source health, 0 failures, and 0 warnings.
+
+Verification:
+- Aggressive acquisition proof artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-aggressive_rfp_acquisition_africa_national_20260531T/aggressive-rfp-acquisition.json`.
+- AU retry proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_african_union_retry_20260531T/live-discovery-import.json`.
+
 ### 2026-05-31 - Add TradeMark Africa Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
