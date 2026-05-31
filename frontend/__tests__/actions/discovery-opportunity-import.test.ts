@@ -3700,6 +3700,88 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("preserves DGMarket source identity for Global South marketplace imports", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				markdown: "",
+				html: `
+					<table class="list_notice_table">
+						<tbody>
+							<tr>
+								<td>
+									<input type="hidden" name="noticeId" value="108981643">
+									<div class="ln_notice_title">
+										<a href="/tender/108981643">Supply and installation of education data platform</a>
+									</div>
+									<p>
+										<span class="ln_title country_icon">Country:&nbsp;</span>
+										<span class="ln_listing">Kenya</span>
+									</p>
+									<p>
+										<span class="ln_title type_icon">Type:</span>
+										<span class="ln_listing">Request for Proposals</span>
+									</p>
+								</td>
+								<td>
+									<div class="ln_title2">Published</div>
+									<div class="ln_date">May 26, 2026</div>
+									<div class="ln_title2">Deadline</div>
+									<div class="ln_deadline">Jun 15, 2026</div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				`,
+				links: ["https://www.dgmarket.com/tender/108981643"],
+				metadata: {
+					title: "DGMarket",
+				},
+			},
+		});
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.dgmarket.com"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Supply and installation of education data platform",
+			source: "dgmarket",
+			sourcePlatform: "DGMarket",
+			sourceFile: "source:https://www.dgmarket.com/",
+			rfpLink: "https://www.dgmarket.com/tender/108981643",
+			tags: ["external-discovery", "source-scrape", "dgmarket", "global-south", "global-procurement", "source-documents"],
+			metadata: expect.objectContaining({
+				discovery: expect.objectContaining({
+					engine: "source_scrape",
+					sourceUrl: "https://www.dgmarket.com/",
+					resultEngine: "firecrawl-source",
+					scrapedWithFirecrawl: true,
+					scrapeMethod: "firecrawl",
+				}),
+			}),
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.dgmarket.com/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+				warnings: 0,
+			}),
+		]);
+	});
+
 	it("routes RTI and Abt configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - DGMarket Global South Marketplace Acquisition
+
+Status: code expanded, tests passed, live-proved, and follow-on source-document intake measured.
+
+Purpose: broaden Global South tender/RFP sourcing beyond direct national and donor portals by promoting DGMarket from the passive default source list into the aggressive acquisition plan. DGMarket has an existing parser for development/aid-sector tender listings, so this adds a source-backed marketplace lane without introducing a new dependency or relying solely on degraded public search fanout.
+
+Live proof:
+- `aggressive_rfp_acquisition_global_south_marketplaces_20260601T` ran the new `global_south_marketplaces` campaign with DGMarket source scraping, targeted DGMarket search queries, `limitPerQuery=1`, `sourceScrapeLimit=5`, and downloads disabled.
+- The proof completed 1 campaign, failed 0 campaigns, processed 6 records, imported 2 new opportunities, updated 4 opportunities, and created 1 new source-document row.
+- DGMarket source health was healthy: 5 configured-source candidates, 1 imported, 4 updated, 0 source warnings.
+- Broad search fanout still degraded: `search.lindela.io` reported Google/Brave/DuckDuckGo/Startpage degradation and most public fallback SearXNG instances returned 403/418/429. The configured DGMarket source scrape still produced usable records.
+- DGMarket identity is now preserved as `source="dgmarket"` and `sourcePlatform="DGMarket"` instead of being collapsed into generic `source-scrape`.
+- `source_document_intake_dgmarket_probe_20260601T` selected 2 DGMarket HTML detail pages when protected-host retry was enabled.
+- `source_document_intake_dgmarket_live_20260601T` downloaded both selected DGMarket detail pages, failed 0 downloads, and queued 0 parses because both HTML pages were too sparse for local HTML extraction; Docling was correctly skipped for HTML.
+- Current live totals after this run are 6,281 total opportunities, 6,280 non-rejected opportunities, 1,959 RFP documents, and 13,803 persisted RFP requirements.
+- Current DGMarket live rows: 5 opportunities under `source="dgmarket"` / `sourcePlatform="DGMarket"`; DGMarket source documents are 1 discovered, 2 downloaded, and 2 failed.
+
+Verification:
+- `npm run test -- --run __tests__/services/aggressive-rfp-acquisition.test.ts` passed: 9 tests.
+- `npm run test -- --run __tests__/actions/discovery-opportunity-import.test.ts` passed: 83 tests.
+- `npm run test -- --run __tests__/scrapers/dgmarket-parser.test.ts` passed: 3 tests.
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_global_south_marketplaces_20260601T ... npm run rfp:acquire` passed with 2 imported opportunities, 4 updates, 1 source document created, and healthy DGMarket source status.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_dgmarket_live_20260601T ... npm run source-docs:intake` passed with 2 downloads, 0 failures, and 2 `not_queued` sparse HTML parses.
+- Live DB checks confirmed global totals, DGMarket source counts, and DGMarket source-document status.
+
+Remaining after this slice:
+- DGMarket detail pages are useful for opportunity sourcing but not yet response-ready document parsing; the next material repair is a DGMarket detail-page extractor that turns the tender detail HTML/markdown into richer local HTML text or direct document links before parser queueing.
+- Search fanout remains externally degraded and should not be treated as the primary reliable collection path until SearXNG fanout/proxying improves.
+- Continue running source-backed Global South campaigns with chunking and downloads separated from acquisition proofs.
+
 ### 2026-06-01 - Africa National Acquisition Chunking
 
 Status: code repaired, tests passed, live-proved across the full African national source group, and DB counts refreshed.

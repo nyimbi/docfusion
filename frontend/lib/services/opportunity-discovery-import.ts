@@ -233,6 +233,7 @@ const SOURCE_SCRAPE_IMPORT_SOURCES = new Set([
 	"new_zealand_gets",
 	"grants_gov",
 	"eu_funding_tenders",
+	"dgmarket",
 	"comesa",
 	"sadc",
 	"ecowas",
@@ -1135,6 +1136,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "new_zealand_gets") return "New Zealand GETS";
 	if (opportunity?.source === "grants_gov") return "Grants.gov";
 	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
+	if (opportunity?.source === "dgmarket") return "DGMarket";
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "sadc") return "SADC";
 	if (opportunity?.source === "ecowas") return "ECOWAS";
@@ -1209,6 +1211,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "new_zealand_gets" ? ["gets", "new-zealand", "public-procurement", "source-documents"] : []),
 		...(opportunity?.source === "grants_gov" ? ["grants-gov", "us-federal", "grant"] : []),
 		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
+		...(opportunity?.source === "dgmarket" ? ["dgmarket", "global-south", "global-procurement", "source-documents"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "sadc" ? ["sadc", "southern-africa", "regional-procurement", "source-documents"] : []),
 		...(opportunity?.source === "ecowas" ? ["ecowas", "west-africa", "regional-procurement", "source-documents"] : []),

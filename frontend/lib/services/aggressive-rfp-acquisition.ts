@@ -65,6 +65,7 @@ const SOURCE_URLS: Record<string, string> = {
 	unicef: "https://www.unicef.org/supply/service-contracts-tender-calendar",
 	cdb: "https://www.caribank.org/work-with-us/procurement/procurement-notices",
 	cebMauritius: "https://ceb.mu/procurement/tender",
+	dgMarket: "https://www.dgmarket.com",
 	samRfp: "https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
 	samUsaid: "https://sam.gov/search/?index=opp&keywords=USAID",
 	euFunding: "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/calls-for-proposals?keywords=proposal",
@@ -275,6 +276,22 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"site:spc.int/procurement \"request for proposal\"",
 			"site:intdev.tetratech.com.au/partner-with-us tender \"Closing Date and Time\"",
 			"site:intdev.tetratecheurope.com/work-with-us/tender-opportunities tender deadline",
+		],
+	},
+	{
+		id: "global_south_marketplaces",
+		label: "Global South tender marketplaces",
+		sourceUrls: [
+			SOURCE_URLS.dgMarket,
+		],
+		queries: [
+			"site:dgmarket.com/tender Africa \"Deadline\" \"request for proposals\"",
+			"site:dgmarket.com/tender \"Latin America\" \"Deadline\" tender",
+			"site:dgmarket.com/tender Caribbean \"Deadline\" procurement",
+			"site:dgmarket.com/tender Asia \"Expression of Interest\"",
+			"site:dgmarket.com/tender \"consulting services\" \"World Bank\" Africa",
+			"site:dgmarket.com/tender \"AfDB\" OR \"African Development Bank\" tender",
+			"site:dgmarket.com/tender \"digital\" \"request for proposals\"",
 		],
 	},
 	{

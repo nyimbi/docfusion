@@ -17,6 +17,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"document_search",
 			"global_public_sector",
 			"global_regional_search",
+			"global_south_marketplaces",
 			"donor_ngo_search",
 		]);
 		expect(new Set(campaignIds).size).toBe(campaignIds.length);
@@ -61,6 +62,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 				"https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards",
 				"https://intdev.tetratech.com.au/partner-with-us/",
+				"https://www.dgmarket.com",
 			]));
 	});
 
@@ -224,6 +226,29 @@ describe("aggressive RFP acquisition campaigns", () => {
 	it("selects requested campaigns by id", () => {
 		expect(selectAggressiveRfpAcquisitionCampaigns(["development_banks", "document_search"]).map((campaign) => campaign.id))
 			.toEqual(["development_banks", "document_search"]);
+	});
+
+	it("builds DGMarket as a source-backed Global South marketplace campaign", () => {
+		const [run] = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["global_south_marketplaces"],
+			limitPerQuery: 3,
+			searchPages: 1,
+			sourceScrapeLimit: 10,
+			scrapeLimit: 2,
+			browserFallbackLimit: 1,
+			downloadLimit: 4,
+			downloadParseMode: "queued",
+		});
+
+		expect(run.campaign.id).toBe("global_south_marketplaces");
+		expect(run.input.sourceUrls).toEqual(["https://www.dgmarket.com"]);
+		expect(run.input.queries).toEqual(expect.arrayContaining([
+			"site:dgmarket.com/tender Africa \"Deadline\" \"request for proposals\"",
+			"site:dgmarket.com/tender \"consulting services\" \"World Bank\" Africa",
+			"site:dgmarket.com/tender \"AfDB\" OR \"African Development Bank\" tender",
+		]));
+		expect(run.input.scrapeTopResults).toBe(true);
+		expect(run.input.downloadDiscoveredDocuments).toBe(true);
 	});
 
 	it("turns donor and regional search groups into source-backed campaigns", () => {
