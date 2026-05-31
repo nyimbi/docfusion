@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Enabel Global South Direct Document Drain
+
+Status: live-proved, persisted, lightweight-extraction only, and current direct-document queue drained.
+
+Purpose: expand Global South donor/procurement coverage with Enabel tender documents from Burundi, Burkina Faso, Guinea, and Jordan while avoiding another scan-heavy Docling-dependent batch.
+
+Live proof:
+- `source_document_intake_un_enabel_iom_probe_20260531T` identified Enabel as the cleanest next NGO/donor direct-document queue after Benin and Rwanda.
+- `source_document_intake_enabel_direct_20260531T` selected 10 Enabel documents, downloaded 10, completed 10 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every Enabel document used lightweight local extraction: DOCX files used local DOCX parsing and PDFs used local `pdftotext`; Docling was not invoked.
+- `source_document_intake_enabel_remainder_probe_20260531T` selected 0 rows after the live drain.
+- Current Enabel source-document counts after this drain: 5 discovered and 20 downloaded source-document rows, 20 RFP documents, and 89 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,747 RFP documents, and 12,194 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_enabel_direct_20260531T ... npm run source-docs:intake` completed with 10 downloads, 10 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_enabel_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows after the current direct-document drain.
+- Live DB checks confirmed global totals plus Enabel discovered/downloaded source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Refresh Enabel discovery before expecting more current direct documents; the currently eligible direct queue is drained.
+- Continue with Global South NGO/donor queues that dry-probe cleanly, especially NRC/IRC/IOM, while filtering out non-solicitation noise in BOAD/TradeMark Africa before live ingestion.
+
 ### 2026-05-31 - Rwanda UMUCYO Detail Queue Drain
 
 Status: live-proved, persisted, lightweight-extraction only, and current detail-document queue drained.
