@@ -147,6 +147,9 @@ vi.mock("@/lib/db", () => {
 			rfpRequirements: {
 				findMany: vi.fn(),
 			},
+			opportunities: {
+				findFirst: vi.fn(),
+			},
 		},
 		select: vi.fn(() => createChain()),
 		insert: vi.fn(() => createChain()),
@@ -178,6 +181,7 @@ beforeEach(() => {
 	});
 	dbMock.query.rfpDocuments.findFirst.mockResolvedValue(documentRow);
 	dbMock.query.rfpParsingJobs.findFirst.mockResolvedValue(latestJob);
+	dbMock.query.opportunities.findFirst.mockResolvedValue(undefined);
 	dbMock.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(dbMock));
 	dbMock.execute.mockResolvedValue([]);
 	storageMock.getLinodeE3ConfigFromEnv.mockReturnValue({
@@ -744,6 +748,125 @@ describe("RFP parse workflow", () => {
 				reason: expect.stringContaining("without extracting any actionable requirements"),
 				metadata: expect.objectContaining({
 					qualitySignals: ["zero_requirements_extracted"],
+				}),
+			})
+		);
+	});
+
+	it("derives review-required fallback requirements from opportunity metadata when notice parsing extracts none", async () => {
+		const updates: Record<string, unknown>[] = [];
+		let insertedRequirements: Record<string, unknown>[] | undefined;
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "Avis d'appel d'offres with deadline and DAO retrieval instructions.",
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.query.opportunities.findFirst.mockResolvedValue({
+			id: documentRow.opportunityId,
+			organizationId: "org-1",
+			title: "Acquisition de materiel informatique pour les communes",
+			deadline: new Date("2026-07-15T10:00:00.000Z"),
+			projectSummary: "Supply and install computers, printers, and network equipment.",
+			projectScope: null,
+			keyRequirements: "Provide warranty, delivery schedule, and after-sales service.",
+			technicalRequirements: "Equipment must meet the minimum specifications in the notice.",
+			submissionMethod: "Depot physique au secretariat de la PRMP.",
+			submissionRequirements: "Include administrative, technical, and financial offers.",
+			sourcePlatform: "Benin Public Procurement Portal",
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert.mockReturnValue(createChain({
+			onValues: (value) => {
+				if (Array.isArray(value)) insertedRequirements = value;
+			},
+		}));
+		vi.mocked(parseRFPWithAI).mockResolvedValue({
+			issuingAgency: "Benin PRMP",
+			solicitationNumber: "AO-2026",
+			sections: [{
+				sectionId: "s1",
+				title: "Avis",
+				pageStart: 1,
+				pageEnd: 1,
+				content: "Avis d'appel d'offres with deadline and DAO retrieval instructions.",
+			}],
+			confidence: 0.93,
+		});
+		vi.mocked(batchExtractRequirements).mockResolvedValue(new Map([[
+			"s1",
+			{
+				source: "ai",
+				requirements: [],
+			},
+		]]));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(insertedRequirements?.length).toBeGreaterThanOrEqual(6);
+		expect(insertedRequirements).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				requirementNumber: "META-001",
+				sourceSection: "Opportunity metadata: title",
+				requirementText: expect.stringContaining("Acquisition de materiel informatique"),
+				category: "administrative",
+				aiAnalysis: expect.objectContaining({
+					source: "opportunity_metadata_fallback",
+				}),
+			}),
+			expect.objectContaining({
+				sourceSection: "Opportunity metadata: deadline",
+				requirementText: "Submit the response by the published deadline: 2026-07-15T10:00:00.000Z.",
+				category: "administrative",
+			}),
+			expect.objectContaining({
+				sourceSection: "Opportunity metadata: technicalRequirements",
+				category: "technical",
+			}),
+		]));
+		expect(updates).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				status: "completed",
+				progress: 100,
+				requirementsExtracted: insertedRequirements?.length,
+			}),
+		]));
+		const finalDocumentUpdate = updates.find((update) =>
+			update.parsingStatus === "completed" &&
+			(update.metadata as any)?.parseReview?.qualitySignals?.includes("metadata_fallback_requirements")
+		);
+		expect(finalDocumentUpdate).toMatchObject({
+			parsingStatus: "completed",
+			parsingProgress: 100,
+			metadata: {
+				parseReview: {
+					state: "needs_review",
+					confidence: 93,
+					qualitySignals: ["metadata_fallback_requirements"],
+					reason: "Parser extracted no document requirements; fallback requirements were derived from opportunity metadata and require review.",
+				},
+				extractionProvenance: {
+					source: "metadata_fallback",
+					aiSectionCount: 1,
+					heuristicSectionCount: 0,
+					metadataFallbackRequirementCount: insertedRequirements?.length,
+				},
+			},
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "needs_confidence_review",
+				reason: expect.stringContaining("fallback requirements were derived"),
+				metadata: expect.objectContaining({
+					qualitySignals: ["metadata_fallback_requirements"],
 				}),
 			})
 		);

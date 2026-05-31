@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Benin Notice Metadata Requirement Fallback
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: keep African and Global South notice-only procurements useful for response work when the source PDF is an official notice but does not contain enough explicit proposal requirements for the parser to extract directly.
+
+Changes in this slice:
+- Added a parser fallback that runs only after normal AI/heuristic document extraction returns zero requirements and the RFP document is linked to an opportunity record.
+- Derived low-confidence review-required requirements from opportunity metadata fields such as title, project summary, key requirements, technical requirements, submission requirements, submission method, deadline, and source platform.
+- Marked fallback parses with `parseReview.qualitySignals: ["metadata_fallback_requirements"]`, `parseReview.state: "needs_review"`, and `extractionProvenance.source: "metadata_fallback"` so operators can distinguish source-derived requirements from document-extracted requirements.
+- Preserved the existing `zero_requirements_extracted` guard for parses where neither the document nor opportunity metadata yields actionable requirements.
+
+Live proof:
+- `source_document_intake_benin_metadata_fallback_20260531T` selected 1 fresh Benin Public Procurement Portal document, downloaded 1, completed 1 parse, failed 0, timed out 0, and produced 5 requirements.
+- The proof document `36391007052026_Pj_Avis Elargissement plage d'activité.pdf` attempted local `pdftotext` first, fell back to Docling for text extraction, then used opportunity metadata fallback because document requirement extraction still produced no requirements.
+- A live `psql` check on RFP document `681f6708-c274-457a-8431-7fe1c7f38e45` confirmed `extractionProvenance.source = metadata_fallback`, `metadataFallbackRequirementCount = 5`, `parseReview.state = needs_review`, and `parseReview.qualitySignals = ["metadata_fallback_requirements"]`.
+
+Verification:
+- `npm test -- --run __tests__/actions/rfp-parse-workflow.test.ts` passed with 19 tests.
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 15 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue discovering richer full DAO/dossier documents from the Benin portal/API where available; metadata fallback is a reviewable minimum, not a substitute for full solicitation packages.
+- Continue bounded high-value source-document intake across Togo, Mali, Benin, and other African/Global South sources now that notice-only documents no longer dead-end at zero requirements.
+
 ### 2026-05-31 - West Africa Direct Document Intake Proof
 
 Status: implemented, focused-tested, live-proved, and gap-identified.

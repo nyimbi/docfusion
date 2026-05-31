@@ -14,11 +14,13 @@ import { createHash } from "node:crypto";
 
 import { db } from "@/lib/db";
 import {
+	opportunities,
 	rfpDocuments,
 	rfpRequirements,
 	complianceMatrices,
 	complianceEntries,
 	rfpParsingJobs,
+	type OpportunityRow,
 	type NewRfpDocument,
 	type NewRfpRequirement,
 	type NewComplianceMatrix,
@@ -90,6 +92,7 @@ const RFP_REQUIREMENT_VARCHAR_LIMITS = {
 	priority: 20,
 	riskLevel: 20,
 } as const;
+const RFP_METADATA_FALLBACK_TEXT_LIMIT = 1600;
 
 export function uniqueRfpRequirementNumber(
 	rawRequirementNumber: string | null | undefined,
@@ -180,6 +183,133 @@ function compactStorageText(value: string | null | undefined, maxLength: number)
 
 function compactStorageTextOrNull(value: string | null | undefined, maxLength: number): string | null {
 	return compactStorageText(value, maxLength) ?? null;
+}
+
+function compactRequirementFallbackText(value: string | null | undefined): string | undefined {
+	return compactStorageText(value, RFP_METADATA_FALLBACK_TEXT_LIMIT);
+}
+
+function formatOpportunityDeadline(deadline: OpportunityRow["deadline"]): string | undefined {
+	if (!deadline) return undefined;
+	const date = deadline instanceof Date ? deadline : new Date(deadline);
+	if (Number.isNaN(date.getTime())) return undefined;
+	return date.toISOString();
+}
+
+function buildOpportunityMetadataFallbackRequirements(
+	opportunity: Pick<
+		OpportunityRow,
+		| "title"
+		| "deadline"
+		| "projectSummary"
+		| "projectScope"
+		| "keyRequirements"
+		| "technicalRequirements"
+		| "submissionMethod"
+		| "submissionRequirements"
+		| "sourcePlatform"
+	>,
+): ExtractedRequirement[] {
+	const requirements: ExtractedRequirement[] = [];
+	const seen = new Set<string>();
+	const addRequirement = (input: {
+		field: string;
+		title: string;
+		fullText: string | undefined;
+		category: RfpRequirementCategory;
+		requirementType?: "shall" | "should" | "may" | "will";
+		priority?: RfpRequirementPriority;
+		confidenceScore?: number;
+	}) => {
+		const fullText = compactRequirementFallbackText(input.fullText);
+		if (!fullText) return;
+		const normalized = fullText.toLowerCase();
+		if (seen.has(normalized)) return;
+		seen.add(normalized);
+		requirements.push({
+			requirementNumber: `META-${String(requirements.length + 1).padStart(3, "0")}`,
+			sectionReference: `Opportunity metadata: ${input.field}`,
+			title: input.title,
+			fullText,
+			summary: `Derived from opportunity metadata field "${input.field}" because the source document yielded no extracted requirements.`,
+			category: input.category,
+			requirementType: input.requirementType ?? "shall",
+			priority: input.priority ?? "mandatory",
+			confidenceScore: input.confidenceScore ?? 0.55,
+		});
+	};
+
+	addRequirement({
+		field: "title",
+		title: "Respond to Published Opportunity",
+		fullText: `Prepare a response for the published procurement opportunity: ${opportunity.title}.`,
+		category: "administrative",
+		confidenceScore: 0.5,
+	});
+	addRequirement({
+		field: "projectSummary",
+		title: "Address Project Summary",
+		fullText: opportunity.projectSummary ? `Address the published project summary: ${opportunity.projectSummary}` : undefined,
+		category: "technical",
+	});
+	addRequirement({
+		field: "projectScope",
+		title: "Address Project Scope",
+		fullText: opportunity.projectScope ? `Address the published project scope: ${opportunity.projectScope}` : undefined,
+		category: "technical",
+	});
+	addRequirement({
+		field: "keyRequirements",
+		title: "Address Key Requirements",
+		fullText: opportunity.keyRequirements ? `Address the published key requirements: ${opportunity.keyRequirements}` : undefined,
+		category: "compliance",
+	});
+	addRequirement({
+		field: "technicalRequirements",
+		title: "Address Technical Requirements",
+		fullText: opportunity.technicalRequirements
+			? `Address the published technical requirements: ${opportunity.technicalRequirements}`
+			: undefined,
+		category: "technical",
+	});
+	addRequirement({
+		field: "submissionRequirements",
+		title: "Comply With Submission Requirements",
+		fullText: opportunity.submissionRequirements
+			? `Comply with the published submission requirements: ${opportunity.submissionRequirements}`
+			: undefined,
+		category: "administrative",
+	});
+	addRequirement({
+		field: "submissionMethod",
+		title: "Use Published Submission Method",
+		fullText: opportunity.submissionMethod
+			? `Submit through the published submission method: ${opportunity.submissionMethod}`
+			: undefined,
+		category: "administrative",
+	});
+	const formattedDeadline = formatOpportunityDeadline(opportunity.deadline);
+	addRequirement({
+		field: "deadline",
+		title: "Meet Submission Deadline",
+		fullText: formattedDeadline
+			? `Submit the response by the published deadline: ${formattedDeadline}.`
+			: undefined,
+		category: "administrative",
+	});
+	addRequirement({
+		field: "sourcePlatform",
+		title: "Verify Source Portal Instructions",
+		fullText: opportunity.sourcePlatform
+			? `Verify final response instructions and any addenda on the source platform: ${opportunity.sourcePlatform}.`
+			: undefined,
+		category: "compliance",
+		requirementType: "should",
+		priority: "preferred",
+		confidenceScore: 0.45,
+	});
+
+	return requirements;
 }
 
 function requireRfpParseRejectAuthority(context: Pick<UserContext, "role" | "roles">): void {
@@ -1590,11 +1720,14 @@ function normalizeParseConfidenceReviewMetadata(
 
 function applyParseQualitySignals(
 	parseReview: ParseConfidenceReviewMetadata,
-	signals: { requirementsExtracted: number }
+	signals: { requirementsExtracted: number; metadataFallbackRequirementCount?: number }
 ): ParseConfidenceReviewMetadata {
 	const qualitySignals = new Set(parseReview.qualitySignals ?? []);
 	if (signals.requirementsExtracted === 0) {
 		qualitySignals.add("zero_requirements_extracted");
+	}
+	if ((signals.metadataFallbackRequirementCount ?? 0) > 0) {
+		qualitySignals.add("metadata_fallback_requirements");
 	}
 	if (qualitySignals.size === 0) return parseReview;
 	return {
@@ -1607,6 +1740,9 @@ function applyParseQualitySignals(
 
 function describeParseQualitySignals(signals: string[] | undefined): string | undefined {
 	if (!signals?.length) return undefined;
+	if (signals.includes("metadata_fallback_requirements")) {
+		return "Parser extracted no document requirements; fallback requirements were derived from opportunity metadata and require review.";
+	}
 	if (signals.includes("zero_requirements_extracted")) {
 		return "Parser completed without extracting any actionable requirements.";
 	}
@@ -2129,20 +2265,41 @@ export async function processRfpParsingJob(
 				aiSectionCount += 1;
 			}
 		}
+		let metadataFallbackRequirementCount = 0;
+		if (allExtractedRequirements.length === 0 && rfpDoc.opportunityId) {
+			const opportunity = await db.query.opportunities.findFirst({
+				where: and(
+					eq(opportunities.id, rfpDoc.opportunityId),
+					eq(opportunities.organizationId, organizationId),
+				),
+			});
+			if (opportunity) {
+				const fallbackRequirements = buildOpportunityMetadataFallbackRequirements(opportunity);
+				metadataFallbackRequirementCount = fallbackRequirements.length;
+				allExtractedRequirements.push(...fallbackRequirements);
+			}
+		}
+		const baseExtractionSource = extractedOutcomesMap.size === 0
+			? ("none" as const)
+			: heuristicSections.length === 0
+				? ("ai" as const)
+				: aiSectionCount === 0
+					? ("heuristic" as const)
+					: ("mixed" as const);
 		const extractionProvenance = {
-			source: extractedOutcomesMap.size === 0
-				? ("none" as const)
-				: heuristicSections.length === 0
-					? ("ai" as const)
-					: aiSectionCount === 0
-						? ("heuristic" as const)
-						: ("mixed" as const),
+			source: metadataFallbackRequirementCount > 0
+				? ("metadata_fallback" as const)
+				: baseExtractionSource,
 			aiSectionCount,
 			heuristicSectionCount: heuristicSections.length,
 			heuristicSections: heuristicSections.length > 0 ? heuristicSections : undefined,
+			metadataFallbackRequirementCount: metadataFallbackRequirementCount > 0
+				? metadataFallbackRequirementCount
+				: undefined,
 		};
 		parseReview = applyParseQualitySignals(parseReview, {
 			requirementsExtracted: allExtractedRequirements.length,
+			metadataFallbackRequirementCount,
 		});
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
@@ -2195,7 +2352,9 @@ export async function processRfpParsingJob(
 					aiAnalysis: {
 						summary: req.summary,
 						scoringMethod: req.scoringMethod,
-						source: "rfp_parser",
+						source: metadataFallbackRequirementCount > 0
+							? "opportunity_metadata_fallback"
+							: "rfp_parser",
 					},
 					complianceStatus: "not_addressed" as const,
 					riskLevel: compactStorageText("medium", RFP_REQUIREMENT_VARCHAR_LIMITS.riskLevel),
