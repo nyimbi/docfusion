@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - DGMarket Legacy Source Identity Backfill
+
+Status: utility added, dry-run/apply/idempotency proved, live intake completed, and parsed requirements persisted.
+
+Purpose: expand Global South marketplace acquisition by moving legacy DGMarket tender-detail rows out of the generic `source-scrape` / `Configured Source Scrape` bucket. These rows were already discovered through DGMarket URLs, but the generic identity kept them out of the targeted DGMarket protected-host retry and recovery lane.
+
+Live proof:
+- `dgmarket_source_identity_backfill_probe_20260601T` dry-ran the backfill and found 71 legacy DGMarket opportunities still classified under generic source identity, with only 5 opportunities already under `source="dgmarket"` / `sourcePlatform="DGMarket"`.
+- `dgmarket_source_identity_backfill_live_20260601T` applied the backfill and reclassified all 71 legacy rows, preserving existing tags while adding `dgmarket`, `global-south`, `global-procurement`, and `source-documents`.
+- `dgmarket_source_identity_backfill_idempotency_20260601T` confirmed the backfill is idempotent: 0 legacy DGMarket opportunities remained and 76 total opportunities were targetable through `DGMarket`.
+- `source_document_intake_dgmarket_backfilled_live_20260601T` then targeted `SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS=DGMarket` with protected-host retry enabled.
+- The intake run selected 5 DGMarket documents, downloaded 5, failed 0, completed 5 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
+- Sparse DGMarket direct HTML recovered through the existing scrape-recovery path; Docling was not used for these HTML sources.
+- The parser extracted 18 requirements across the 5 recovered documents.
+- Current live totals after this run are 6,281 total opportunities, 5,448 non-expired opportunities, 1,966 RFP documents, and 13,828 persisted RFP requirements.
+- DGMarket source-document status after the run: 20 discovered, 12 downloaded, and 44 failed.
+
+Verification:
+- `DGMARKET_SOURCE_IDENTITY_BACKFILL_RUN_ID=dgmarket_source_identity_backfill_probe_20260601T npx tsx scripts/backfill-dgmarket-source-identity.ts` passed with 71 candidates and 0 updates.
+- `DGMARKET_SOURCE_IDENTITY_BACKFILL_RUN_ID=dgmarket_source_identity_backfill_live_20260601T DGMARKET_SOURCE_IDENTITY_BACKFILL_APPLY=1 npx tsx scripts/backfill-dgmarket-source-identity.ts` passed with 71 updates.
+- `DGMARKET_SOURCE_IDENTITY_BACKFILL_RUN_ID=dgmarket_source_identity_backfill_idempotency_20260601T npx tsx scripts/backfill-dgmarket-source-identity.ts` passed with 0 remaining candidates.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_dgmarket_backfilled_live_20260601T SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS=DGMarket SOURCE_DOCUMENT_INTAKE_LIMIT=5 SOURCE_DOCUMENT_INTAKE_MAX_PER_HOST=5 SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=1 npm run source-docs:intake` passed with 5 downloads, 5 completed parses, and 18 extracted requirements.
+- Live DB checks confirmed opportunity/document/requirement totals and DGMarket source-document status.
+
+Remaining after this slice:
+- The remaining 44 failed DGMarket source documents should be retried in bounded batches now that source identity is fixed and sparse detail recovery is live.
+- DGMarket contains broad Global South and global marketplace tenders, not only African tenders; Africa-specific source campaigns should continue to be prioritized alongside this marketplace lane.
+- Search fanout is still unreliable, so source-backed marketplace and national/regional procurement sources remain the higher-confidence acquisition path.
+
 ### 2026-06-01 - DGMarket Detail Recovery And Requirement Parsing
 
 Status: code repaired, tests passed, live-proved, and parsed requirements persisted.
