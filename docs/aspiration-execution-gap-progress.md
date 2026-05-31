@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Togo, Mali, and Benin Direct Intake Drain
+
+Status: live-proved, persisted, and mixed local/Docling fallback.
+
+Purpose: expand African national-portal tender coverage after filtering Togo result/opening-minute noise, then drain a bounded Togo, Mali, and Benin direct-document batch into parsed RFP documents and requirements.
+
+Live proof:
+- `source_document_intake_togo_mali_benin_postfilter_probe_20260531T` dry-selected 50 current direct documents after `PV/result/opening` result notices were filtered out of the Togo queue.
+- `source_document_intake_togo_mali_benin_direct_20260531T` selected 30 direct documents, downloaded 29, completed 28 parse jobs, failed 1 Togo DOCX download timeout, timed out 0 parse jobs, had 1 duplicate parse, had 0 `not_queued`, and extracted 159 requirements in the run summary.
+- Mali AMI DOCX/PDF rows were mostly local-extraction friendly; Benin and several Togo scanned PDFs used Docling only after local `pdftotext` could not extract usable text.
+- The batch covered Togo AVIS/DAO/AOO/AAOI solicitations, Mali AMI consultancy documents, and Benin AVIS/DAO/AMI national procurement notices.
+- Current Togo source-document counts after the drain: 30 discovered, 40 downloaded, and 4 failed source-document rows, 39 RFP documents, and 278 persisted requirements.
+- Current Mali source-document counts after the drain: 129 discovered and 34 downloaded source-document rows, 30 RFP documents, and 220 persisted requirements.
+- Current Benin source-document counts after the drain: 215 discovered, 17 downloaded, and 1 failed source-document row, 17 RFP documents, and 64 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,446 RFP documents, and 10,294 persisted RFP requirements.
+
+Verification:
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_togo_mali_benin_direct_20260531T ... npm run source-docs:intake` completed with 29 downloads, 28 completed parses, one duplicate, and one isolated Togo download timeout.
+- Live DB checks confirmed global totals plus Togo, Mali, and Benin downloaded document, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Run Mali in larger local-friendly batches; its remaining DOCX/AMI backlog is productive.
+- Keep Benin in smaller batches because many PDFs require Docling fallback and are slower.
+- Add a scanner/addendum quality filter only if repeated low-yield scanned filenames continue crowding out higher-value rows.
+
 ### 2026-05-31 - SADC and South Africa eTenders Direct Intake Drain
 
 Status: live-proved, persisted, and local-extraction-first.
