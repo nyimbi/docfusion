@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Sierra Leone Direct Intake Batch 2
+
+Status: live-proved, persisted, and local-extraction-only.
+
+Purpose: continue draining the high-yield Sierra Leone Ministry of Finance direct-document backlog after the first REOI batch proved clean and productive.
+
+Live proof:
+- `source_document_intake_sierra_leone_direct_batch2_20260531T` selected 24 Sierra Leone Ministry of Finance direct documents, downloaded 24, completed 24 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 285 requirements in the run summary.
+- Every document in the batch used local `pdftotext`; Docling was not needed.
+- The batch covered consulting services for environmental/social management and resettlement, results-story production, district revenue mobilization strategies, line-of-credit management, tourism destination design, frontline tourism training, emergency operations centre design/supervision, catering service procurement, urban planning capacity building, public-debt training, CHESS/HISWA data and logistics roles, bus monitoring, ICT/electronic equipment, AMIS infrastructure, fintech strategy, citizen engagement, climate risk, and the RUSLP general procurement notice.
+- Current Sierra Leone source-document counts after batch 2: 28 discovered and 53 downloaded source-document rows, 53 RFP documents, and 456 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,372 RFP documents, and 9,612 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_sierra_leone_direct_batch2_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed global totals and Sierra Leone downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Sierra Leone still has 28 discovered rows and remains local-extraction friendly; run one more bounded drain later unless a dry probe shows the remaining rows are stale/noisy.
+- Move next to similarly clean Africa/Global South direct-document sources from the dry probe, especially Africa CDC, ECOWAS, DBSA, and South Africa eTenders, with procurement-plan/result/amendment filters applied source-by-source.
+
 ### 2026-05-31 - Sierra Leone Consulting REOI Direct Intake Drain
 
 Status: live-proved, persisted, and ready for a larger follow-up batch.
