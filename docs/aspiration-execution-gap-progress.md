@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa And Global South Direct Intake Batch
+
+Status: live-proved, persisted, Africa/Global South focused, lightweight extraction first, and remaining direct queue measured.
+
+Purpose: convert the highest-yield current/unknown direct-document backlog from African and Global South sources into parsed RFP documents and requirements without waiting on degraded broad search fanout.
+
+Live proof:
+- `source_document_intake_africa_global_south_direct_batch_20260531T` ran against the priority Africa/Global South source set only: South Africa eTenders, Sierra Leone Ministry of Finance, ECREEE, Rwanda UMUCYO, World Bank, Islamic Development Bank, UN Procurement, UNICEF Supply Division, DNCCP Togo, TradeMark Africa, SearXNG, IOM, BOAD, ECOWAS, IRC, Enabel, African Union, Winrock, UNDP, AUDA-NEPAD, Oxfam Nigeria, SADC, and DGMP Mali.
+- The live batch selected 42 direct-source documents, downloaded 41, failed 1 South Africa eTenders request due to a source URL timeout, completed 41 parse jobs, had 0 parse failures, 0 parse timeouts, 0 duplicate parses, and 0 zero-requirement parses.
+- The batch added 41 RFP documents and 411 persisted requirements, moving live totals from 1,786 RFP documents and 12,472 requirements to 1,827 RFP documents and 12,883 requirements.
+- Current live totals after the batch: 6,265 total opportunities, 6,264 non-rejected opportunities, 1,827 RFP documents, and 12,883 persisted RFP requirements.
+- Extraction followed the lightweight-first policy across PDFs, DOCX, XLSX, ZIP payloads, and recovered HTML: most documents used local `pdftotext`/local parsers; Docling was attempted only after local PDF text extraction failed, and Docling instability did not stop the batch.
+- Search/scrape recovery also proved useful: an IUCN PDF returned 403, then fallback recovery produced usable local HTML text and extracted 6 requirements.
+- Current Africa/Global South source-document state includes South Africa eTenders at 164 downloaded/3 discovered/3 failed rows and 157 RFP documents, Sierra Leone Ministry of Finance at 73 downloaded/25 discovered rows and 73 RFP documents, Rwanda UMUCYO at 52 downloaded/48 discovered rows and 52 RFP documents, World Bank at 53 downloaded/23 discovered rows and 53 RFP documents, and UNDP at 223 downloaded/3 discovered rows and 192 RFP documents.
+- The follow-on direct-document dry-run selected 23 remaining candidates, mostly Sierra Leone Ministry of Finance PDFs plus a small number of South Africa eTenders attachments.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_direct_batch_20260531T ... npm run source-docs:intake` completed with 42 selected, 41 downloaded, 1 failed, 41 completed parse jobs, 0 parse failures, and 0 zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_direct_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 23 remaining candidates and skipped them because it was a dry run.
+- Live DB checks confirmed 6,265 total opportunities, 6,264 non-rejected opportunities, 1,827 RFP documents, and 12,883 persisted requirements.
+
+Remaining after this slice:
+- Run the 23-candidate Africa/Global South direct-document remainder as a live batch next, starting with Sierra Leone and South Africa.
+- Consider a material non-solicitation filter only if repeated policy/guideline or generic attachment rows consume meaningful parser capacity; one KfW guideline and several South Africa attachment documents were visible, but the batch still produced a strong net RFP corpus gain.
+- Continue prioritizing configured African/Global South sources and direct/detail extraction while Google/SearXNG/DuckDuckGo fanout remains degraded.
+
 ### 2026-05-31 - Pacific Community Source Acquisition Restored
 
 Status: live-proved, code fixed, pushed, Global South regional source restored, and current Pacific queue state verified.
