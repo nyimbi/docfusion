@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Global Regional Refresh And Pacific Backlog Probe
+
+Status: live-proved, persisted, Global South regional source coverage refreshed, search degradation measured again, and direct-document backlog checked.
+
+Purpose: expand non-Africa Global South tender coverage across Latin America, Caribbean, Asia, Middle East, and Pacific lanes while measuring whether broad search fanout is currently productive.
+
+Live proof:
+- `aggressive_rfp_acquisition_global_regional_refresh_20260531T` ran the `global_regional_search` campaign with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=120`, `scrapeLimit=2`, and `browserFallbackLimit=2`.
+- The refresh processed 78 records, imported 0 new opportunities, updated 78 existing opportunities, failed 0 records, created 0 source-document rows, found 77 existing source-document rows, and recorded 67 warnings.
+- Healthy configured sources were Inter-American Development Bank procurement notices, Inter-American Development Bank corporate procurement, and Tetra Tech International Development Australia.
+- Pacific Community configured scraping failed through Firecrawl (`/v1/scrape` 404 and `/scrape` timeout), and Tetra Tech Europe returned content but no tender-like records.
+- Search fanout remained degraded: direct Google returned 429, `search.lindela.io` reported Brave/DuckDuckGo/Google/Startpage degradation across regional queries, and public SearXNG fallbacks frequently returned 403/418/429.
+- `source_document_intake_pacific_community_probe_20260531T` selected 0 Pacific Community direct-document rows, confirming that the current Pacific backlog needs detail-page/source-specific support rather than another direct-document drain.
+- Current regional counts after this slice: Inter-American Development Bank has 72 downloaded source-document rows and 67 RFP documents; Pacific Community has 118 discovered and 7 downloaded source-document rows with 8 RFP documents; Tetra Tech International Development has 6 downloaded source-document rows and 6 RFP documents.
+- Current live totals after this run: 6,235 total opportunities, 6,234 non-rejected opportunities, 1,786 RFP documents, and 12,472 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_global_regional_refresh_20260531T ... npm run rfp:acquire` completed with 78 records, 0 imports, 78 updates, 77 source documents existing, 0 failed records, and 67 warnings.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_pacific_community_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 Pacific Community direct-document rows.
+- Live DB checks confirmed global totals plus IDB/Pacific/Tetra Tech source-document and RFP-document counts.
+
+Remaining after this slice:
+- Fix Pacific Community scraping/detail support before expecting its 118 discovered rows to become parsed RFP documents.
+- Treat broad regional search as low-yield until SearXNG/Google/DuckDuckGo fanout is repaired or replaced with more reliable query-specific sources.
+- Prefer configured source parsers and direct-detail extraction for Global South coverage expansion.
+
 ### 2026-05-31 - UN Multilateral Refresh And UNDP Detail Probe
 
 Status: live-proved, persisted, Global South/multilateral source breadth expanded, direct-document backlog characterized, and current UNDP direct queue drained.
