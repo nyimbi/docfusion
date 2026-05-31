@@ -16,6 +16,41 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Parse Selected African And Global South Source Documents
+
+Status: live-proved and database-counted.
+
+Purpose: convert newly discovered African and Global South source-document rows into usable parsed RFP documents and extracted requirements, while preserving the lightweight `pdftotext` before Docling rule.
+
+Live run:
+- `source_document_intake_africa_broad_seed_20260531T` selected 6 direct documents from ECREEE, ECOWAS, and South Africa eTenders via the targeted African/Global South source-platform filter.
+- All 6 documents downloaded successfully, used `local_pdftotext`, queued parser jobs, completed parsing, and produced extracted requirements.
+- Summary: selected 6, downloaded 6, failed 0, skipped 0, parseCompleted 6, parseFailed 0, parseDuplicate 0, parseNotQueued 0, parseTimedOut 0.
+
+Parser jobs completed:
+- ECREEE `ToR-Consultancy-Services-Climate-Change.pdf`: job `87eef600-73f0-4f53-a9fd-9074b9b89163`, 5 requirements.
+- ECREEE `ToR-Project-completion-report-consultancy-WAREP.pdf`: job `3056452c-3471-4f45-8454-b573d2c630a1`, 7 requirements.
+- ECOWAS `TOR-ECOWAS-Corridor-Road-Information-System-ECCRIS.pdf`: job `441da1d3-9dda-4eb5-b310-d80255b7c83d`, 17 requirements.
+- South Africa eTenders `RFP_-_Property_Leasing_Ga-Rankuwa_Local_Office.pdf`: job `02fc6923-c816-4775-8db9-f810d7ae3ebb`, 21 requirements.
+- South Africa eTenders `RFP_Provision_for_the_Cleaning_of_Tanks_and_Bilges_for_Dredging_Service_29_MAY_2026.pdf`: job `326a5478-7aff-43e0-9f2c-fd6e1abb08ca`, 16 requirements.
+- ECOWAS `EOI-IMPLEMENTATION-OF-THE-ECOWAS-CORRIDOR-ROAD-INFORMATION-SYSTEM-ECCRIS.pdf`: job `0aaf35c9-e664-4459-bb61-d27560f0af54`, 21 requirements.
+
+Current database counts after this slice:
+- Opportunities total: 5,274.
+- Active opportunities: 4,908.
+- Active Africa/Global South-filtered opportunities: 2,168.
+- Source-document rows: 2,648.
+- RFP document rows: 1,144.
+- Completed RFP document parses: 1,106.
+
+Verification:
+- Live source-document intake proof artifact: `.omx/logs/platform-completion/source-document-intake-source_document_intake_africa_broad_seed_20260531T/source-document-intake.json`.
+- Database count query verified updated `rfp_documents` totals and completed parse count.
+
+Remaining after this slice:
+- Continue bounded source-document drains from the 124 newly created African source-document rows, prioritizing direct documents from high-yield healthy portals.
+- Keep per-host limits in place so one source cannot starve the broader African/Global South intake queue.
+
 ### 2026-05-31 - Drain African National And Regional Sources
 
 Status: live-proved and database-counted.
