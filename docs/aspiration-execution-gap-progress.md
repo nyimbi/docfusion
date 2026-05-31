@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa National Donor Refresh And eTenders Drain
+
+Status: live-proved, persisted, source refresh converted into parsed South Africa eTenders documents, and selected post-refresh queue drained to zero.
+
+Purpose: refresh African national and donor/NGO source coverage after the broader backlog drain, then immediately convert any newly selectable African/Global South source documents into parsed RFPs.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_donor_refresh_20260531T` ran the `africa_national` and `donor_ngo_search` campaigns with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=180`, `scrapeLimit=2`, and `browserFallbackLimit=2`.
+- The refresh processed 1,298 records, imported 7 new opportunities, updated 1,291 existing opportunities, failed 0 records, created 9 source-document rows, found 136 existing source-document rows, downloaded 0 documents by design, and recorded 247 warnings.
+- Search fanout remained degraded: `search.lindela.io` and public SearXNG fallbacks produced many 403/418/429/CAPTCHA/no-candidate warnings across donor/NGO queries. Configured source scraping still produced usable source coverage.
+- Healthy donor/NGO configured sources included Mercy Corps, Save the Children, Plan International, IRC, FCDO/FCDO Services, GTAI/KfW, RTI, Abt, FHI 360, NRC, Oxfam Nigeria, TradeMark Africa, Palladium, Jhpiego, DT Global, Enabel, and Winrock.
+- `source_document_intake_africa_donor_post_refresh_probe_20260531T` selected 9 new South Africa eTenders PDF candidates created by the refresh.
+- `source_document_intake_africa_donor_post_refresh_live_20260531T` selected 9, downloaded 9, completed 9 parse jobs, failed 0, had 0 duplicates, 0 zero-requirement parses, and 0 parse timeouts.
+- The intake run added 9 RFP documents and 87 persisted requirements, moving live totals from 1,940 RFP documents and 13,702 requirements to 1,949 RFP documents and 13,789 requirements.
+- Current live totals after this run: 6,272 total opportunities, 6,271 non-rejected opportunities, 1,949 RFP documents, and 13,789 persisted RFP requirements.
+- South Africa eTenders now has 176 downloaded rows, 0 discovered rows, 3 failed rows, and no remaining selected post-refresh backlog.
+- `source_document_intake_africa_donor_post_refresh_remainder_probe_20260531T` selected 0 rows afterward for the refreshed Africa/donor source set.
+- Extraction followed the lightweight-first policy: most South Africa PDFs used local `pdftotext`; Docling was only attempted after `pdftotext` failed on two PDFs, with one local fallback completion and one successful Docling extraction.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_africa_donor_refresh_20260531T ... npm run rfp:acquire` produced the source-refresh proof above.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_donor_post_refresh_live_20260531T ... npm run source-docs:intake` completed with 9 selected, 9 downloaded, 9 completed parse jobs, and 0 failures.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_donor_post_refresh_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals plus source-document status for South Africa eTenders and refreshed donor/NGO sources.
+
+Remaining after this slice:
+- Search fanout remains the main collection bottleneck; configured source parsers are still materially more reliable than broad search.
+- Plan International and Save the Children still have discovered rows, but they were not selected by current eligibility rules, likely due to duplicate/unsupported/detail status; inspect before retrying parser intake.
+- The next high-value work should either repair Rwanda UMUCYO detail/list support or run source-specific configured refreshes with narrow groups to avoid slow degraded public SearXNG fallback fanout.
+
 ### 2026-05-31 - Africa And Global South Broad Backlog Drain
 
 Status: live-proved, persisted, broader Africa/Global South selector exhausted, parser-waste fix added, and ready to shift to source refresh/source-specific repair.
