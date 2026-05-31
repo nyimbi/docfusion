@@ -169,6 +169,7 @@ afterEach(() => {
 	vi.useRealTimers();
 	delete process.env.NRC_TENDER_MAX_PAGES;
 	delete process.env.NRC_TENDER_DETAIL_LIMIT;
+	delete process.env.FIND_TENDER_MAX_API_PAGES;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1038,6 +1039,101 @@ describe("discoverAndImportOpportunities", () => {
 			tags: expect.arrayContaining(["external-discovery", "source-scrape", "idb", "iadb", "development-bank", "source-documents"]),
 		}));
 		expect(result.sourceDocumentsCreated).toBe(1);
+	});
+
+	it("routes UK Find a Tender configured sources through the public OCDS parser", async () => {
+		process.env.FIND_TENDER_MAX_API_PAGES = "1";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		fetchMock.mockResolvedValue(new Response(JSON.stringify({
+			releases: [{
+				ocid: "ocds-h6vhtk-06abcd",
+				id: "051999-2099",
+				date: "2099-05-29T16:10:39+01:00",
+				tag: ["tender"],
+				initiationType: "tender",
+				tender: {
+					id: "ocds-h6vhtk-06abcd",
+					title: "Digital case management platform",
+					status: "active",
+					classification: {
+						id: "72262000",
+						description: "Software development services",
+					},
+					mainProcurementCategory: "services",
+					description: "Procurement of a case management platform and implementation services.",
+					value: {
+						amount: 2500000,
+						currency: "GBP",
+					},
+					procurementMethod: "open",
+					procurementMethodDetails: "Open procedure",
+					submissionMethod: ["electronicSubmission"],
+					submissionMethodDetails: "https://buyer.example/tenders/case-platform",
+					tenderPeriod: {
+						startDate: "2099-05-29T16:10:39+01:00",
+						endDate: "2099-07-13T12:00:00+01:00",
+					},
+				},
+				buyer: {
+					id: "GB-FTS-1",
+					name: "Digital Services Authority",
+				},
+				parties: [{
+					id: "GB-FTS-1",
+					name: "Digital Services Authority",
+					roles: ["buyer"],
+					address: {
+						countryName: "United Kingdom",
+					},
+					contactPoint: {
+						email: "procurement@example.gov.uk",
+						url: "https://buyer.example/tenders",
+					},
+				}],
+			}],
+		}), { status: 200, headers: { "content-type": "application/json" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "application/json",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Digital case management platform",
+			source: "find_tender",
+			sourcePlatform: "UK Find a Tender",
+			sourceFile: "source:https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+			rfpLink: "https://buyer.example/tenders/case-platform",
+			portalUrl: "https://www.find-tender.service.gov.uk/Notice/051999-2099",
+			tags: ["external-discovery", "source-scrape", "find-tender", "uk", "public-procurement", "ocds", "source-api"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
 	});
 
 	it("imports AIIB project procurement opportunities from the official data script", async () => {

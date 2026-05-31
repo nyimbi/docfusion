@@ -26,6 +26,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.unwomen.org/en/about-us/procurement",
 				"https://cdn.ppda.go.ug/api/bid-invitations",
 				"https://www.contractsfinder.service.gov.uk/Search",
+				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://canadabuys.canada.ca/en/tender-opportunities",
 				"https://www.mercycorps.org/tenders",
 				"https://www.rti.org/current-opportunities",
@@ -111,10 +112,12 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(run.campaign.id).toBe("global_public_sector");
 		expect(run.input.queries).toEqual(expect.arrayContaining([
 			"site:sam.gov \"solicitation\" \"proposal due\"",
+			"site:find-tender.service.gov.uk/Notice \"Submission deadline\" tender",
 			"site:canadabuys.canada.ca \"request for proposal\" \"closing date\"",
 		]));
 		expect(run.input.sourceUrls).toEqual(expect.arrayContaining([
 			"https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
+			"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 			"https://www.tenders.gov.au/atm",
 			"https://www.gets.govt.nz/ExternalIndex.htm",
 		]));

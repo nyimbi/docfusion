@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add UK Find a Tender OCDS Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand public-sector RFP acquisition with the United Kingdom's official Find a Tender OCDS release-package API, collecting structured active tender notices directly instead of relying on generic search snippets.
+
+Changes in this slice:
+- Added a Find a Tender parser for `https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages`, including active tender filtering, deadline expiry filtering, buyer/value/category extraction, CPV classification capture, and notice URL preservation.
+- Routed Find a Tender API and search-result URLs through the source-API parser path, labeled imported records as `UK Find a Tender`, and preserved Find a Tender metadata for downstream intake.
+- Registered the official Find a Tender OCDS API in default scheduled discovery and the aggressive global public-sector acquisition campaign.
+- Added a targeted Find a Tender query so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can rediscover active public tender notices when direct configured-source collection is unavailable.
+- Hardened source-provided submission-method storage by compacting long portal/contact strings to the existing database column limit after the first live proof exposed overlong UK buyer-portal values.
+
+Live run:
+- The first Find a Tender live proof found 24 candidates but failed 11 inserts because some OCDS submission-method details exceeded the live database `submission_method` length limit.
+- After compaction hardening, `live_discovery_import_find_tender_50_hardened_20260531T` reran the official API with one API page, source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 24 candidates, 11 created, 13 updated, 0 failed, and 0 warnings.
+- The run created 11 source-document rows and reused 13 existing source-document rows. Downloads were intentionally disabled for this proof to verify acquisition breadth without spending parse compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/find-tender-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 84 tests.
+- Post-hardening parser/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/find-tender-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 76 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_find_tender_50_hardened_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Increase `FIND_TENDER_MAX_API_PAGES` and source-scrape limits for scheduled broad harvesting before adding more UK tender sources.
+- Run selected source-document intake for high-value Find a Tender opportunities; some external buyer portals may require authenticated or browser-backed handling later.
+
 ### 2026-05-31 - Add IDB Procurement Datastore Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
