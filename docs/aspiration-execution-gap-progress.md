@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Global South Search Fanout Acquisition Pass
+
+Status: live-proved and persisted.
+
+Purpose: broaden opportunity collection beyond configured African national portals by exercising the Google/SearXNG/DuckDuckGo fanout path against high-intent, direct-document, Global South regional, donor, and NGO procurement searches.
+
+Live run:
+- `aggressive_rfp_acquisition_global_south_search_fanout_20260531T` ran `high_intent_search`, `document_search`, `global_regional_search`, and `donor_ngo_search` with downloads disabled so source discovery could continue despite Docling instability.
+- Result: 4 campaigns completed, 0 failed, 283 records processed, 48 imported, 235 updated, and 48 source-document rows created.
+- Most new imports in the immediate live check came from Inter-American Development Bank procurement sources: 47 IDB opportunities plus 1 SearXNG-discovered opportunity.
+- Current live totals after this run: 6,082 opportunities, including 2,121 `rfp`, 2,444 `tender`, and 276 `eoi` opportunities; 3,456 opportunity-document rows.
+
+Source/search health:
+- The run confirmed the platform is exercising search fanout, but also produced 426 warnings, mostly SearXNG engine degradation and no-candidate search warnings.
+- `search.lindela.io` repeatedly reported degraded Brave, DuckDuckGo, Google, and Startpage fanout; searx.space fallback instances were frequently 403/418/429; direct DuckDuckGo and Google HTML fallback recovered some queries but also hit network errors or 429s.
+- This confirms configured source parsers remain more reliable than generic search for broad collection, while search fanout is still useful for discovering gaps such as IDB records and source-document links.
+
+Verification:
+- Live DB checks after the run confirmed total opportunity and source-document counts.
+- The acquisition runner wrote the proof summary before an idle `tsx` handle failed to exit; the idle process was killed after artifact and DB writes completed.
+
+Remaining after this slice:
+- Convert the newly created source-document rows from the search pass into downloaded/parsed RFP documents in bounded batches.
+- Reduce search warning volume by prioritizing configured direct parsers for sources that search repeatedly finds but cannot reliably scrape.
+
 ### 2026-05-31 - Unreadable Source Document Metadata Fallback
 
 Status: implemented, focused-tested, typechecked, and live-proved.
