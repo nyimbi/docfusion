@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - ECREEE Direct ToR Intake
+
+Status: live-proved, persisted, and regional Africa-priority.
+
+Purpose: shift from the fully drained Mali direct-document queue to a regional West African/ECOWAS-adjacent source with clean direct ToR PDFs.
+
+Live proof:
+- `source_document_intake_ecreee_direct_probe_20260531T` dry-selected 20 ECREEE direct ToR PDFs, covering ReCCAWA, WOCEWA, WAREP, audit, climate, and other consulting/procurement notices in French and Portuguese.
+- `source_document_intake_ecreee_direct_20260531T` selected 20 ECREEE documents, downloaded 20, completed 19 parse jobs, linked 1 duplicate parse, failed 0, timed out 0, had 0 zero-requirement parses, and had 0 `not_queued` parses.
+- Every visible ECREEE document used local `pdftotext`; Docling was not needed for this batch.
+- Current ECREEE source-document counts after this drain: 56 discovered and 46 downloaded source-document rows, 45 RFP documents, and 434 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,588 RFP documents, and 11,376 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_ecreee_direct_20260531T ... npm run source-docs:intake` completed with 20 downloads, 19 completed parses, 1 duplicate parse, and 0 failures/timeouts.
+- Live DB checks confirmed global totals plus ECREEE downloaded/discovered document status, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Continue draining ECREEE direct PDFs in another bounded batch while they remain local `pdftotext` friendly.
+- Keep the next choices focused on African/Global South national and regional sources, especially Niger, Tanzania, Rwanda, Ghana, Zambia, South Africa, Sierra Leone, Togo, BOAD, ECOWAS, and TradeMark Africa.
+
 ### 2026-05-31 - Mali DGMP Direct Intake Remainder
 
 Status: live-proved, persisted, and direct backlog drained.
