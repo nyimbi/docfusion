@@ -66,6 +66,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/02/APPROVED-2026-PP-WORKS-VF.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "AGPM_FBDES_BOAD.doc",
+			sourceUrl: "https://admin.boad.org/wp-content/uploads/2026/04/AGPM_FBDES_BOAD.doc",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "PBNB-_-PPM-BOAD-_-052026-_-Travaux.pdf",
+			sourceUrl: "https://admin.boad.org/wp-content/uploads/2026/05/PBNB-_-PPM-BOAD-_-052026-_-Travaux.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "Parliament-PP2026-Goods-and-Services-English.pdf",
 			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/02/Parliament-PP2026-Goods-and-Services-English.pdf",
 		})).toBe(false);
