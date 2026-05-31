@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add AUDA-NEPAD African Union Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with AUDA-NEPAD, an African Union development-agency source that publishes current Africa tender and expression-of-interest notices with explicit deadlines and direct PDF source documents.
+
+Changes in this slice:
+- Added an AUDA-NEPAD parser for `https://www.nepad.org/tenders`, including Drupal listing-card extraction, deadline parsing, expired-notice filtering, contact-email capture, direct `/file-download/download/public/` document capture, and Firecrawl markdown fallback parsing.
+- Routed AUDA-NEPAD tender URLs through the configured-source Firecrawl path instead of the source-API path because direct local HTTP returns blocked content while Firecrawl retrieves the listing successfully.
+- Labeled imported records as `African Union Development Agency`, preserved AUDA-NEPAD document links for downstream source-document intake, and added AUDA-NEPAD tags to source-scraped opportunities.
+- Added AUDA-NEPAD to default discovery sources, the aggressive African acquisition campaign, and targeted `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked AUDA-NEPAD PDFs.
+
+Live run:
+- `live_discovery_import_auda_nepad_20260531T` ran the AUDA-NEPAD tender source with Firecrawl source scraping, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 2 candidates, 2 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 2 source-document rows from linked AUDA-NEPAD source documents. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/auda-nepad-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 92 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_auda_nepad_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit AUDA-NEPAD imports with lightweight text extraction first; use Docling only as fallback.
+- Continue prioritizing African Union, regional economic community, and Global South development-agency sources before lower-yield generic searches.
+
 ### 2026-05-31 - Add IsDB Global South Project Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

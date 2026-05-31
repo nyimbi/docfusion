@@ -1612,6 +1612,68 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
+	it("imports AUDA-NEPAD tender notices through Firecrawl with linked source documents", async () => {
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		firecrawlScrapeMock.mockResolvedValue({
+			success: true,
+			data: {
+				html: `
+					<div class="views-row">
+						<h3 class="views-field views-field-title"><span class="field-content">Expression of Interest for Africa Medicine Agency (AMA) Technical Committees</span></h3>
+						<div class="views-field views-field-nothing"><span class="event-label">Deadline: </span><time datetime="00Z">June 18, 2099</time></div>
+						<div class="views-field views-field-nothing-1">
+							<a href="/file-download/download/public/231726" title="EN - Expression of Interest for AMA TCs_10MAY2026 RB.pdf">Download File</a>
+						</div>
+						<div class="views-field views-field-body detail-body"><div class="field-content">
+							<p>Applications should be submitted to dg@au-ama.africa before the deadline.</p>
+						</div></div>
+					</div>
+				`,
+				markdown: "",
+				links: ["https://www.nepad.org/file-download/download/public/231726"],
+				metadata: {
+					title: "Tenders | AUDA-NEPAD",
+					description: "AUDA-NEPAD tender notices.",
+				},
+			},
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.nepad.org/tenders"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.nepad.org/tenders", expect.objectContaining({
+			formats: ["markdown", "html", "links"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Expression of Interest for Africa Medicine Agency (AMA) Technical Committees",
+			source: "auda_nepad",
+			sourceId: "auda-nepad-expression-of-interest-for-a-44d561a9d2",
+			sourcePlatform: "African Union Development Agency",
+			sourceFile: "source:https://www.nepad.org/tenders",
+			opportunityType: "eoi",
+			countryRegion: "Africa",
+			documentUrl: "https://www.nepad.org/file-download/download/public/231726",
+			rfpLink: "https://www.nepad.org/file-download/download/public/231726",
+			tags: ["external-discovery", "source-scrape", "auda-nepad", "african-union", "africa", "source-documents"],
+			metadata: expect.objectContaining({
+				audaNepad: expect.objectContaining({
+					contactEmail: "dg@au-ama.africa",
+					documentLinks: [
+						{
+							label: "EN - Expression of Interest for AMA TCs_10MAY2026 RB.pdf",
+							url: "https://www.nepad.org/file-download/download/public/231726",
+						},
+					],
+				}),
+			}),
+		}));
+	});
+
 	it("updates legacy configured-source rows when source identity becomes more specific", async () => {
 		searchSearxngMock.mockResolvedValue({ results: [] });
 		firecrawlScrapeMock.mockResolvedValue({
