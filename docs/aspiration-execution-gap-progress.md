@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Prove Africa CDC PDF Intake With Lightweight Text Extraction
+
+Status: live-proved.
+
+Purpose: move Africa CDC acquisition beyond listing discovery by downloading selected source PDFs, extracting text with the lightweight `pdftotext` path first, and driving at least one document through the RFP parser into extracted requirements.
+
+Live run:
+- `source_document_intake_africa_cdc_pdfs_20260531T` ran source-document intake for `sourcePlatform=Africa CDC`, limited to 2 direct document rows from the Africa CDC source-document set, with parse waiting enabled.
+- The run selected 2 Africa CDC PDF rows, downloaded 2, failed 0, skipped 0, and used `local_pdftotext` for both PDFs before any heavier parser.
+- One parser job completed successfully with 8 extracted requirements. The second PDF was downloaded and persisted as an RFP document without a new completed parser job in this bounded run.
+
+Verification:
+- Live intake proof artifact: `.omx/logs/platform-completion/source-document-intake-source_document_intake_africa_cdc_pdfs_20260531T/source-document-intake.json`.
+- Runtime output showed `local_pdftotext` used for `1.-Expression-of-Interest-for-AMA-TCs_9MAY2026-RB-FR.pdf` and `1.-Expression-of-Interest-for-AMA-TCs_10MAY2026-RB.pdf`.
+- Runtime output showed RFP parser job `a3d6cf76-02ce-497e-91f4-d8a3ad8e294f` completed with 8 requirements.
+
+Remaining after this slice:
+- Continue draining high-fit Africa CDC PDFs and other African/Global South source documents in bounded batches.
+- Investigate why the second PDF did not create a new completed parser job in this run before assuming duplicate handling is sufficient.
+
 ### 2026-05-31 - Enrich Africa CDC Imports With Detail-Page Source Documents
 
 Status: implemented, focused-tested, typechecked, and live-proved.
