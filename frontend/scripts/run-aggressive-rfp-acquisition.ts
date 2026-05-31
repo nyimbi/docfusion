@@ -114,7 +114,7 @@ function acquisitionOptionsFromEnv(): AggressiveRfpAcquisitionOptions {
 		campaignIds: parseCsvList(process.env.AGGRESSIVE_RFP_ACQUISITION_GROUPS),
 		limitPerQuery: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_LIMIT_PER_QUERY, 8, 1, 50),
 		searchPages: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SEARCH_PAGES, 2, 1, 5),
-		sourceScrapeLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SOURCE_SCRAPE_LIMIT, 40, 0, 200),
+		sourceScrapeLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SOURCE_SCRAPE_LIMIT, 40, 0, 500),
 		scrapeLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SCRAPE_LIMIT, 4, 0, 20),
 		browserFallbackLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_BROWSER_FALLBACK_LIMIT, 4, 0, 20),
 		downloadLimit: process.env.AGGRESSIVE_RFP_ACQUISITION_DOWNLOAD_DOCUMENTS === "0"
