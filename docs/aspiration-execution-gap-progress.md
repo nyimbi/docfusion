@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa And Global South Direct Queue Drained
+
+Status: live-proved, persisted, priority direct queue drained to zero, and pushed in a separate verified slice.
+
+Purpose: finish the remaining Africa/Global South direct-document backlog after the first focused batch, rather than leaving a small but high-confidence Sierra Leone/South Africa queue unparsed.
+
+Live proof:
+- `source_document_intake_africa_global_south_direct_remainder_20260531T` selected 23 remaining direct candidates, downloaded 21, failed 2 hard 404 Sierra Leone Ministry of Finance URLs after search/scrape/browser/reader recovery attempts, completed 20 parse jobs, produced 1 duplicate parse, and had 0 parse failures, 0 parse timeouts, and 0 zero-requirement parses.
+- `source_document_intake_africa_global_south_direct_final_20260531T` selected the last 5 Sierra Leone Ministry of Finance REOI PDFs, downloaded 5, completed 5 parse jobs, failed 0, and had 0 duplicates or zero-requirement parses.
+- `source_document_intake_africa_global_south_direct_zero_probe_20260531T` then selected 0 rows, confirming the current priority direct-document queue is drained for the selected Africa/Global South source set.
+- The second and final drains added 25 RFP documents and 219 persisted requirements after the first focused batch.
+- Combined with the first focused batch, the Africa/Global South direct-document drain added 66 RFP documents and 630 persisted requirements, moving the database from 1,786 RFP documents and 12,472 requirements to 1,852 RFP documents and 13,102 requirements.
+- Current live totals after the drain: 6,265 total opportunities, 6,264 non-rejected opportunities, 1,852 RFP documents, and 13,102 persisted RFP requirements.
+- Current Sierra Leone Ministry of Finance state: 96 downloaded source-document rows, 2 failed rows, 0 discovered rows, and 96 RFP documents.
+- Current South Africa eTenders state: 167 downloaded source-document rows, 3 failed rows, 0 discovered rows, and 159 RFP documents.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_direct_remainder_20260531T ... npm run source-docs:intake` completed with 23 selected, 21 downloaded, 2 failed 404s, 20 completed parse jobs, and 1 duplicate.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_direct_final_20260531T ... npm run source-docs:intake` completed with 5 selected, 5 downloaded, and 5 completed parse jobs.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_direct_zero_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals plus source-document/RFP-document counts for the priority Africa/Global South source set.
+
+Remaining after this slice:
+- The next material source-growth work should not be another direct-document drain for this source set; the direct queue is empty except failed/protected rows.
+- Refill the queue by improving high-volume discovered/detail sources such as Rwanda UMUCYO, ECREEE, Islamic Development Bank, UN Procurement, UNICEF Supply Division, TradeMark Africa, and World Bank.
+- Add vacancy/procurement-staffing and generic attachment filters only if a measured future batch shows they are consuming significant parser capacity; the current drain still produced a strong net corpus gain.
+
 ### 2026-05-31 - Africa And Global South Direct Intake Batch
 
 Status: live-proved, persisted, Africa/Global South focused, lightweight extraction first, and remaining direct queue measured.
