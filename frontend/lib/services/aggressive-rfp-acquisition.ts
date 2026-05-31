@@ -67,7 +67,7 @@ const SOURCE_URLS: Record<string, string> = {
 	gizSouthAfrica: "https://www.giz.de/en/regions/africa/south-africa/tenders",
 	ukContractsFinder: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 	ukFindTender: "https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
-	canadaBuys: "https://canadabuys.canada.ca/en/tender-opportunities",
+	canadaBuys: "https://canadabuys.canada.ca/en/tender-opportunities?status%5B0%5D=87&items_per_page=50",
 	australiaAusTender: "https://www.tenders.gov.au/atm",
 	newZealandGets: "https://www.gets.govt.nz/ExternalIndex.htm",
 	usGrants: "https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",

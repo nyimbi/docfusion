@@ -172,6 +172,8 @@ afterEach(() => {
 	delete process.env.CONTRACTS_FINDER_MAX_API_PAGES;
 	delete process.env.FIND_TENDER_MAX_API_PAGES;
 	delete process.env.GRANTS_GOV_MAX_API_PAGES;
+	delete process.env.CANADABUYS_MAX_PAGES;
+	delete process.env.CANADABUYS_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1312,6 +1314,102 @@ describe("discoverAndImportOpportunities", () => {
 			tags: ["external-discovery", "source-scrape", "grants-gov", "us-federal", "grant", "source-api"],
 		}));
 		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl,
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
+	it("routes CanadaBuys configured sources through the open tender parser with source documents", async () => {
+		process.env.CANADABUYS_MAX_PAGES = "1";
+		process.env.CANADABUYS_DETAIL_LIMIT = "5";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		const sourceUrl = "https://canadabuys.canada.ca/en/tender-opportunities?status%5B0%5D=87&items_per_page=50";
+		fetchMock
+			.mockResolvedValueOnce(new Response(`
+				<table>
+					<tbody>
+						<tr>
+							<td class="views-field views-field-dummy-notice-title">
+								<a href="/en/tender-opportunities/tender-notice/cb-900-58930369">Low Bandwidth Mesh Solution with Satellite Connectivity</a>
+							</td>
+							<td class="views-field views-field-field-term-label-1-1">Goods</td>
+							<td class="views-field views-field-field-term-label-1-1">2099/05/30</td>
+							<td class="views-field views-field-field-tender-closing-date">2099/06/22</td>
+							<td class="views-field views-field-field-tender-organization"><span>Royal Canadian Mounted Police (RCMP)</span></td>
+						</tr>
+					</tbody>
+				</table>
+			`, { status: 200, headers: { "content-type": "text/html" } }))
+			.mockResolvedValueOnce(new Response(`
+				<div class="field field--name-field-tender-solicitation-number field--type-string field--label-above">
+					<span class="field--item display-flex">202604242/A</span>
+				</div>
+				<div class="field field--name-field-tender-publication-date field--type-datetime field--label-above">
+					<span class="field--item display-flex"><time datetime="2099-05-30T12:00:00Z">2099/05/30</time></span>
+				</div>
+				<div class="closing-date-field">
+					<span class="dateclass">2099/06/22</span>
+					<span class="timeclass">17:00 EDT</span>
+				</div>
+				<div class="field field--name-body field--type-text-with-summary field--label-hidden h-600-overflow-h tender-detail-description field--item">
+					<p>Description:<br />The RCMP requires satellite-enabled communications devices.</p>
+					<p>Tenders must be submitted to the RCMP Bid Receiving Unit at: <a href="mailto:E_Pacific_Bids@example.gc.ca">E_Pacific_Bids@example.gc.ca</a></p>
+				</div>
+				<div class="field field--name-field-tender-contact-orgname field--type-string field--label-hidden field--item">Royal Canadian Mounted Police (RCMP)</div>
+				<table class="tender-documents-table">
+					<tr>
+						<td class="field-document_link"><a href="https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/96751/en_202604242a_low-bandwidth-mesh-solution.pdf">EN_202604242A_Low Bandwidth Mesh Solution.pdf</a></td>
+					</tr>
+					<tr>
+						<td class="field-document_link"><a href="/sites/default/files/webform/tender_notice/96751/annex-f-form.xlsx">Annex F Form.xlsx</a></td>
+					</tr>
+				</table>
+			`, { status: 200, headers: { "content-type": "text/html" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [sourceUrl],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenNthCalledWith(1, sourceUrl, expect.objectContaining({
+			headers: expect.objectContaining({
+				Accept: expect.stringContaining("text/html"),
+				"Accept-Language": "en-US,en;q=0.9",
+			}),
+		}));
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-900-58930369",
+			expect.any(Object)
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Low Bandwidth Mesh Solution with Satellite Connectivity",
+			source: "canada_buys",
+			sourceId: "canadabuys-202604242-a",
+			noticeId: "202604242/A",
+			sourcePlatform: "CanadaBuys",
+			sourceFile: `source:${sourceUrl}`,
+			rfpLink: "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/96751/en_202604242a_low-bandwidth-mesh-solution.pdf",
+			portalUrl: "https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-900-58930369",
+			documentUrl: "https://canadabuys.canada.ca/sites/default/files/webform/tender_notice/96751/en_202604242a_low-bandwidth-mesh-solution.pdf",
+			tags: ["external-discovery", "source-scrape", "canadabuys", "canada", "public-procurement", "source-documents"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(2);
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl,

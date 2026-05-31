@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add CanadaBuys Open Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand public-sector RFP acquisition with CanadaBuys open tender notices, replacing generic page scraping for this high-volume official source with a direct parser that collects active notices and attached solicitation documents.
+
+Changes in this slice:
+- Added a CanadaBuys parser for `https://canadabuys.canada.ca/en/tender-opportunities`, including open-status filtering, listing-row extraction, expired-deadline filtering, detail-page enrichment, solicitation-number capture, buyer/category/date extraction, and direct tender-document preservation.
+- Corrected the CanadaBuys configured source to use status `87`, which CanadaBuys labels as `Open`; status `1920` is `Awarded` and produced zero live acquisition candidates when tested.
+- Routed CanadaBuys English/French tender opportunity URLs through the direct source parser path, labeled imported records as `CanadaBuys`, and preserved CanadaBuys metadata/document links for downstream source-document intake.
+- Registered the open-tender URL with `items_per_page=50` in default discovery and the aggressive global public-sector campaign.
+
+Live run:
+- The first CanadaBuys live proof intentionally failed fast with zero candidates because the initially selected status filter was `1920`; live inspection showed that value means `Awarded`, not `Open`.
+- `live_discovery_import_canadabuys_50_20260531T` reran the corrected open-tender URL with one listing page, detail-page enrichment enabled for up to 50 notices, search-result scraping disabled, browser fallback disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 49 candidates, 49 created, 0 updated, 0 failed, and 0 warnings. The listing page contained 50 rows, and one was filtered because it was already expired relative to the run date.
+- The run created 56 source-document rows from detail-page attachments and notice links. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/canada-buys-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 87 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_canadabuys_50_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Increase `CANADABUYS_MAX_PAGES` for scheduled broad harvesting when we want more than the first page of open CanadaBuys notices.
+- Run selected source-document intake for high-fit CanadaBuys imports so the newly captured PDF/XLSX solicitation files are downloaded and parsed before response generation.
+
 ### 2026-05-31 - Add Grants.gov Search API Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

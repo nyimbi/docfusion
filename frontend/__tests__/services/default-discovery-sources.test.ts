@@ -156,7 +156,7 @@ describe("default discovery sources", () => {
 			"https://www.giz.de/en/regions/africa/ghana/tenders",
 			"https://www.giz.de/en/regions/africa/south-africa/tenders",
 			"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
-			"https://canadabuys.canada.ca/en/tender-opportunities",
+			"https://canadabuys.canada.ca/en/tender-opportunities?status%5B0%5D=87&items_per_page=50",
 			"https://www.tenders.gov.au/atm",
 			"https://www.gets.govt.nz/ExternalIndex.htm",
 			"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
