@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - ECREEE Direct ToR Intake Drain
+
+Status: live-proved, persisted, selector-hardened, focused-tested, typechecked, and pushed.
+
+Purpose: expand West African and Global South RFP coverage by draining ECREEE direct documents, while preserving parse capacity for solicitation/ToR material instead of generic HR forms.
+
+Live proof:
+- `source_document_intake_ecreee_direct_probe_20260531T` confirmed ECREEE had direct PDF/DOCX source documents ready for intake.
+- `source_document_intake_ecreee_direct_20260531T` selected 24 ECREEE direct documents, downloaded 24, completed 24 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 264 requirements in the run summary.
+- The run used lightweight local extraction only: PDFs went through local `pdftotext`, DOCX files went through local DOCX parsing, and Docling was not needed.
+- The drain covered multilingual English/French/Portuguese ToR and consulting documents from ECREEE/ReCCAWA/WOCEWA/WAREP.
+- The live run also exposed low-value ECREEE HR documents in the direct-document backlog: job application forms and driver job profiles parsed successfully but are not RFP/tender material.
+- The intake selector now excludes English `job application form`, English `job profile`, French `profil du poste`, and Portuguese `perfil do cargo` documents while preserving consultant/procurement recruitment ToRs such as ReCCAWA specialist ToRs.
+- Post-filter dry proof `source_document_intake_ecreee_direct_postfilter_probe_20260531T2` selected only ToR/consulting/procurement documents from the remaining ECREEE direct backlog; the previously selected English/French/Portuguese driver/job-profile documents were no longer selected.
+- Current ECREEE source-document counts after the drain: 76 discovered and 26 downloaded source-document rows, 26 RFP documents, and 276 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,293 RFP documents, and 8,879 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_ecreee_direct_20260531T ... npm run source-docs:intake` completed successfully.
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_ecreee_direct_postfilter_probe_20260531T2 ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` confirmed the next ECREEE direct queue excludes the generic job forms/profiles while keeping ToR/consulting/procurement documents.
+- Live DB checks confirmed global totals and ECREEE downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Continue draining the remaining ECREEE ToR/procurement backlog in bounded batches.
+- Move next to other high-yield African/Global South direct backlogs already probed as clean, especially Mali DGMP and DNCCP Togo.
+- Keep using local `pdftotext`/DOCX parsing before Docling so broad collection remains lighter and more reliable.
+
 ### 2026-05-31 - BADEA Direct PDF Intake Drain
 
 Status: live-proved and persisted.
