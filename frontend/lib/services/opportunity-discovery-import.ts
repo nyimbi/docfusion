@@ -321,6 +321,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/api\.marches-publics\.bj\/v2\/api\/portail\/appelsoffres/i,
 	/\/\/(?:www\.)?marches-publics\.bj\/appels-doffres/i,
 	/\/\/(?:www\.)?dgmp\.gouv\.ml\/(?:\?q=node\/(?:66|71)|.*sites\/default\/files\/DATA_IN\/)/i,
+	/\/\/dnccp\.gouv\.tg\/dnccp\/(?:wp-json\/wp\/v2\/posts|category\/avis-d-appel-d-offres|avis-d-appel-d-offres\/)/i,
 	/\/\/(?:www\.)?un\.org\/procurement/i,
 	/\/\/(?:www\.)?unicef\.org\/supply\/.*tender/i,
 	/\/\/(?:www\.)?giz\.de\/.*\/tenders/i,
@@ -424,6 +425,10 @@ function normalizeUrlForIdentity(url: string): string {
 }
 
 function sourceOpportunityIdentity(opportunity: OpportunityData, sourceUrl: string): string {
+	if (opportunity.source === "dnccp_togo" && opportunity.sourceId) {
+		return `${normalizeUrlForIdentity(sourceUrl)}#${opportunity.sourceId}`;
+	}
+
 	const url = opportunity.documentUrl ?? opportunity.rfpLink ?? opportunity.portalUrl;
 	if (url) {
 		const normalizedUrl = normalizeUrlForIdentity(url);
@@ -566,6 +571,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "api.marches-publics.bj" && safeUrlPathname(sourceUrl).startsWith("/v2/api/portail/appelsoffres")) sourceId = "benin_marches_publics";
 	else if (host === "marches-publics.bj" && safeUrlPathname(sourceUrl).startsWith("/appels-doffres")) sourceId = "benin_marches_publics";
 	else if (host === "dgmp.gouv.ml" && (sourceUrl.includes("q=node/71") || sourceUrl.includes("q=node/66") || safeUrlPathname(sourceUrl).startsWith("/sites/default/files/DATA_IN/"))) sourceId = "dgmp_mali";
+	else if (host === "dnccp.gouv.tg" && (safeUrlPathname(sourceUrl).startsWith("/dnccp/wp-json/wp/v2/posts") || safeUrlPathname(sourceUrl).startsWith("/dnccp/category/avis-d-appel-d-offres") || safeUrlPathname(sourceUrl).startsWith("/dnccp/avis-d-appel-d-offres/"))) sourceId = "dnccp_togo";
 	else if (host.includes("unicef.org")) sourceId = "unicef";
 	else if (host === "unwomen.org" && safeUrlPathname(sourceUrl).startsWith("/en/about-us/procurement")) sourceId = "un_women";
 	else if (host === "iom.int" && safeUrlPathname(sourceUrl).startsWith("/procurement-opportunities")) sourceId = "iom";
@@ -628,6 +634,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "marches_publics_niger"
 		|| parser.sourceId === "benin_marches_publics"
 		|| parser.sourceId === "dgmp_mali"
+		|| parser.sourceId === "dnccp_togo"
 		|| parser.sourceId === "iom"
 		|| parser.sourceId === "nest_tanzania"
 		|| parser.sourceId === "egp_uganda"
@@ -1058,6 +1065,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "marches_publics_niger") return "Niger Public Procurement Portal";
 	if (opportunity?.source === "benin_marches_publics") return "Benin Public Procurement Portal";
 	if (opportunity?.source === "dgmp_mali") return "DGMP Mali";
+	if (opportunity?.source === "dnccp_togo") return "DNCCP Togo";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
 	if (opportunity?.source === "unicef") return "UNICEF Supply Division";
 	if (opportunity?.source === "iom") return "IOM";
@@ -1131,6 +1139,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "marches_publics_niger" ? ["niger", "west-africa", "national-procurement", "source-api"] : []),
 		...(opportunity?.source === "benin_marches_publics" ? ["benin", "west-africa", "national-procurement", "source-api", "direct-documents"] : []),
 		...(opportunity?.source === "dgmp_mali" ? ["mali", "west-africa", "national-procurement", "source-api", "direct-documents"] : []),
+		...(opportunity?.source === "dnccp_togo" ? ["togo", "west-africa", "national-procurement", "source-api", "direct-documents"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
 		...(opportunity?.source === "unicef" ? ["unicef", "un-procurement", "tender-calendar"] : []),
 		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
@@ -1477,7 +1486,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "badea" || sourceOpportunity?.source === "boad" || sourceOpportunity?.source === "dbsa" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "isdb" || sourceOpportunity?.source === "auda_nepad" || sourceOpportunity?.source === "africa_cdc" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "canada_buys" || sourceOpportunity?.source === "new_zealand_gets" || sourceOpportunity?.source === "grants_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "sadc" || sourceOpportunity?.source === "ecowas" || sourceOpportunity?.source === "ecreee" || sourceOpportunity?.source === "mof_sierra_leone" || sourceOpportunity?.source === "marches_publics_niger" || sourceOpportunity?.source === "benin_marches_publics" || sourceOpportunity?.source === "dgmp_mali" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev" || sourceOpportunity?.source === "trademark_africa"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "badea" || sourceOpportunity?.source === "boad" || sourceOpportunity?.source === "dbsa" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "isdb" || sourceOpportunity?.source === "auda_nepad" || sourceOpportunity?.source === "africa_cdc" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "canada_buys" || sourceOpportunity?.source === "new_zealand_gets" || sourceOpportunity?.source === "grants_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "sadc" || sourceOpportunity?.source === "ecowas" || sourceOpportunity?.source === "ecreee" || sourceOpportunity?.source === "mof_sierra_leone" || sourceOpportunity?.source === "marches_publics_niger" || sourceOpportunity?.source === "benin_marches_publics" || sourceOpportunity?.source === "dgmp_mali" || sourceOpportunity?.source === "dnccp_togo" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev" || sourceOpportunity?.source === "trademark_africa"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Togo DNCCP Direct Procurement API Intake
+
+Status: implemented, focused-tested, typechecked, live-imported, and persisted.
+
+Purpose: continue the Africa/Global South sourcing expansion by adding Togo's national public procurement notices through the official DNCCP WordPress REST API instead of the noisier category HTML page.
+
+Changes in this slice:
+- Added the DNCCP Togo parser for `https://dnccp.gouv.tg/dnccp/wp-json/wp/v2/posts?categories=45%2C104%2C105%2C106&per_page=100&_fields=id%2Cdate%2Clink%2Ctitle%2Ccontent%2Cexcerpt%2Ccategories`.
+- Encoded comma-delimited query parameters in the configured source URL so live source imports do not split the URL into fake sources.
+- Promoted procurement text from post content when WordPress titles are terse acronyms such as `PRMP`, `STSL`, or `ARCEP`.
+- Preserved distinct DNCCP post IDs during source-candidate identity checks, even when multiple official posts share the same uploaded document URL.
+- Added Togo DNCCP to default discovery and the `africa_national` aggressive acquisition campaign.
+
+Live proof:
+- Direct parser probe returned 74 DNCCP Togo notices, 73 with direct procurement document links.
+- Corrected live import `live_discovery_import_dnccp_togo_distinct_posts_20260531T` processed 74 candidates, imported 4, updated 70, skipped 0, failed 0, and produced healthy source health.
+- Current persisted counts on `db.lindela.io`: 6,034 opportunities total, including 74 Togo DNCCP opportunities; 3,408 opportunity-document rows total, including 74 Togo source-document rows.
+
+Verification:
+- `npm test -- --run __tests__/scrapers/dnccp-togo-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 93 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Run bounded direct-document download/parse for Togo, Mali, and Benin using local lightweight extraction before Docling fallback.
+- Continue sourcing African and Global South national portals with direct APIs or static direct-document listings.
+
 ### 2026-05-31 - West African National Procurement Expansion: Benin and Mali
 
 Status: implemented, focused-tested, typechecked, live-imported, and persisted.

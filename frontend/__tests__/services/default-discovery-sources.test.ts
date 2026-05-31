@@ -167,6 +167,7 @@ describe("default discovery sources", () => {
 			"https://api.marches-publics.bj/v2/api/portail/appelsoffres?page=0&size=100&search=&status=0",
 			"https://www.dgmp.gouv.ml/?q=node/71",
 			"https://www.dgmp.gouv.ml/?q=node/66",
+			"https://dnccp.gouv.tg/dnccp/wp-json/wp/v2/posts?categories=45%2C104%2C105%2C106&per_page=100&_fields=id%2Cdate%2Clink%2Ctitle%2Ccontent%2Cexcerpt%2Ccategories",
 			"https://www.un.org/procurement/solicitations-opportunities",
 			"https://www.unicef.org/supply/service-contracts-tender-calendar",
 			"https://www.caribank.org/work-with-us/procurement/procurement-notices",
