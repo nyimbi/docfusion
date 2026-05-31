@@ -18,7 +18,7 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ### 2026-05-31 - IDB Direct Document Intake Enablement
 
-Status: implemented, focused-tested, typechecked, and live-proved.
+Status: implemented, focused-tested, typechecked, live-proved, and expanded.
 
 Purpose: convert newly discovered Global South development-bank opportunities from source rows into parsed, response-usable RFP requirements.
 
@@ -31,7 +31,9 @@ Live proof:
 - Before the patch, `source_document_intake_idb_global_south_20260531T` selected 0 IDB documents because the endpoints lacked file extensions.
 - After the patch, `source_document_intake_idb_global_south_direct_20260531T` selected 4 IDB direct documents, downloaded 4, completed 4 parse jobs, failed 0, timed out 0, and extracted 32 total requirements.
 - All 4 IDB PDFs used local `pdftotext` extraction successfully, producing 11, 9, 5, and 7 requirements without needing Docling.
-- Current IDB source-document counts after the run: 68 discovered, 4 downloaded, 4 RFP documents, and 32 extracted requirements.
+- A follow-up drain, `source_document_intake_idb_global_south_direct_batch2_20260531T`, selected 8 more IDB direct documents, downloaded 8, completed 8 parse jobs, failed 0, timed out 0, and extracted 59 additional requirements.
+- All 8 follow-up IDB PDFs also used local `pdftotext`, producing 6, 5, 5, 13, 7, 9, 10, and 4 requirements.
+- Current IDB source-document counts after the follow-up run: 60 discovered, 12 downloaded, 12 RFP documents, and 91 extracted requirements.
 
 Verification:
 - `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests.
@@ -39,7 +41,7 @@ Verification:
 - Live DB checks confirmed IDB downloaded document, RFP document, and requirement counts.
 
 Remaining after this slice:
-- Continue draining the remaining 68 IDB discovered source documents in bounded batches.
+- Continue draining the remaining 60 IDB discovered source documents in bounded batches.
 - Add more direct-document endpoint patterns for Global South sources discovered by search fanout when valid document URLs do not use file extensions.
 
 ### 2026-05-31 - Global South Search Fanout Acquisition Pass
