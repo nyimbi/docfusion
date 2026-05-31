@@ -531,6 +531,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host.includes("sam.gov")) sourceId = "sam_gov";
 	else if (host === "contractsfinder.service.gov.uk" && /^(?:\/Published\/Notices\/OCDS\/Search|\/Search|\/Notice\/)/i.test(safeUrlPathname(sourceUrl))) sourceId = "contracts_finder";
 	else if (host === "find-tender.service.gov.uk" && /^(?:\/api\/1\.0\/ocdsReleasePackages|\/Search\/Results)/.test(safeUrlPathname(sourceUrl))) sourceId = "find_tender";
+	else if ((host === "micro.grants.gov" && safeUrlPathname(sourceUrl).startsWith("/rest/opportunities/search")) || (host === "grants.gov" && safeUrlPathname(sourceUrl).startsWith("/search-grants"))) sourceId = "grants_gov";
 	else if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) sourceId = "eu_funding_tenders";
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
 	else if (host.includes("comesa.int")) sourceId = "comesa";
@@ -572,6 +573,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 	return parser.sourceId === "sam_gov"
 		|| parser.sourceId === "contracts_finder"
 		|| parser.sourceId === "find_tender"
+		|| parser.sourceId === "grants_gov"
 		|| parser.sourceId === "eu_funding_tenders"
 		|| parser.sourceId === "adb"
 		|| parser.sourceId === "idb"
@@ -991,6 +993,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "sam_gov") return "SAM.gov";
 	if (opportunity?.source === "contracts_finder") return "UK Contracts Finder";
 	if (opportunity?.source === "find_tender") return "UK Find a Tender";
+	if (opportunity?.source === "grants_gov") return "Grants.gov";
 	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
 	if (opportunity?.source === "comesa") return "COMESA";
 	if (opportunity?.source === "un_procurement") return "UN Procurement";
@@ -1047,6 +1050,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "sam_gov" ? ["sam-gov", "us-federal"] : []),
 		...(opportunity?.source === "contracts_finder" ? ["contracts-finder", "uk", "public-procurement", "ocds"] : []),
 		...(opportunity?.source === "find_tender" ? ["find-tender", "uk", "public-procurement", "ocds"] : []),
+		...(opportunity?.source === "grants_gov" ? ["grants-gov", "us-federal", "grant"] : []),
 		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
 		...(opportunity?.source === "un_procurement" ? ["un-procurement", "unpd"] : []),
@@ -1388,7 +1392,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "grants_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

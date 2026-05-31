@@ -171,6 +171,7 @@ afterEach(() => {
 	delete process.env.NRC_TENDER_DETAIL_LIMIT;
 	delete process.env.CONTRACTS_FINDER_MAX_API_PAGES;
 	delete process.env.FIND_TENDER_MAX_API_PAGES;
+	delete process.env.GRANTS_GOV_MAX_API_PAGES;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1240,6 +1241,80 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
+	it("routes Grants.gov configured sources through the public search API parser", async () => {
+		process.env.GRANTS_GOV_MAX_API_PAGES = "1";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		const sourceUrl = "https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted";
+		fetchMock.mockResolvedValue(new Response(JSON.stringify({
+			hitCount: 1,
+			oppHits: [{
+				id: "362584",
+				number: "PDS-LUSAKA-AMSPACES-FY26",
+				title: "American Spaces Administrative Funds Management 2026",
+				agencyCode: "DOS-ZAM",
+				agency: "U.S. Mission to Zambia",
+				openDate: "05/29/2099",
+				closeDate: "06/20/2099",
+				oppStatus: "posted",
+				cfdaList: ["19.441"],
+				awardCeiling: "250000",
+			}],
+		}), { status: 200, headers: { "content-type": "application/json" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: [sourceUrl],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			sourceUrl,
+			expect.objectContaining({
+				method: "POST",
+				headers: expect.objectContaining({
+					Accept: "application/json",
+					"Content-Type": "application/json",
+				}),
+				body: expect.any(String),
+			})
+		);
+		expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+			rows: 100,
+			startRecordNum: 0,
+			oppStatuses: "forecasted|posted",
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "American Spaces Administrative Funds Management 2026",
+			source: "grants_gov",
+			sourceId: "grants-gov-362584",
+			sourcePlatform: "Grants.gov",
+			sourceFile: `source:${sourceUrl}`,
+			rfpLink: "https://www.grants.gov/search-results-detail/362584",
+			portalUrl: "https://www.grants.gov/search-results-detail/362584",
+			documentUrl: "https://www.grants.gov/search-results-detail/362584",
+			opportunityType: "grant",
+			tags: ["external-discovery", "source-scrape", "grants-gov", "us-federal", "grant", "source-api"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl,
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

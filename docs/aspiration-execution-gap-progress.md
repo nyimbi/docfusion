@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Grants.gov Search API Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand United States federal grant and assistance opportunity acquisition by replacing the generic JavaScript search page with the public Grants.gov search backend used by the portal itself.
+
+Changes in this slice:
+- Added a Grants.gov parser for `https://micro.grants.gov/rest/opportunities/search`, including posted/forecasted filtering, expired-posted filtering, agency/assistance-listing/award extraction, stable opportunity IDs, and Grants.gov detail links.
+- Routed Grants.gov configured source URLs through the source-API parser path, labeled imported records as `Grants.gov`, and preserved Grants.gov metadata for downstream intake.
+- Replaced the default and aggressive Grants.gov configured source URL with the public POST search backend while retaining targeted search fanout queries for indexed opportunity rediscovery.
+- Stored Grants.gov detail pages as source-document links for selected downstream intake without forcing package/download parsing during broad acquisition.
+
+Live run:
+- `live_discovery_import_grants_gov_50_20260531T` ran one Grants.gov API page with source-API parsing enabled, search-result scraping disabled, browser fallback disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 50 candidates, 50 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 50 source-document rows. Downloads and parsing were intentionally disabled for this proof to verify acquisition breadth without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/grants-gov-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 86 tests.
+- Post-typecheck parser/import regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/grants-gov-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 78 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_grants_gov_50_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Use the Grants.gov details endpoint or selected source-document intake to collect full synopsis/package material for pursued opportunities.
+- Increase `GRANTS_GOV_MAX_API_PAGES` and source-scrape limits for scheduled broad harvesting when we want more than the first 50 fresh posted/forecasted opportunities per run.
+
 ### 2026-05-31 - Add UK Contracts Finder OCDS Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

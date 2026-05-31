@@ -70,7 +70,7 @@ const SOURCE_URLS: Record<string, string> = {
 	canadaBuys: "https://canadabuys.canada.ca/en/tender-opportunities",
 	australiaAusTender: "https://www.tenders.gov.au/atm",
 	newZealandGets: "https://www.gets.govt.nz/ExternalIndex.htm",
-	usGrants: "https://www.grants.gov/search-grants",
+	usGrants: "https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
 	usaidBusinessForecast: "https://www.usaid.gov/business-forecast",
 	mercyCorpsTenders: "https://www.mercycorps.org/tenders",
 	crsBidOpportunities: "https://www.crs.org/bid-opportunities",

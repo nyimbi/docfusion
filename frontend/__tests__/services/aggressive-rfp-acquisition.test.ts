@@ -27,6 +27,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://cdn.ppda.go.ug/api/bid-invitations",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
 				"https://canadabuys.canada.ca/en/tender-opportunities",
 				"https://www.mercycorps.org/tenders",
 				"https://www.rti.org/current-opportunities",
@@ -120,6 +121,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://sam.gov/search/?index=opp&keywords=%22request%20for%20proposal%22",
 			"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 			"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+			"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
 			"https://www.tenders.gov.au/atm",
 			"https://www.gets.govt.nz/ExternalIndex.htm",
 		]));

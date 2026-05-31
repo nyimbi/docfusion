@@ -159,7 +159,7 @@ describe("default discovery sources", () => {
 			"https://canadabuys.canada.ca/en/tender-opportunities",
 			"https://www.tenders.gov.au/atm",
 			"https://www.gets.govt.nz/ExternalIndex.htm",
-			"https://www.grants.gov/search-grants",
+			"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
 			"https://www.usaid.gov/business-forecast",
 			"https://www.mercycorps.org/tenders",
 			"https://www.crs.org/bid-opportunities",
