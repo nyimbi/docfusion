@@ -3935,7 +3935,7 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, DBSA, and SADC configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, DBSA, SADC, and ECOWAS configured sources through static source parsers", async () => {
 		process.env.BOAD_PAGE_LIMIT = "1";
 		process.env.BOAD_DETAIL_LIMIT = "1";
 		const boadInertiaHtml = (props: Record<string, unknown>) =>
@@ -4006,6 +4006,23 @@ describe("discoverAndImportOpportunities", () => {
 							</tbody></table>
 						</div>
 					</article>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url.startsWith("https://www.ecowas.int/procurement/")) {
+				return new Response(url === "https://www.ecowas.int/procurement/" ? `
+					<a href="https://www.ecowas.int/nwp_events/invitation-for-bid-solar-power-systems/">
+						<small>Closing date: 11 Jun, 2099</small><h6>Invitation for Bid : Solar Power Systems for Primary Health Care Facilities</h6>
+					</a>
+				` : "", { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.ecowas.int/nwp_events/invitation-for-bid-solar-power-systems/") {
+				return new Response(`
+					<h3>Invitation for Bid : Solar Power Systems for Primary Health Care Facilities</h3>
+					<p>The ECOWAS Commission invites sealed bids for solar power systems.</p>
+					<h4 class="text-blue">Downloads</h4>
+					<a href="https://www.ecowas.int/wp-content/uploads/2099/05/FINAL-SISS-Request-for-bids.pdf" class="accordion-title" target="_blank">
+						FINAL SISS Request for bids <div><span>2.43 MB</span> <span>pdf</span></div>
+					</a>
 				`, { status: 200, headers: { "content-type": "text/html" } });
 			}
 			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
@@ -4100,14 +4117,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.dbsa.org/procurement",
 				"https://www.sadc.int/procurement-opportunities",
+				"https://www.ecowas.int/procurement/",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 7,
-			imported: 7,
+			total: 8,
+			imported: 8,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4167,6 +4185,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://www.sadc.int/sites/default/files/2099-05/REOI%20-%20TA%20ES%20OFFICE.docx",
 			tags: ["external-discovery", "source-scrape", "sadc", "southern-africa", "regional-procurement", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Invitation for Bid : Solar Power Systems for Primary Health Care Facilities",
+			source: "ecowas",
+			sourcePlatform: "ECOWAS",
+			sourceFile: "source:https://www.ecowas.int/procurement/",
+			rfpLink: "https://www.ecowas.int/wp-content/uploads/2099/05/FINAL-SISS-Request-for-bids.pdf",
+			tags: ["external-discovery", "source-scrape", "ecowas", "west-africa", "regional-procurement", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4206,6 +4232,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://www.sadc.int/procurement-opportunities",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.ecowas.int/procurement/",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

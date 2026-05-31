@@ -28,6 +28,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.dbsa.org/procurement",
 				"https://www.sadc.int/procurement-opportunities",
+				"https://www.ecowas.int/procurement/",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -97,6 +98,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://ocds-api.etenders.gov.za/api/OCDSReleases",
 			"https://www.ghaneps.gov.gh/epps/quickSearchAction.do?searchSelect=6",
 			"https://www.sadc.int/procurement-opportunities",
+			"https://www.ecowas.int/procurement/",
 		]));
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);
@@ -193,6 +195,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:boad.org/fr/opportunites/appels-doffre \"Avis de manifestation\" consultant",
 			"site:dbsa.org/procurement RFP closing date",
 			"site:sadc.int/procurement-opportunities \"Closing Date\" procurement",
+			"site:ecowas.int/procurement \"Closing date\"",
+			"site:ecowas.int/nwp_events procurement \"Closing date\"",
 			"site:dai.com/uploads \"request for proposals\" DAI",
 			"site:plan-international.org/calls-tender tender deadline",
 			"site:rescue.org/rfp RFP procurement",

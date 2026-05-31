@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add ECOWAS West Africa Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with the ECOWAS procurement portal, a West African regional source that publishes current bids, consulting-service notices, procurement plans, closing dates, and direct PDF procurement downloads.
+
+Changes in this slice:
+- Added an ECOWAS parser for `https://www.ecowas.int/procurement/`, including static closing-date extraction, category-page fanout across procurement/grants sections, detail-page enrichment, Nigeria-time deadline parsing, expired-deadline filtering, procurement type inference, and direct PDF/DOCX/XLSX/ZIP document capture.
+- Routed ECOWAS procurement and `nwp_events` detail URLs through the direct source-parser path, labeled imported records as `ECOWAS`, and preserved ECOWAS download links for downstream source-document intake.
+- Added ECOWAS to default discovery and the aggressive African acquisition campaign, with targeted ECOWAS `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked ECOWAS tender packages.
+
+Live run:
+- `live_discovery_import_ecowas_20260531T` ran the ECOWAS procurement source with source-API parsing enabled, category fanout, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 11 candidates, 11 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 21 source-document rows from linked ECOWAS procurement attachments. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/ecowas-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 89 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_ecowas_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit ECOWAS imports with lightweight text extraction first; use Docling only as fallback.
+- Continue expanding African and Global South direct sources with current closing dates and linked document packages.
+
 ### 2026-05-31 - Add SADC Southern Africa Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
