@@ -33,7 +33,9 @@ Live proof:
 - All 4 IDB PDFs used local `pdftotext` extraction successfully, producing 11, 9, 5, and 7 requirements without needing Docling.
 - A follow-up drain, `source_document_intake_idb_global_south_direct_batch2_20260531T`, selected 8 more IDB direct documents, downloaded 8, completed 8 parse jobs, failed 0, timed out 0, and extracted 59 additional requirements.
 - All 8 follow-up IDB PDFs also used local `pdftotext`, producing 6, 5, 5, 13, 7, 9, 10, and 4 requirements.
-- Current IDB source-document counts after the follow-up run: 60 discovered, 12 downloaded, 12 RFP documents, and 91 extracted requirements.
+- A third drain, `source_document_intake_idb_global_south_direct_batch3_20260531T`, selected 10 more IDB direct documents, downloaded 10, completed 10 parse jobs, failed 0, timed out 0, and extracted 67 additional requirements.
+- Batch 3 used local `pdftotext` for 9 PDFs and Docling for 1 PDF where local text was unusable; all 10 still completed successfully.
+- Current IDB source-document counts after batch 3: 50 discovered, 22 downloaded, 22 RFP documents, and 158 extracted requirements.
 
 Verification:
 - `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests.
@@ -41,7 +43,7 @@ Verification:
 - Live DB checks confirmed IDB downloaded document, RFP document, and requirement counts.
 
 Remaining after this slice:
-- Continue draining the remaining 60 IDB discovered source documents in bounded batches.
+- Continue draining the remaining 50 IDB discovered source documents in bounded batches.
 - Add more direct-document endpoint patterns for Global South sources discovered by search fanout when valid document URLs do not use file extensions.
 
 ### 2026-05-31 - Global South Search Fanout Acquisition Pass
