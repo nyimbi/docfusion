@@ -1064,6 +1064,7 @@ describe("RFP document fetch storage", () => {
 		});
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(processRfpParsingJob).not.toHaveBeenCalled();
+		expect(dbMock.query.rfpDocuments.findFirst).not.toHaveBeenCalled();
 		expect(updates).toContainEqual(expect.objectContaining({
 			status: "downloaded",
 			extractedText: undefined,
@@ -1072,6 +1073,86 @@ describe("RFP document fetch storage", () => {
 			expect.objectContaining({
 				toState: "stored_unparseable",
 				reason: expect.stringContaining("HTML document"),
+			})
+		);
+	});
+
+	it("queues trusted IDB HTML shells so opportunity metadata fallback can parse them", async () => {
+		const insertedValues: Record<string, unknown>[] = [];
+		const updates: Record<string, unknown>[] = [];
+		const sparseHtml = "<!doctype html><html><body><main>Open</main></body></html>";
+		dbMock.query.opportunityDocuments.findFirst.mockResolvedValue({
+			...baseDocument,
+			documentName: "getdocument.aspx",
+			sourceUrl: "https://idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=EZIDB0000416-1533266335-2594",
+		});
+		dbMock.insert
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000452", organizationId: "org-1" }],
+				onValues: (value) => insertedValues.push(value),
+			}))
+			.mockReturnValueOnce(createChain({
+				result: [{ id: "00000000-0000-4000-8000-000000000552" }],
+				onValues: (value) => insertedValues.push(value),
+			}));
+		dbMock.update.mockImplementation(() => createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(sparseHtml, {
+			status: 200,
+			headers: {
+				"content-length": String(Buffer.byteLength(sparseHtml)),
+				"content-type": "text/html",
+			},
+		}));
+		doclingMock.processRfpDocument.mockResolvedValue({
+			text: "Open",
+			pageCount: 1,
+		});
+
+		const result = await downloadDocument(
+			baseDocument.id,
+			"capture-user",
+			undefined,
+			{ parseMode: "queued" }
+		);
+
+		expect(result).toMatchObject({
+			success: true,
+			mimeType: "text/html",
+			parsingStatus: "queued",
+		});
+		expect(processRfpParsingJob).not.toHaveBeenCalled();
+		expect(dbMock.query.rfpDocuments.findFirst).not.toHaveBeenCalled();
+		expect(updates).toContainEqual(expect.objectContaining({
+			status: "downloaded",
+			extractedText: undefined,
+		}));
+		expect(insertedValues[0]).toMatchObject({
+			filename: "getdocument.html",
+			fileType: "html",
+			extractedText: undefined,
+			metadata: expect.objectContaining({
+				parserPolicy: expect.objectContaining({
+					metadataFallbackAllowed: true,
+					dedupeBypassReason: "trusted_html_metadata_fallback",
+				}),
+			}),
+		});
+		expect(insertedValues[1]).toMatchObject({
+			rfpDocumentId: "00000000-0000-4000-8000-000000000452",
+			status: "queued",
+		});
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "queued_for_parse",
+			})
+		);
+		expect(workflowRuntimeMock.recordWorkflowRuntimeTransition).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				toState: "stored_unparseable",
 			})
 		);
 	});

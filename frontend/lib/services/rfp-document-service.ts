@@ -1128,6 +1128,20 @@ export async function extractDocumentText(documentId: string): Promise<string | 
   }
 }
 
+function isTrustedMetadataFallbackHtmlDocumentUrl(sourceUrl: string | null | undefined): boolean {
+  if (!sourceUrl) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch {
+    return false;
+  }
+
+  return parsed.hostname.toLowerCase() === "idbdocs.iadb.org"
+    && parsed.pathname.toLowerCase() === "/wsdocs/getdocument.aspx"
+    && Boolean(parsed.searchParams.get("docnum")?.trim());
+}
+
 async function fetchSourceDocument(
   sourceUrl: URL,
   documentName: string,
@@ -2836,6 +2850,10 @@ async function queueRfpParsingFromDownloadedDocument(params: {
   parserFilename: string;
 }): Promise<QueuedRfpParsing> {
   const fileType = inferRfpParserFileType(params.parserFilename, params.mimeType);
+  const hasExtractedText = Boolean(params.extractedText?.trim());
+  const canQueueMetadataFallbackHtml = fileType === "html"
+    && !hasExtractedText
+    && isTrustedMetadataFallbackHtmlDocumentUrl(params.provenance.sourceUrl || params.document.sourceUrl);
   if (!fileType) {
     await recordOpportunityDocumentIngestWorkflow({
       document: params.document,
@@ -2847,7 +2865,7 @@ async function queueRfpParsingFromDownloadedDocument(params: {
     });
     return { parsingStatus: "not_queued" };
   }
-  if ((fileType === "xlsx" || fileType === "xls" || fileType === "html") && !params.extractedText?.trim()) {
+  if ((fileType === "xlsx" || fileType === "xls" || (fileType === "html" && !canQueueMetadataFallbackHtml)) && !hasExtractedText) {
     const fileKind = fileType === "html" ? "HTML document" : "spreadsheet";
     await recordOpportunityDocumentIngestWorkflow({
       document: params.document,
@@ -2882,24 +2900,26 @@ async function queueRfpParsingFromDownloadedDocument(params: {
       return { parsingStatus: "failed", parsingError: "Downloaded document could not be queued because the user has no default workspace." };
     }
 
-    const existing = await db.query.rfpDocuments.findFirst({
-      where: and(
-        eq(rfpDocuments.fileHash, params.fileHash),
-        eq(rfpDocuments.organizationId, organizationId),
-      ),
-    });
-
-    if (existing) {
-      await recordOpportunityDocumentIngestWorkflow({
-        document: params.document,
-        userId: params.userId,
-        toState: "duplicate_linked",
-        reason: `Downloaded document matched existing RFP ${existing.id}.`,
-        priority: "low",
-        storageReceipt: params.storageReceipt,
-        rfpDocumentId: existing.id,
+    if (!canQueueMetadataFallbackHtml) {
+      const existing = await db.query.rfpDocuments.findFirst({
+        where: and(
+          eq(rfpDocuments.fileHash, params.fileHash),
+          eq(rfpDocuments.organizationId, organizationId),
+        ),
       });
-      return { duplicateOfRfpDocumentId: existing.id, parsingStatus: "duplicate" };
+
+      if (existing) {
+        await recordOpportunityDocumentIngestWorkflow({
+          document: params.document,
+          userId: params.userId,
+          toState: "duplicate_linked",
+          reason: `Downloaded document matched existing RFP ${existing.id}.`,
+          priority: "low",
+          storageReceipt: params.storageReceipt,
+          rfpDocumentId: existing.id,
+        });
+        return { duplicateOfRfpDocumentId: existing.id, parsingStatus: "duplicate" };
+      }
     }
 
     const [rfpDocument] = await db.insert(rfpDocuments).values({
@@ -2935,6 +2955,8 @@ async function queueRfpParsingFromDownloadedDocument(params: {
           parser: "next_rfp_parser",
           confidenceGateThreshold: getParseConfidenceGateThreshold(),
           queuedAt: new Date().toISOString(),
+          metadataFallbackAllowed: canQueueMetadataFallbackHtml || undefined,
+          dedupeBypassReason: canQueueMetadataFallbackHtml ? "trusted_html_metadata_fallback" : undefined,
         },
       },
     }).returning();
