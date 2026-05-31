@@ -29,7 +29,7 @@ const TRUSTED_DIRECT_DOCUMENT_ENDPOINT_SQL_PATTERN =
 const TRUSTED_HTML_DETAIL_ENDPOINT_PATTERN = /https:\/\/undp\.sharepoint\.com\/sites\/Docs-Public\/Procurement\/Forms\/AllItems\.aspx\?[^#\s]*\bFilterValue1=[^#\s]+/i;
 const TRUSTED_HTML_DETAIL_ENDPOINT_SQL_PATTERN =
 	"https://undp\\.sharepoint\\.com/sites/Docs-Public/Procurement/Forms/AllItems\\.aspx\\?[^#[:space:]]*\\mFilterValue1=";
-const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|(?:^|[^a-z0-9])procurement[-_\s]?(?:plan|report)\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bbidder[-_\s]?instructions\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b|\bsenior[-_\s]?procurement[-_\s]?executive[-_\s]?message\b|\blapse[-_\s]?in[-_\s]?appropriations\b|\bjustification[-_\s]?and[-_\s]?approval\b|\bother[-_\s]?than[-_\s]?full[-_\s]?and[-_\s]?open[-_\s]?competition\b|\btips\.pdf\b|\bconduct[-_\s]?english\.pdf\b|\b(?:supplier|vendor)[-_\s]?(?:code[-_\s]?of[-_\s]?)?conduct\b|(?:^|[^a-z0-9])(?:procurement|vendor|supplier)[-_\s]?(?:guide|manual|handbook)(?:\b|[-_\s])|\bglobal[-_\s]?marketplace[-_\s]?guide\b|\bgbg[-_\s]?master\b|\bun\.org\/.*\/pm\.pdf\b|\bguide[-_\s]?\d*[-_\s]?submit[-_\s]?quotations[-_\s]?bids[-_\s]?proposals\b|\bentities[-_\s]*[-_\s]?20\d{2}[-_\s]?quarter\b|\bnpm[-_.\s]?no\.?[-_.\s]?\d+(?:[-_.\s]?\d+)?\b|corrigendum|\bannex(?:ure)?[-_\s]?[cde]\b|\blocal[-_\s]?(?:and[-_\s]?)?imported[-_\s]?content[-_\s]?declaration\b)/i;
+const NON_SOLICITATION_DOCUMENT_PATTERN = /(?:\binvestors?\b|\bsales[-_\s]?results\b|\bfinancial[-_\s]?results\b|\bquarterly[-_\s]?report(?:\b|[-_])|\bannual[-_\s]?(?:operational[-_\s]?procurement[-_\s]?)?report(?:\b|[-_])|\bq[1-4][-_]20\d{2}[-_\s]?report(?:\b|[-_])|\btechnical[-_\s]?report\b|(?:^|[^a-z0-9])procurement[-_\s]?(?:plan|report)\b|\bpublic[-_\s]?governance[-_\s]?reviews\b|\/publications\/reports\/|\bdirective[-_\s]?on[-_\s]?procurement\b|\binstructions[-_\s]?for[-_\s]?recipients\b|\bbidder[-_\s]?instructions\b|\bprocurement[-_\s]?policy\b|\bpolicies[-_\s]?strategies\b|\bsenior[-_\s]?procurement[-_\s]?executive[-_\s]?message\b|\blapse[-_\s]?in[-_\s]?appropriations\b|\bjustification[-_\s]?and[-_\s]?approval\b|\bother[-_\s]?than[-_\s]?full[-_\s]?and[-_\s]?open[-_\s]?competition\b|\btips\.pdf\b|\bconduct[-_\s]?english\.pdf\b|\b(?:supplier|vendor)[-_\s]?(?:code[-_\s]?of[-_\s]?)?conduct\b|(?:^|[^a-z0-9])(?:procurement|vendor|supplier)[-_\s]?(?:guide|manual|handbook)(?:\b|[-_\s])|\bglobal[-_\s]?marketplace[-_\s]?guide\b|\bgbg[-_\s]?master\b|\bun\.org\/.*\/pm\.pdf\b|\bguide[-_\s]?\d*[-_\s]?submit[-_\s]?quotations[-_\s]?bids[-_\s]?proposals\b|\bentities[-_\s]*[-_\s]?20\d{2}[-_\s]?quarter\b|\bnpm[-_.\s]?no\.?[-_.\s]?\d+(?:[-_.\s]?\d+)?\b|corrigendum|\bannex(?:ure)?[-_\s]?[cde]\b|\blocal[-_\s]?(?:and[-_\s]?)?imported[-_\s]?content[-_\s]?declaration\b|\bmodeles?[-_\s]?d[-_\s]?avis\b|\bavis[-_\s]?d[-_\s]?attribution\b|\battribution[-_\s]?(?:provisoire|definitive|définitive)\b)/i;
 const PROTECTED_403_RETRY_HOSTS = new Set(["www.dgmarket.com", "dgmarket.com"]);
 
 type IntakeDisposition = "downloaded" | "failed" | "skipped";
@@ -103,6 +103,7 @@ type SourceDocumentIntakeProof = {
 		failed: number;
 		skipped: number;
 		parseCompleted: number;
+		parseZeroRequirements: number;
 		parseFailed: number;
 		parseDuplicate: number;
 		parseNotQueued: number;
@@ -146,6 +147,7 @@ async function main() {
 			failed: 0,
 			skipped: 0,
 			parseCompleted: 0,
+			parseZeroRequirements: 0,
 			parseFailed: 0,
 			parseDuplicate: 0,
 			parseNotQueued: 0,
@@ -526,6 +528,7 @@ export function summarizeResults(proof: Pick<SourceDocumentIntakeProof, "selecte
 		failed: proof.results.filter((result) => result.disposition === "failed").length,
 		skipped: proof.results.filter((result) => result.disposition === "skipped").length,
 		parseCompleted: proof.results.filter((result) => result.parseWait?.status === "completed").length,
+		parseZeroRequirements: proof.results.filter((result) => result.parseWait?.status === "completed" && result.parseWait.requirementsExtracted === 0).length,
 		parseFailed: proof.results.filter((result) => result.parseWait?.status === "failed" || result.parsingStatus === "failed").length,
 		parseDuplicate: proof.results.filter((result) => result.parsingStatus === "duplicate").length,
 		parseNotQueued: proof.results.filter((result) => result.parsingStatus === "not_queued").length,
@@ -578,6 +581,7 @@ async function writeArtifacts(
 			`failed:${proof.summary.failed}`,
 			`skipped:${proof.summary.skipped}`,
 			`parse_completed:${proof.summary.parseCompleted}`,
+			`parse_zero_requirements:${proof.summary.parseZeroRequirements}`,
 			`parse_failed:${proof.summary.parseFailed}`,
 			`parse_timed_out:${proof.summary.parseTimedOut}`,
 		].join(" ");

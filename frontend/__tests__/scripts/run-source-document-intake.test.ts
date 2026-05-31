@@ -70,6 +70,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.etenders.gov.za/home/Download?downloadedFileName=Annexure%20C%2C%20D%20%26%20E_Local%20%26%20Imported%20Content%20Declaration%20Forms.xls",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "MODELES-DAVIS-DATTRIBUTION-PROVISOIRE-ET-DEFINITIVE.docx",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/07/MODELES-DAVIS-DATTRIBUTION-PROVISOIRE-ET-DEFINITIVE.docx",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "avis-dattribution-definitive-du-marche.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2026/05/avis-dattribution-definitive-du-marche.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "gbg_master.pdf",
 			sourceUrl: "https://www.ungm.org/Areas/Public/Downloads/gbg_master.pdf",
 		})).toBe(false);
@@ -209,7 +217,7 @@ describe("source document intake selection helpers", () => {
 			results: [
 				{ disposition: "downloaded", success: true, parsingStatus: "duplicate" },
 				{ disposition: "downloaded", success: true, parsingStatus: "not_queued" },
-				{ disposition: "downloaded", success: true, parseWait: { status: "completed", timedOut: false } },
+				{ disposition: "downloaded", success: true, parseWait: { status: "completed", requirementsExtracted: 0, timedOut: false } },
 			],
 		} as never);
 
@@ -217,6 +225,7 @@ describe("source document intake selection helpers", () => {
 			selected: 3,
 			downloaded: 3,
 			parseCompleted: 1,
+			parseZeroRequirements: 1,
 			parseDuplicate: 1,
 			parseNotQueued: 1,
 			parseFailed: 0,

@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - West Africa Direct Document Intake Proof
+
+Status: implemented, focused-tested, live-proved, and gap-identified.
+
+Purpose: prove that the newly added West African source rows can move from discovered opportunities into downloaded source documents and parsed RFP requirements, using lightweight extraction before Docling fallback.
+
+Changes in this slice:
+- Ran bounded source-document intake against Togo DNCCP, Mali DGMP, and Benin public procurement source documents.
+- Confirmed local DOCX parsing for Mali/Togo direct documents.
+- Confirmed PDF extraction attempts `pdftotext` first, then falls back to Docling when local text is not usable.
+- Tightened source-document intake filtering so generic award/template files such as `MODELES-DAVIS-DATTRIBUTION-PROVISOIRE-ET-DEFINITIVE.docx` are not selected in future live intake batches.
+- Added `parseZeroRequirements` to source-document intake summaries so completed parses that extract no actionable requirements are visible instead of hidden inside a generic completed count.
+
+Live proof:
+- `source_document_intake_africa_direct_docs_20260531T` selected 6 documents, downloaded 6, completed 6 parse jobs, failed 0, and timed out 0.
+- That run produced 10 extracted requirements from a Togo PDF, 6 and 7 requirements from two Mali DGMP DOCX notices, 9 requirements from a Togo DOCX notice, and 8 requirements from another Togo PDF. One generic Togo model/award template parsed with 0 requirements; this drove the selector filter patch.
+- `source_document_intake_benin_direct_docs_20260531T` selected 3 Benin PDFs, downloaded 3, completed 3 parse jobs, failed 0, and timed out 0, but extracted 0 requirements from all three notice PDFs.
+- Current persisted source-document counts for the new West African sources: Benin 233 source-document rows with 3 downloaded, Mali 163 with 2 downloaded, Togo 74 with 4 downloaded.
+- Current parsed RFP requirement counts from those downloaded documents: Togo 4 RFP documents / 27 requirements, Mali 2 RFP documents / 13 requirements, Benin 3 RFP documents / 0 requirements.
+
+Verification:
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 15 tests after the selector and proof-summary changes.
+
+Remaining after this slice:
+- For Benin, discover or derive fuller DAO/dossier documents rather than relying only on notice PDFs, or add a notice-metadata requirement fallback for deadlines, acquisition location, deposit location, lots, and authority instructions.
+- Continue draining high-value Togo and Mali source documents in bounded batches now that they have proven response-useful requirements.
+- Run the broader source-document intake with the updated selector after committing this slice.
+
 ### 2026-05-31 - Togo DNCCP Direct Procurement API Intake
 
 Status: implemented, focused-tested, typechecked, live-imported, and persisted.
