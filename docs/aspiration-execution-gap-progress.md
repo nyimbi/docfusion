@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - West African National Procurement Expansion: Benin and Mali
+
+Status: implemented, focused-tested, typechecked, live-imported, and persisted.
+
+Purpose: expand the highest-priority RFP sourcing capability with direct official national procurement feeds in West Africa, prioritizing broad reliable collection over brittle generic web scraping.
+
+Changes in this slice:
+- Added Benin public procurement API collection through `https://api.marches-publics.bj/v2/api/portail/appelsoffres?page=0&size=100&search=&status=0`.
+- Added Mali DGMP direct table collection for current-year appels d'offres and manifestations d'interet from `https://www.dgmp.gouv.ml/?q=node/71` and `https://www.dgmp.gouv.ml/?q=node/66`.
+- Routed both sources through source-parser import so the platform can ingest structured candidates directly and create source-document records without spending Firecrawl/browser capacity on static listings.
+- Raised source scrape caps from 200 to 500 for live discovery/aggressive acquisition runs so larger official source pages are not truncated prematurely.
+- Constrained Mali DGMP to current-year rows because the portal also lists older 2021-2025 rows without extracted submission deadlines.
+
+Live proof:
+- Benin live import `live_discovery_import_benin_marches_publics_20260531T` processed 233 candidates, imported 233, failed 0, and created 233 source-document rows with downloads disabled.
+- Mali live import `live_discovery_import_dgmp_mali_20260531T` processed 163 candidates, imported 163, failed 0, and created 163 source-document rows with downloads disabled.
+- Mali source health was healthy for both DGMP pages: 117 appels d'offres and 46 manifestations d'interet.
+- Current persisted counts on `db.lindela.io`: 5,960 opportunities total, including 233 Benin opportunities and 163 Mali DGMP opportunities; 3,334 opportunity-document rows total, including 233 Benin documents and 163 Mali documents.
+
+Verification:
+- `npm test -- --run __tests__/scrapers/benin-marches-publics-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts` passed during the Benin slice.
+- `npm test -- --run __tests__/scrapers/dgmp-mali-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts` passed during the Mali slice.
+- `npx tsc --noEmit --pretty false` passed after each parser/routing change.
+- Direct Mali parser probe returned 117 current tender rows and 46 current AMI rows before live import.
+
+Remaining after this slice:
+- Run bounded document download/parse for Benin and Mali direct documents, using local lightweight extraction before Docling fallback.
+- Continue adding official African and Global South sources, with Togo DNCCP and other national procurement portals as next acquisition candidates.
+
 ### 2026-05-31 - Repair COMESA Direct Source Collection
 
 Status: implemented, focused-tested, typechecked, and live-proved.

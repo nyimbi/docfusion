@@ -36,6 +36,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://mof.gov.sl/public-notices/",
 				"https://www.marchespublics.ne/appels-offres",
 				"https://api.marches-publics.bj/v2/api/portail/appelsoffres?page=0&size=100&search=&status=0",
+				"https://www.dgmp.gouv.ml/?q=node/71",
+				"https://www.dgmp.gouv.ml/?q=node/66",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -112,6 +114,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://mof.gov.sl/public-notices/",
 			"https://www.marchespublics.ne/appels-offres",
 			"https://api.marches-publics.bj/v2/api/portail/appelsoffres?page=0&size=100&search=&status=0",
+			"https://www.dgmp.gouv.ml/?q=node/71",
+			"https://www.dgmp.gouv.ml/?q=node/66",
 		]));
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);

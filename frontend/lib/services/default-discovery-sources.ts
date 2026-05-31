@@ -163,6 +163,8 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://mof.gov.sl/public-notices/",
 	"https://www.marchespublics.ne/appels-offres",
 	"https://api.marches-publics.bj/v2/api/portail/appelsoffres?page=0&size=100&search=&status=0",
+	"https://www.dgmp.gouv.ml/?q=node/71",
+	"https://www.dgmp.gouv.ml/?q=node/66",
 	"https://www.un.org/procurement/solicitations-opportunities",
 	"https://www.unicef.org/supply/service-contracts-tender-calendar",
 	"https://www.caribank.org/work-with-us/procurement/procurement-notices",
