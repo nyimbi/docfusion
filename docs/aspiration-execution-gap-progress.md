@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Mali DGMP Direct Intake Batch 2
+
+Status: live-proved, persisted, and high-throughput.
+
+Purpose: continue draining the productive DGMP Mali direct-document backlog after the mixed Togo/Mali/Benin batch showed Mali AMI/AAO rows were the cleanest remaining national-portal queue.
+
+Live proof:
+- `source_document_intake_mali_direct_next_probe_20260531T` dry-selected 40 DGMP Mali direct documents, mostly AMI/AAO DOCX files plus a few PDFs, with no obvious result/opening-notice noise.
+- `source_document_intake_mali_direct_next_20260531T` selected 40 Mali documents, downloaded 40, completed 40 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 310 requirements in the run summary.
+- Most documents used local DOCX or local `pdftotext` extraction; one scanned PDF used Docling after `pdftotext` could not extract usable text.
+- The batch moved from AMI notices into higher-yield AAO documents, with multiple AAO files extracting 8-20 requirements each.
+- Current Mali source-document counts after this drain: 89 discovered and 74 downloaded source-document rows, 70 RFP documents, and 530 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,486 RFP documents, and 10,604 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_mali_direct_next_20260531T ... npm run source-docs:intake` completed with 40 downloads and 40 completed parses.
+- Live DB checks confirmed global totals plus Mali downloaded document, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Mali still has 89 discovered direct-document rows; run another Mali-focused drain after checking whether the remaining lower-ranked rows stay clean.
+- Continue keeping Benin in smaller Docling-aware batches because its scan-heavy PDFs are much slower.
+
 ### 2026-05-31 - Togo, Mali, and Benin Direct Intake Drain
 
 Status: live-proved, persisted, and mixed local/Docling fallback.
