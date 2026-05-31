@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Unreadable Source Document Metadata Fallback
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: prevent legacy or degraded African/Global South source documents from dead-ending when the platform can download the official document but cannot extract readable text from the file bytes.
+
+Changes in this slice:
+- Extended the parser fallback so opportunity metadata can produce a review-required parse even when document text extraction itself returns no readable text.
+- Skipped AI structure and requirement extraction for metadata-only text fallbacks; these rows now persist as explicitly sourced from opportunity metadata.
+- Added `unreadable_document_metadata_fallback` alongside `metadata_fallback_requirements` so operators can distinguish unreadable-document recovery from normal zero-requirement recovery.
+- Recorded `extractionProvenance.documentTextMetadataFallback = true` on recovered documents.
+
+Live proof:
+- The West Africa expansion run `source_document_intake_west_africa_direct_expansion_20260531T` selected 12 documents across Benin, Mali, and Togo; 11 downloaded, 10 completed immediately, 1 legacy Mali `.doc` failed text extraction, and 1 Benin source URL returned 404.
+- After this fallback change, the previously failed Mali document `220266_AMI_604703.doc` was reprocessed through job `9a05388d-11e1-4e1a-acaf-2b02e53598f5` and completed with 4 persisted requirements.
+- A live `psql` check confirmed that job is now `completed`, `requirements_extracted = 4`, `extractionProvenance.source = metadata_fallback`, `documentTextMetadataFallback = true`, and `parseReview.qualitySignals = ["metadata_fallback_requirements", "unreadable_document_metadata_fallback"]`.
+
+Verification:
+- `npm test -- --run __tests__/actions/rfp-parse-workflow.test.ts` passed with 20 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Add a dedicated legacy `.doc` extractor such as antiword/catdoc/libreoffice where available; metadata fallback preserves response continuity but does not replace true document text extraction.
+- Continue source-document intake, while separately fixing Benin source URLs that return 404 despite SearXNG fanout recovery.
+
 ### 2026-05-31 - Benin Notice Metadata Requirement Fallback
 
 Status: implemented, focused-tested, typechecked, and live-proved.

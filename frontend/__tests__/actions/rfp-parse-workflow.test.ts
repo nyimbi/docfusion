@@ -872,6 +872,89 @@ describe("RFP parse workflow", () => {
 		);
 	});
 
+	it("uses opportunity metadata fallback when document text extraction is unreadable", async () => {
+		const updates: Record<string, unknown>[] = [];
+		let insertedRequirements: Record<string, unknown>[] | undefined;
+		dbMock.query.rfpDocuments.findFirst.mockResolvedValue({
+			...documentRow,
+			extractedText: "",
+			fileHash: undefined,
+			parsingStatus: "pending",
+			metadata: null,
+		});
+		dbMock.query.opportunities.findFirst.mockResolvedValue({
+			id: documentRow.opportunityId,
+			organizationId: "org-1",
+			title: "Consulting services for public finance platform support",
+			organization: "DGMP Mali",
+			deadline: new Date("2026-08-20T12:00:00.000Z"),
+			projectSummary: "Recruit a consultant to support digital procurement reporting.",
+			projectScope: null,
+			keyRequirements: "Demonstrate similar assignments and regional experience.",
+			technicalRequirements: null,
+			submissionMethod: "Email submission to the procurement unit.",
+			submissionRequirements: "Submit CV, technical approach, and financial proposal.",
+			sourcePlatform: "DGMP Mali",
+		});
+		dbMock.update.mockReturnValue(createChain({
+			onSet: (value) => {
+				updates.push(value);
+			},
+		}));
+		dbMock.insert.mockReturnValue(createChain({
+			onValues: (value) => {
+				if (Array.isArray(value)) insertedRequirements = value;
+			},
+		}));
+
+		await processRfpParsingJob({
+			jobId: latestJob.id,
+			rfpDocumentId: documentRow.id,
+			tenantContext: { userId: "capture-lead", organizationId: "org-1" },
+		});
+
+		expect(parseRFPWithAI).not.toHaveBeenCalled();
+		expect(batchExtractRequirements).not.toHaveBeenCalled();
+		expect(insertedRequirements?.length).toBeGreaterThanOrEqual(5);
+		expect(insertedRequirements).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				sourceSection: "Opportunity metadata: submissionRequirements",
+				requirementText: expect.stringContaining("technical approach"),
+				aiAnalysis: expect.objectContaining({
+					source: "opportunity_metadata_fallback",
+				}),
+			}),
+		]));
+		const parsedMetadataUpdate = updates.find((update) => update.parsingConfidence === 20);
+		expect(parsedMetadataUpdate).toMatchObject({
+			extractedTitle: "Consulting services for public finance platform support",
+			issuingOrganization: "DGMP Mali",
+			responseDeadline: new Date("2026-08-20T12:00:00.000Z"),
+			detectedSections: ["Consulting services for public finance platform support"],
+		});
+		const finalDocumentUpdate = updates.find((update) =>
+			update.parsingStatus === "completed" &&
+			(update.metadata as any)?.extractionProvenance?.documentTextMetadataFallback
+		);
+		expect(finalDocumentUpdate).toMatchObject({
+			parsingStatus: "completed",
+			metadata: {
+				parseReview: {
+					state: "needs_review",
+					qualitySignals: [
+						"metadata_fallback_requirements",
+						"unreadable_document_metadata_fallback",
+					],
+				},
+				extractionProvenance: {
+					source: "metadata_fallback",
+					metadataFallbackRequirementCount: insertedRequirements?.length,
+					documentTextMetadataFallback: true,
+				},
+			},
+		});
+	});
+
 	it("fails parsing jobs when text extraction returns no readable text", async () => {
 		const updates: Record<string, unknown>[] = [];
 		dbMock.query.rfpDocuments.findFirst

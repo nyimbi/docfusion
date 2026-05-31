@@ -45,6 +45,7 @@ import {
 	batchExtractRequirements,
 	type ParsedRFP,
 	type ExtractedRequirement,
+	type RequirementExtractionOutcome,
 } from "@/lib/ai/rfp-parser";
 import {
 	downloadFromLinodeE3,
@@ -200,6 +201,7 @@ function buildOpportunityMetadataFallbackRequirements(
 	opportunity: Pick<
 		OpportunityRow,
 		| "title"
+		| "organization"
 		| "deadline"
 		| "projectSummary"
 		| "projectScope"
@@ -310,6 +312,60 @@ function buildOpportunityMetadataFallbackRequirements(
 	});
 
 	return requirements;
+}
+
+function buildOpportunityMetadataFallbackText(
+	opportunity: Pick<
+		OpportunityRow,
+		| "title"
+		| "organization"
+		| "deadline"
+		| "projectSummary"
+		| "projectScope"
+		| "keyRequirements"
+		| "technicalRequirements"
+		| "submissionMethod"
+		| "submissionRequirements"
+		| "sourcePlatform"
+	>,
+): string {
+	const fields = [
+		["Title", opportunity.title],
+		["Organization", opportunity.organization],
+		["Deadline", formatOpportunityDeadline(opportunity.deadline)],
+		["Project summary", opportunity.projectSummary],
+		["Project scope", opportunity.projectScope],
+		["Key requirements", opportunity.keyRequirements],
+		["Technical requirements", opportunity.technicalRequirements],
+		["Submission requirements", opportunity.submissionRequirements],
+		["Submission method", opportunity.submissionMethod],
+		["Source platform", opportunity.sourcePlatform],
+	]
+		.map(([label, value]) => {
+			const text = compactRequirementFallbackText(value);
+			return text ? `${label}: ${text}` : undefined;
+		})
+		.filter(Boolean);
+
+	return fields.join("\n");
+}
+
+function buildParsedRfpFromOpportunityMetadata(
+	opportunity: Pick<OpportunityRow, "title" | "organization" | "deadline" | "sourcePlatform">,
+	extractedText: string,
+): ParsedRFP {
+	return {
+		issuingAgency: opportunity.organization ?? opportunity.sourcePlatform ?? undefined,
+		responseDeadline: formatOpportunityDeadline(opportunity.deadline),
+		sections: [{
+			sectionId: "opportunity-metadata",
+			title: opportunity.title,
+			pageStart: 1,
+			pageEnd: 1,
+			content: extractedText,
+		}],
+		confidence: 0.2,
+	};
 }
 
 function requireRfpParseRejectAuthority(context: Pick<UserContext, "role" | "roles">): void {
@@ -1720,7 +1776,11 @@ function normalizeParseConfidenceReviewMetadata(
 
 function applyParseQualitySignals(
 	parseReview: ParseConfidenceReviewMetadata,
-	signals: { requirementsExtracted: number; metadataFallbackRequirementCount?: number }
+	signals: {
+		requirementsExtracted: number;
+		metadataFallbackRequirementCount?: number;
+		documentTextMetadataFallback?: boolean;
+	}
 ): ParseConfidenceReviewMetadata {
 	const qualitySignals = new Set(parseReview.qualitySignals ?? []);
 	if (signals.requirementsExtracted === 0) {
@@ -1728,6 +1788,9 @@ function applyParseQualitySignals(
 	}
 	if ((signals.metadataFallbackRequirementCount ?? 0) > 0) {
 		qualitySignals.add("metadata_fallback_requirements");
+	}
+	if (signals.documentTextMetadataFallback) {
+		qualitySignals.add("unreadable_document_metadata_fallback");
 	}
 	if (qualitySignals.size === 0) return parseReview;
 	return {
@@ -2199,18 +2262,40 @@ export async function processRfpParsingJob(
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 10, "Extracting text from document");
 
 		let extractedText = rfpDoc.extractedText?.trim() ?? "";
+		let metadataFallbackOpportunity: OpportunityRow | undefined;
+		let documentTextMetadataFallback = false;
 
 		if (!extractedText) {
 			extractedText = (await extractTextFromDocument(rfpDoc.storagePath, rfpDoc.fileType, rfpDoc.fileHash ?? undefined)).trim();
 		}
 		if (!extractedText.trim()) {
-			throw new Error(`RFP text extraction produced no readable text for ${rfpDoc.filename}`);
+			metadataFallbackOpportunity = rfpDoc.opportunityId
+				? await db.query.opportunities.findFirst({
+					where: and(
+						eq(opportunities.id, rfpDoc.opportunityId),
+						eq(opportunities.organizationId, organizationId),
+					),
+				})
+				: undefined;
+			const metadataFallbackText = metadataFallbackOpportunity
+				? buildOpportunityMetadataFallbackText(metadataFallbackOpportunity).trim()
+				: "";
+			if (!metadataFallbackText) {
+				throw new Error(`RFP text extraction produced no readable text for ${rfpDoc.filename}`);
+			}
+			extractedText = metadataFallbackText;
+			documentTextMetadataFallback = true;
 		}
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 30, "Parsing RFP structure");
 
 		// Step 2: Parse RFP structure and metadata (30-50%)
-		const parsedRFP = normalizeParsedRfpForStorage(await parseRFPWithAI(extractedText), extractedText);
+		const parsedRFP = normalizeParsedRfpForStorage(
+			documentTextMetadataFallback && metadataFallbackOpportunity
+				? buildParsedRfpFromOpportunityMetadata(metadataFallbackOpportunity, extractedText)
+				: await parseRFPWithAI(extractedText),
+			extractedText
+		);
 
 		// Update document with parsed metadata
 		const parsingConfidence = parsedRFP.confidence * 100;
@@ -2248,7 +2333,9 @@ export async function processRfpParsingJob(
 			text: s.content,
 			pageNumber: s.pageStart,
 		}));
-		const extractedOutcomesMap = await batchExtractRequirements(sectionsForExtraction);
+		const extractedOutcomesMap = documentTextMetadataFallback
+			? new Map<string, RequirementExtractionOutcome>()
+			: await batchExtractRequirements(sectionsForExtraction);
 
 		// Flatten outcomes into a single requirement list and accumulate
 		// provenance — which sections fell back to heuristic and why. The
@@ -2266,7 +2353,11 @@ export async function processRfpParsingJob(
 			}
 		}
 		let metadataFallbackRequirementCount = 0;
-		if (allExtractedRequirements.length === 0 && rfpDoc.opportunityId) {
+		if (documentTextMetadataFallback && metadataFallbackOpportunity) {
+			const fallbackRequirements = buildOpportunityMetadataFallbackRequirements(metadataFallbackOpportunity);
+			metadataFallbackRequirementCount = fallbackRequirements.length;
+			allExtractedRequirements.push(...fallbackRequirements);
+		} else if (allExtractedRequirements.length === 0 && rfpDoc.opportunityId) {
 			const opportunity = await db.query.opportunities.findFirst({
 				where: and(
 					eq(opportunities.id, rfpDoc.opportunityId),
@@ -2296,10 +2387,12 @@ export async function processRfpParsingJob(
 			metadataFallbackRequirementCount: metadataFallbackRequirementCount > 0
 				? metadataFallbackRequirementCount
 				: undefined,
+			documentTextMetadataFallback: documentTextMetadataFallback || undefined,
 		};
 		parseReview = applyParseQualitySignals(parseReview, {
 			requirementsExtracted: allExtractedRequirements.length,
 			metadataFallbackRequirementCount,
+			documentTextMetadataFallback,
 		});
 
 		await updateJobProgress(jobId, rfpDocumentId, organizationId, 70, "Classifying and storing requirements");
