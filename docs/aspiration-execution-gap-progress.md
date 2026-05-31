@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Make Source-Document Intake Parse Outcomes Auditable
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: make source-document intake proofs explicit about parser queue outcomes so downloaded documents without parser jobs are distinguishable from duplicate, not-queued, failed, and completed parse states.
+
+Changes in this slice:
+- Added `parsingStatus` and `parsingError` to source-document intake result records.
+- Added `parseDuplicate` and `parseNotQueued` summary counters and included non-wait failed parse states in `parseFailed`.
+- Exported and regression-tested `summarizeResults` so duplicate and not-queued parse outcomes remain visible in proof summaries.
+
+Live run:
+- `source_document_intake_africa_cdc_pdfs_status_20260531T` drained 2 additional Africa CDC direct PDFs with parse waiting enabled.
+- Both downloads used `local_pdftotext`; both parser jobs completed.
+- `Specific-Procurement-Notice-.pdf` extracted 9 requirements via parser job `921a7e67-00e5-4ba8-a728-da82b6a4f185`.
+- `PROCUREMENT-NOTICE-26-May-2026.pdf` extracted 19 requirements via parser job `49e472f4-a11a-4a55-986f-3098f0984b78`.
+- Summary: selected 2, downloaded 2, failed 0, skipped 0, parseCompleted 2, parseFailed 0, parseDuplicate 0, parseNotQueued 0, parseTimedOut 0.
+
+Verification:
+- Focused source-document intake regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scripts/run-source-document-intake.test.ts` with 15 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live proof artifact: `.omx/logs/platform-completion/source-document-intake-source_document_intake_africa_cdc_pdfs_status_20260531T/source-document-intake.json`.
+
+Remaining after this slice:
+- Continue draining high-fit Africa CDC PDFs and other African/Global South source documents in bounded batches.
+- Use the explicit parser outcome counters to distinguish true parse gaps from duplicate or intentionally not-queued documents.
+
 ### 2026-05-31 - Prove Africa CDC PDF Intake With Lightweight Text Extraction
 
 Status: live-proved.

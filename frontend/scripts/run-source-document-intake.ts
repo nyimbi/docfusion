@@ -45,6 +45,8 @@ type IntakeResult = {
 	error?: string;
 	rfpDocumentId?: string;
 	parsingJobId?: string;
+	parsingStatus?: string;
+	parsingError?: string;
 	parseWait?: ParseWaitResult;
 };
 
@@ -102,6 +104,8 @@ type SourceDocumentIntakeProof = {
 		skipped: number;
 		parseCompleted: number;
 		parseFailed: number;
+		parseDuplicate: number;
+		parseNotQueued: number;
 		parseTimedOut: number;
 	};
 	error?: string;
@@ -143,6 +147,8 @@ async function main() {
 			skipped: 0,
 			parseCompleted: 0,
 			parseFailed: 0,
+			parseDuplicate: 0,
+			parseNotQueued: 0,
 			parseTimedOut: 0,
 		},
 	};
@@ -434,6 +440,8 @@ async function ingestDocument(
 			error: result.error,
 			rfpDocumentId: result.rfpDocumentId,
 			parsingJobId: result.parsingJobId,
+			parsingStatus: result.parsingStatus,
+			parsingError: result.parsingError,
 			parseWait,
 		};
 	} catch (error) {
@@ -511,14 +519,16 @@ async function waitForParseCompletion(
 	};
 }
 
-function summarizeResults(proof: SourceDocumentIntakeProof): SourceDocumentIntakeProof["summary"] {
+export function summarizeResults(proof: Pick<SourceDocumentIntakeProof, "selected" | "results">): SourceDocumentIntakeProof["summary"] {
 	return {
 		selected: proof.selected.length,
 		downloaded: proof.results.filter((result) => result.disposition === "downloaded").length,
 		failed: proof.results.filter((result) => result.disposition === "failed").length,
 		skipped: proof.results.filter((result) => result.disposition === "skipped").length,
 		parseCompleted: proof.results.filter((result) => result.parseWait?.status === "completed").length,
-		parseFailed: proof.results.filter((result) => result.parseWait?.status === "failed").length,
+		parseFailed: proof.results.filter((result) => result.parseWait?.status === "failed" || result.parsingStatus === "failed").length,
+		parseDuplicate: proof.results.filter((result) => result.parsingStatus === "duplicate").length,
+		parseNotQueued: proof.results.filter((result) => result.parsingStatus === "not_queued").length,
 		parseTimedOut: proof.results.filter((result) => result.parseWait?.timedOut).length,
 	};
 }

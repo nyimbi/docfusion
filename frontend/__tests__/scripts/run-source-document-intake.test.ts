@@ -9,6 +9,7 @@ import {
 	isSupportedDocumentSource,
 	parseCsvList,
 	scoreSourceDocumentIntakeCandidate,
+	summarizeResults,
 } from "../../scripts/run-source-document-intake";
 
 describe("source document intake selection helpers", () => {
@@ -200,5 +201,25 @@ describe("source document intake selection helpers", () => {
 			documentName: "AMI - Mali - technical assistance.html",
 			sourceUrl: "https://www.afdb.org/en/documents/ami-mali-technical-assistance",
 		})).toBe(false);
+	});
+
+	it("summarizes duplicate and not-queued parse outcomes explicitly", () => {
+		const summary = summarizeResults({
+			selected: [{ id: "doc-1" }, { id: "doc-2" }, { id: "doc-3" }],
+			results: [
+				{ disposition: "downloaded", success: true, parsingStatus: "duplicate" },
+				{ disposition: "downloaded", success: true, parsingStatus: "not_queued" },
+				{ disposition: "downloaded", success: true, parseWait: { status: "completed", timedOut: false } },
+			],
+		} as never);
+
+		expect(summary).toMatchObject({
+			selected: 3,
+			downloaded: 3,
+			parseCompleted: 1,
+			parseDuplicate: 1,
+			parseNotQueued: 1,
+			parseFailed: 0,
+		});
 	});
 });
