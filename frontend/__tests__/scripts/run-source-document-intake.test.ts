@@ -62,6 +62,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.aiib.org/en/projects/details/2026/_download/Pakistan/P000913_Publication_of_Procurement_Plan.xlsx",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "APPROVED-2026-PP-WORKS-VF.pdf",
+			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/02/APPROVED-2026-PP-WORKS-VF.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Parliament-PP2026-Goods-and-Services-English.pdf",
+			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/02/Parliament-PP2026-Goods-and-Services-English.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "C5ACorrigendumNo1_20260317.pdf",
 			sourceUrl: "https://www.aiib.org/en/projects/details/2026/_download/India/C5ACorrigendumNo1_20260317.pdf",
 		})).toBe(false);
@@ -124,6 +132,10 @@ describe("source document intake selection helpers", () => {
 		expect(isLikelySolicitationSource({
 			documentName: "DAO-FORAGES-2.pdf",
 			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/11/DAO-FORAGES-2.pdf",
+		})).toBe(true);
+		expect(isLikelySolicitationSource({
+			documentName: "INVITATION-TO-BID-NIGERIA-ROGEAP-PILOT-PROJECT.pdf",
+			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/05/INVITATION-TO-BID-NIGERIA-ROGEAP-PILOT-PROJECT.pdf",
 		})).toBe(true);
 	});
 
