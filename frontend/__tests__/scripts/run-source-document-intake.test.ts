@@ -126,6 +126,10 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/Job-Profile-Driver-ECOWAS-Cabo-Verde.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "FRENCH-GGSP-CALAO-Job-Description-Programme-Manager-Standards-SPS-and-NTBs.pdf",
+			sourceUrl: "https://trademarkafrica.com/wp-content/uploads/2026/03/FRENCH-GGSP-CALAO-Job-Description-Programme-Manager-Standards-SPS-and-NTBs.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "Profil-du-poste-de-chauffeur-CEDEAO-Cabo-Verde.pdf",
 			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/Profil-du-poste-de-chauffeur-CEDEAO-Cabo-Verde.pdf",
 		})).toBe(false);
