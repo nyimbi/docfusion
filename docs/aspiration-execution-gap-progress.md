@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Refresh Africa National Sources After MoF Expansion
+
+Status: live-proved.
+
+Purpose: immediately exercise the African national and regional acquisition campaign after adding Sierra Leone MoF so the new source contributes to the live collection instead of remaining only configured.
+
+Live run:
+- `aggressive_rfp_acquisition_africa_national_20260531T` ran the `africa_national` campaign with source scrape limit 80, downloads enabled for 15 source documents, and queued lightweight document parsing.
+- Result: 631 records processed, 80 imported, 551 updated, 0 skipped, 0 failed.
+- Source documents: 80 created, 467 existing, 15 download attempts, 15 downloaded, 0 download failures.
+- The run confirmed `local_pdftotext` extraction for downloaded PDFs, including South Africa eTenders and Sierra Leone MoF documents.
+
+Source health:
+- Healthy sources included Kenya PPIP, South Africa eTenders, Tanzania NEST, Uganda PPDA, Rwanda Umucyo, Ghana GHANEPS, Zambia ZPPA, Malawi MANEPS, Nigeria NOCOPO, Namibia CPBN, Eswatini ESPPRA, African Union, AUDA-NEPAD, Africa CDC, SADC, ECOWAS, ECREEE, Sierra Leone MoF, and GIZ Ghana/South Africa.
+- COMESA timed out during this pass and should be isolated for repair or lower-timeout probing rather than blocking the rest of the Africa campaign.
+- Sierra Leone MoF contributed 80 candidates, 70 new imports, 10 updates, and 0 warnings in the broader campaign.
+
+Verification:
+- Live aggressive acquisition proof artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-aggressive_rfp_acquisition_africa_national_20260531T/aggressive-rfp-acquisition.json`.
+
+Remaining after this slice:
+- Continue broad African/Global South acquisition through configured sources first.
+- Isolate COMESA timeout behavior in a separate focused run.
+- Add more official African and Global South source drains where live research finds direct document access or structured current tender APIs.
+
 ### 2026-05-31 - Add Sierra Leone MoF Procurement Drain
 
 Status: implemented and live-proved.
