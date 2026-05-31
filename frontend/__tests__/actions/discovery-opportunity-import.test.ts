@@ -4057,6 +4057,13 @@ describe("discoverAndImportOpportunities", () => {
 					</article>
 				`, { status: 200, headers: { "content-type": "text/html" } });
 			}
+			if (url === "https://www.badea.org/fr/procurement-notice-fr/") {
+				return new Response(`
+					<div data-max-page="1"></div>
+					<h1 class="elementor-heading-title">RE-TENDERING - REHABILITATION AND EXPANSION OF MNAZI MMOJA HOSPITAL, ZANZIBAR</h1>
+					<a href="https://badea-media.9ten.online/wp-content/uploads/2099/05/SPN-Rehabilitation-and-Expansion-of-MMH.pdf">Download</a>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
 			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
 				return new Response(boadInertiaHtml({
 					tenders: {
@@ -4146,6 +4153,7 @@ describe("discoverAndImportOpportunities", () => {
 				"https://jhpiego.org/work-with-us/",
 				"https://intdev.tetratech.com.au/partner-with-us/",
 				"https://trademarkafrica.com/procurement/",
+				"https://www.badea.org/fr/procurement-notice-fr/",
 				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.dbsa.org/procurement",
 				"https://www.sadc.int/procurement-opportunities",
@@ -4157,8 +4165,8 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(result.results).toEqual({
-			total: 9,
-			imported: 9,
+			total: 10,
+			imported: 10,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4193,6 +4201,14 @@ describe("discoverAndImportOpportunities", () => {
 			sourceFile: "source:https://trademarkafrica.com/procurement/",
 			rfpLink: "https://trademarkafrica.com/wp-content/uploads/2099/04/TMA-FWA-DTS-01-2099.pdf",
 			tags: ["external-discovery", "source-scrape", "trademark-africa", "africa", "regional-trade", "source-documents"],
+		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RE-TENDERING - REHABILITATION AND EXPANSION OF MNAZI MMOJA HOSPITAL, ZANZIBAR",
+			source: "badea",
+			sourcePlatform: "BADEA",
+			sourceFile: "source:https://www.badea.org/fr/procurement-notice-fr/",
+			rfpLink: "https://badea-media.9ten.online/wp-content/uploads/2099/05/SPN-Rehabilitation-and-Expansion-of-MMH.pdf",
+			tags: ["external-discovery", "source-scrape", "badea", "development-bank", "africa", "source-documents"],
 		}));
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Avis à Manifestation d'Intérêt - Recrutement de consultant pour la mise en œuvre de la taxe carbone et Accord de Paris en RDC",
@@ -4255,6 +4271,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://trademarkafrica.com/procurement/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.badea.org/fr/procurement-notice-fr/",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

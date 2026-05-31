@@ -25,6 +25,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.unesco.org/en/procurement",
 				"https://www.unwomen.org/en/about-us/procurement",
 				"https://cdn.ppda.go.ug/api/bid-invitations",
+				"https://www.badea.org/fr/procurement-notice-fr/",
 				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.dbsa.org/procurement",
 				"https://www.sadc.int/procurement-opportunities",
@@ -193,6 +194,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
+			"site:badea.org/fr/procurement-notice-fr \"Download\" \"BADEA\"",
+			"site:badea-media.9ten.online/wp-content/uploads BADEA pdf procurement",
 			"site:boad.org/fr/opportunites/appels-doffre \"Date limite\"",
 			"site:boad.org/fr/opportunites/appels-doffre \"Avis de manifestation\" consultant",
 			"site:dbsa.org/procurement RFP closing date",

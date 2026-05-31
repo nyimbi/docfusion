@@ -288,6 +288,7 @@ const PROCUREMENT_PORTAL_URL_PATTERNS = [
 	/\/\/tenders\.worldbank\.org\//i,
 	/\/\/(?:www\.)?afdb\.org\/.*procurement/i,
 	/\/\/(?:www\.)?adb\.org\/business\/.*procurement/i,
+	/\/\/(?:www\.)?badea\.org\/(?:fr\/procurement-notice-fr|procurement-notices-2|ar\/procurement-notices-ar|Portal\/procurement)/i,
 	/\/\/(?:www\.)?boad\.org\/(?:fr\/opportunites\/appels-doffre|en\/opportunities\/calls-for-tender)/i,
 	/\/\/(?:www\.)?dbsa\.org\/procurement/i,
 	/\/\/(?:www\.)?caribank\.org\/work-with-us\/procurement/i,
@@ -518,6 +519,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	let sourceId: string | undefined;
 	if (host === "afdb.org" || host.endsWith(".afdb.org")) sourceId = "afdb";
 	else if (host === "adb.org" || host.endsWith(".adb.org")) sourceId = "adb";
+	else if (host === "badea.org" && /^\/(?:fr\/procurement-notice-fr|procurement-notices-2|ar\/procurement-notices-ar|Portal\/procurement)/.test(safeUrlPathname(sourceUrl))) sourceId = "badea";
 	else if (host === "boad.org" && /^\/(?:fr\/opportunites\/appels-doffre|en\/opportunities\/calls-for-tender)/.test(safeUrlPathname(sourceUrl))) sourceId = "boad";
 	else if (host === "dbsa.org" && safeUrlPathname(sourceUrl).startsWith("/procurement")) sourceId = "dbsa";
 	else if (host === "data.iadb.org" && safeUrlPathname(sourceUrl).startsWith("/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards")) sourceId = "idb";
@@ -592,6 +594,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "grants_gov"
 		|| parser.sourceId === "eu_funding_tenders"
 		|| parser.sourceId === "adb"
+		|| parser.sourceId === "badea"
 		|| parser.sourceId === "boad"
 		|| parser.sourceId === "dbsa"
 		|| parser.sourceId === "idb"
@@ -972,7 +975,7 @@ function shouldAttachPageWideDocumentLinks(candidate: DiscoveryCandidate): boole
 }
 
 function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
-	const metadataLinks = ["giz", "fhi360", "dtGlobal", "care", "enabel", "winrock", "nrc", "oxfamNigeria", "irc", "idb", "contractsFinder", "canadaBuys", "newZealandGets", "tradeMarkAfrica", "boad", "dbsa", "sadc", "ecowas", "ecreee"].flatMap((key) => {
+	const metadataLinks = ["giz", "fhi360", "dtGlobal", "care", "enabel", "winrock", "nrc", "oxfamNigeria", "irc", "idb", "contractsFinder", "canadaBuys", "newZealandGets", "tradeMarkAfrica", "badea", "boad", "dbsa", "sadc", "ecowas", "ecreee"].flatMap((key) => {
 		const metadata = opportunity?.metadata?.[key];
 		if (!metadata || typeof metadata !== "object") return [];
 		const links = (metadata as { documentLinks?: unknown }).documentLinks;
@@ -1002,6 +1005,7 @@ function extractDocumentUrlFromMarkdown(markdown: string | undefined, baseUrl: s
 function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryMethod: DiscoveryCandidate["discoveryMethod"]): string {
 	if (opportunity?.source === "afdb") return "African Development Bank";
 	if (opportunity?.source === "adb") return "Asian Development Bank";
+	if (opportunity?.source === "badea") return "BADEA";
 	if (opportunity?.source === "boad") return "BOAD";
 	if (opportunity?.source === "dbsa") return "Development Bank of Southern Africa";
 	if (opportunity?.source === "idb") return "Inter-American Development Bank";
@@ -1067,6 +1071,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		"source-scrape",
 		...(opportunity?.source === "afdb" ? ["afdb", "development-bank", "regional-procurement"] : []),
 		...(opportunity?.source === "adb" ? ["adb", "development-bank", "institutional-procurement"] : []),
+		...(opportunity?.source === "badea" ? ["badea", "development-bank", "africa", "source-documents"] : []),
 		...(opportunity?.source === "boad" ? ["boad", "development-bank", "west-africa", "uemoa", "source-documents"] : []),
 		...(opportunity?.source === "dbsa" ? ["dbsa", "south-africa", "development-bank", "source-documents"] : []),
 		...(opportunity?.source === "idb" ? ["idb", "iadb", "development-bank", "source-documents"] : []),
@@ -1430,7 +1435,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "boad" || sourceOpportunity?.source === "dbsa" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "canada_buys" || sourceOpportunity?.source === "new_zealand_gets" || sourceOpportunity?.source === "grants_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "sadc" || sourceOpportunity?.source === "ecowas" || sourceOpportunity?.source === "ecreee" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev" || sourceOpportunity?.source === "trademark_africa"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "badea" || sourceOpportunity?.source === "boad" || sourceOpportunity?.source === "dbsa" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "canada_buys" || sourceOpportunity?.source === "new_zealand_gets" || sourceOpportunity?.source === "grants_gov" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "sadc" || sourceOpportunity?.source === "ecowas" || sourceOpportunity?.source === "ecreee" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev" || sourceOpportunity?.source === "trademark_africa"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

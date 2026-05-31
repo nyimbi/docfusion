@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add BADEA Africa Development-Bank Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with BADEA, an Africa-focused development-bank source that publishes African project procurement notices as a paginated archive with direct PDF tender packages.
+
+Changes in this slice:
+- Added a BADEA parser for `https://www.badea.org/fr/procurement-notice-fr/`, including bounded archive pagination, static Elementor heading/link extraction, source-document deduplication, publication-month extraction from PDF paths, country/type/category inference, and direct PDF notice capture.
+- Routed BADEA procurement URLs through the direct source-parser path, labeled imported records as `BADEA`, and preserved BADEA PDF notice links for downstream source-document intake.
+- Added BADEA to default discovery and the aggressive development-bank acquisition campaign, with targeted BADEA `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked BADEA PDFs.
+
+Live run:
+- `live_discovery_import_badea_20260531T` ran the BADEA procurement source with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 19 candidates, 16 created, 3 updated, 0 failed, and 0 warnings.
+- The run created 19 source-document rows from linked BADEA procurement PDFs. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/badea-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 88 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_badea_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit BADEA imports with lightweight text extraction first; use Docling only as fallback.
+- Continue expanding African and Global South direct-document sources before lower-yield generic searches.
+
 ### 2026-05-31 - Add ECREEE West Africa Clean-Energy Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
