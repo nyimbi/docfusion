@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - SADC and South Africa eTenders Direct Intake Drain
+
+Status: live-proved, persisted, and local-extraction-first.
+
+Purpose: keep broad African tender/RFP acquisition moving by draining a clean SADC plus South Africa eTenders direct-document batch after the mixed dry probe showed noisier Togo/Sierra/Benin rows.
+
+Live proof:
+- `source_document_intake_sadc_saetenders_probe_20260531T` dry-selected 18 direct SADC and South Africa eTenders documents with failed retries disabled, avoiding a previously timed-out eTenders row.
+- `source_document_intake_sadc_saetenders_direct_20260531T` selected 18 direct documents, downloaded 17, completed 17 parse jobs, failed 1 eTenders download timeout, timed out 0 parse jobs, had 0 duplicates, had 0 `not_queued`, and extracted 192 requirements in the run summary.
+- Every parsed item used local extraction: SADC DOCX files used local DOCX parsing and PDFs used local `pdftotext`; South Africa eTenders direct download URLs produced PDFs handled by local `pdftotext`. Docling was not needed.
+- The batch covered SADC assignment-allowance consultancy and technical-assistance REOI/SPN documents, plus South African property leasing, board evaluation, PPE, roof repairs, affordable housing development, parks machinery, security services, architectural services, ERP invitation, and road refurbishment RFP/RFQ documents.
+- Current SADC source-document counts after the drain: 1 discovered and 6 downloaded source-document rows, 6 RFP documents, and 45 persisted requirements.
+- Current South Africa eTenders source-document counts after the drain: 31 discovered, 125 downloaded, and 2 failed source-document rows, 120 RFP documents, and 1,289 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,418 RFP documents, and 10,135 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_sadc_saetenders_direct_20260531T ... npm run source-docs:intake` completed with 17 successful downloads/parses and one isolated eTenders download timeout.
+- Live DB checks confirmed global totals plus SADC and South Africa eTenders downloaded document, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Retry South Africa eTenders failures in a later protected/long-timeout pass; do not let them block clean discovered rows.
+- Filter or separately stage Togo result/opening notices before the next mixed Africa/Global South direct-document drain.
+
 ### 2026-05-31 - ECOWAS and DBSA Direct Intake Drain
 
 Status: live-proved, persisted, and local-extraction-only.
