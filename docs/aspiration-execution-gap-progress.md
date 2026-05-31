@@ -16,6 +16,43 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Drain African National And Regional Sources
+
+Status: live-proved and database-counted.
+
+Purpose: aggressively expand African and Global South tender/RFP collection using the existing high-yield African national and regional configured-source campaign before spending document-parser compute.
+
+Live runs:
+- `live_discovery_import_african_union_bids_20260531T` refreshed the African Union bids source: 1 candidate, 0 imported, 1 updated, 0 failed, 0 warnings, 1 existing source document.
+- `aggressive_rfp_acquisition_africa_national_20260531T` ran the `africa_national` campaign across African national portals, African Union, AUDA-NEPAD, Africa CDC, COMESA, SADC, ECOWAS, ECREEE, and GIZ Africa tender sources.
+- The Africa campaign processed 553 records, imported 89 new opportunities, updated 464 existing opportunities, created 124 new source-document rows, and reported 0 failed imports and 0 warnings.
+- Downloads and parsing were intentionally disabled for this broad pass so acquisition coverage could expand without burning parser compute on every document.
+
+Source health from the Africa campaign:
+- All 20 configured sources returned healthy status.
+- Highest-yield sources in this run were Tanzania NEST with 80 candidates, South Africa eTenders with 80, Nigeria NOCOPO with 75, Kenya PPIP with 50, Malawi MANEPS with 49, Rwanda Umucyo with 48, Eswatini ESPPRA with 35, Ghana GHANEPS with 30, and Zambia ZPPA with 30.
+- Regional sources also contributed: African Union 13, Africa CDC 8, ECOWAS 11, ECREEE 23, SADC 3, COMESA 2, and AUDA-NEPAD 2.
+
+Current database counts after this slice:
+- Opportunities total: 5,274.
+- Active opportunities: 4,908.
+- Active Africa/Global South-filtered opportunities: 2,168.
+- Source-document rows: 2,648.
+- RFP document rows: 1,138.
+
+Search fanout observation:
+- Direct SearXNG JSON checks against `https://search.lindela.io` for Google and DuckDuckGo returned engine degradation (`google` access denied and `duckduckgo` CAPTCHA) for the sampled African source-discovery queries.
+- The application SearXNG client already has direct Google/DuckDuckGo HTML fallback and searx.space fallback fanout paths; keep using the application client or configured-source imports for production runs rather than raw SearXNG JSON-only checks.
+
+Verification:
+- Live aggressive acquisition proof artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-aggressive_rfp_acquisition_africa_national_20260531T/aggressive-rfp-acquisition.json`.
+- Live African Union import proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_african_union_bids_20260531T/live-discovery-import.json`.
+- Database count query verified totals for `opportunities`, active opportunities, filtered Africa/Global South opportunities, `opportunity_documents`, and `rfp_documents`.
+
+Remaining after this slice:
+- Drain selected newly created source-document rows with lightweight `pdftotext` first and Docling only as fallback.
+- Add or repair source-specific parsers only where future live runs show high-yield sources are empty, degraded, or missing documents.
+
 ### 2026-05-31 - Make Source-Document Intake Parse Outcomes Auditable
 
 Status: implemented, focused-tested, typechecked, and live-proved.
