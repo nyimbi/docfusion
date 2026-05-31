@@ -16,6 +16,38 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Donor NGO Search Refresh And TradeMark Africa Intake
+
+Status: live-proved, persisted, search-health measured, non-solicitation filtering improved, local-extraction only, and current TradeMark Africa direct queue drained.
+
+Purpose: expand African and Global South donor/NGO opportunity coverage with search fanout plus configured source scraping, then convert the eligible TradeMark Africa solicitation documents that remained after filtering out recruiting collateral.
+
+Live proof:
+- `aggressive_rfp_acquisition_donor_ngo_refresh_20260531T` ran the `donor_ngo_search` campaign with downloads disabled, `limitPerQuery=3`, `searchPages=1`, `sourceScrapeLimit=80`, `scrapeLimit=2`, and `browserFallbackLimit=2`.
+- The refresh processed 105 records, imported 0 new opportunities, updated 105 existing opportunities, failed 0 records, found 131 existing source-document rows, and created 0 new source-document rows.
+- The refresh recorded 242 warnings, including SearXNG engine degradation on `search.lindela.io`, frequent public SearXNG fallback 403/429 responses, no-candidate search queries, and a few blocked or timed-out configured sources.
+- Healthy configured donor/NGO source scrapes included Mercy Corps, Save the Children, Plan International, IRC, FCDO/FCDO Services, GTAI KfW, RTI, Abt Global, FHI 360, NRC, Oxfam Nigeria, TradeMark Africa, Palladium, Jhpiego, DT Global, Enabel public procurement, and Winrock.
+- `source_document_intake_donor_ngo_post_refresh_probe_20260531T` initially selected 6 TradeMark Africa rows, including 2 job-description PDFs.
+- The intake non-solicitation filter now rejects `job-description` files; `source_document_intake_donor_ngo_post_filter_probe_20260531T` then selected only 4 solicitation-looking TradeMark Africa PDFs.
+- `source_document_intake_trademark_africa_post_filter_20260531T` selected 4 TradeMark Africa documents, downloaded 4, completed 4 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every TradeMark Africa document used lightweight local `pdftotext`; Docling was not invoked.
+- `source_document_intake_trademark_africa_post_filter_remainder_probe_20260531T` selected 0 rows after the live run.
+- Current TradeMark Africa counts after this drain: 11 discovered and 4 downloaded source-document rows, 4 RFP documents, and 27 persisted requirements.
+- Current live totals after this run: 6,129 opportunities, 1,782 RFP documents, and 12,447 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_donor_ngo_refresh_20260531T ... npm run rfp:acquire` completed with 105 records updated, 0 failed records, 131 source documents existing, and 242 warnings.
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed 16 tests, including the new TradeMark Africa job-description regression.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_donor_ngo_post_filter_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 4 TradeMark Africa PDFs and no job-description PDFs.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_trademark_africa_post_filter_20260531T ... npm run source-docs:intake` completed with 4 downloads, 4 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- The TradeMark Africa remainder dry-run selected 0 rows after the live drain.
+- Live DB checks confirmed global totals plus donor/NGO source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Treat SearXNG engine degradation as a material acquisition bottleneck: primary search is working but degraded, and public fallback fanout is noisy with many 403/429 responses.
+- Add source-specific query or configured-source improvements for the donor/NGO sources that returned no candidates, especially CRS, CARE, Enabel grants, NRC search queries, Oxfam Nigeria search, SADC/ECOWAS/ECREEE, Palladium, Jhpiego, DT Global, and Winrock.
+- Continue draining clean donor/NGO direct queues after filtering non-solicitation rows; Plan International, IRC, Enabel, and Oxfam Nigeria still have discovered rows but were not selected in this direct-document probe.
+
 ### 2026-05-31 - Africa National Refresh And Lightweight Intake Drain
 
 Status: live-proved, persisted, Africa-focused, lightweight-extraction only for the follow-on intake, and refreshed Tanzania/Rwanda direct queues drained.
