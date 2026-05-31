@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa CDC Direct Procurement Intake Drain
+
+Status: live-proved, persisted, and local-extraction-only.
+
+Purpose: close out a small high-value Africa CDC direct-document backlog covering consultancy ToR, specific procurement notices, and amendments tied to active procurement packages.
+
+Live proof:
+- `source_document_intake_africa_cdc_direct_20260531T` selected 8 Africa CDC direct documents, downloaded 8, completed 8 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 68 requirements in the run summary.
+- Every Africa CDC document used local extraction: PDFs used local `pdftotext` and DOCX amendments used local DOCX parsing; Docling was not needed.
+- The batch parsed the NPHI investment-case consultancy ToR, four specific procurement notices, and three related amendment documents.
+- The amendment documents were lower density than the base notices but still parsed successfully and were tied to an active procurement package.
+- Current Africa CDC source-document counts after the drain: 12 downloaded source-document rows, 11 RFP documents, and 104 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,380 RFP documents, and 9,680 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_cdc_direct_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed global totals and Africa CDC downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Africa CDC's tracked direct-document backlog is effectively drained for now; continue scheduled discovery to catch new postings.
+- Move next to other Africa/Global South direct sources from the dry probe, especially ECOWAS, DBSA, and South Africa eTenders, while avoiding procurement-plan/result-only documents.
+
 ### 2026-05-31 - Sierra Leone Direct Intake Batch 2
 
 Status: live-proved, persisted, and local-extraction-only.
