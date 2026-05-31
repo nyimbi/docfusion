@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Tanzania NeST Current Queue Drain
+
+Status: live-proved, persisted, and current queue drained.
+
+Purpose: finish the remaining current NeST Tanzania OCDS source-document queue after two clean local HTML extraction batches.
+
+Live proof:
+- `source_document_intake_tanzania_nest_remainder_probe_20260531T` dry-selected the final 20 active NeST Tanzania release URLs.
+- `source_document_intake_tanzania_nest_remainder_20260531T` selected 20 NeST Tanzania documents, downloaded 20, completed 20 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every document used NeST OCDS release-to-HTML plus `local_html_text`; Docling was not needed.
+- `source_document_intake_tanzania_nest_final_probe_20260531T` selected 0 rows after the drain.
+- Current NeST Tanzania source-document counts after this drain: 0 discovered, 210 downloaded, and 0 failed source-document rows, 210 RFP documents, and 649 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,693 RFP documents, and 11,783 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_tanzania_nest_remainder_20260531T ... npm run source-docs:intake` completed with 20 downloads, 20 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_tanzania_nest_final_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals plus NeST Tanzania downloaded/discovered/failed document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Refresh NeST discovery later to pick up newly published Tanzania opportunities; the current discovered source-document queue is drained.
+- Move next to Africa/Global South queues that still need either direct-document drains or detail-page support, especially Rwanda UMUCYO, Ghana GHANEPS, Zambia ZPPA, Benin, BOAD, ECOWAS, and TradeMark Africa.
+
 ### 2026-05-31 - Tanzania NeST OCDS Detail Intake Batch 2
 
 Status: live-proved, persisted, and lightweight-extraction friendly.
