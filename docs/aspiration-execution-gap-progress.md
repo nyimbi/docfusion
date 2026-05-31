@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Africa CDC Supply Chain Opportunity Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with Africa CDC Supply Chain Division opportunities, an African Union health-procurement source that publishes current RFP, EOI, consultancy, goods, data-platform, and AI/HPC procurement notices with explicit deadlines.
+
+Changes in this slice:
+- Added an Africa CDC parser for `https://africacdc.org/supply-chain-division/opportunities/`, including Elementor/Views listing extraction, deadline parsing, expired-notice filtering, bid-reference capture, bid-type classification, Firecrawl markdown fallback parsing, and detail-page PDF/email extraction for individually scraped opportunity pages.
+- Routed Africa CDC supply-chain listing, bid-program archive, and opportunity detail URLs through the configured-source Firecrawl path because direct local HTTP returns 403 while Firecrawl retrieves the listing successfully.
+- Labeled imported records as `Africa CDC`, preserved Africa CDC metadata for downstream enrichment, and added Africa CDC tags to source-scraped opportunities.
+- Added Africa CDC to default discovery sources, the aggressive African acquisition campaign, and targeted `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof focused on broad acquisition: downloads and document parsing stayed disabled, and listing-level imports did not seed PDF source-document rows because the PDF links live on detail pages rather than the listing.
+
+Live run:
+- `live_discovery_import_africa_cdc_20260531T` ran the Africa CDC Supply Chain opportunities source with Firecrawl source scraping, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 8 candidates, 8 created, 0 updated, 0 failed, and 0 warnings.
+- The listing import created 0 source-document rows by design; detail-page scraping can capture linked bid PDFs for selected opportunities in the next source-document intake pass.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/auda-nepad-parser.test.ts __tests__/scrapers/africa-cdc-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 98 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_africa_cdc_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected Africa CDC detail-page intake to seed linked bid PDFs, using lightweight text extraction first and Docling only as fallback.
+- Continue prioritizing Africa and Global South sources with current deadline-backed listings before lower-yield generic searches.
+
 ### 2026-05-31 - Add AUDA-NEPAD African Union Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
