@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - UN Multilateral Refresh And UNDP Detail Probe
+
+Status: live-proved, persisted, Global South/multilateral source breadth expanded, direct-document backlog characterized, and current UNDP direct queue drained.
+
+Purpose: expand UN and multilateral opportunity coverage for African and Global South tenders while avoiding duplicate parser work and preserving the lightweight-first extraction path.
+
+Live proof:
+- `aggressive_rfp_acquisition_un_multilateral_refresh_20260531T` ran the `un_multilateral` source group with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=120`, `scrapeLimit=0`, and `browserFallbackLimit=2`.
+- The refresh processed 178 records, imported 16 new opportunities, updated 162 existing opportunities, failed 0 records, created 3 source-document rows, found 150 existing source-document rows, and recorded 4 warnings.
+- Healthy UN/multilateral sources included UNGM, UNOPS, IOM, ILO, UN Women, UNDP, UN Procurement, and UNICEF Supply Division.
+- Empty or blocked configured sources were WHO, FAO, IFAD, and UNESCO; these need source-specific parser/fallback work before they become productive.
+- The follow-on direct-document probe showed IOM, UN Procurement, and UNICEF discovered rows were mostly duplicate source URLs that already had downloaded prior rows, so intake correctly avoided reprocessing them.
+- `source_document_intake_undp_detail_post_refresh_20260531T` selected 1 UNDP `view_negotiation.cfm` detail endpoint, downloaded it with `local_html_text`, failed 0, and marked the parse as a duplicate RFP document.
+- `source_document_intake_undp_detail_remainder_probe_20260531T` selected 0 rows after that live run.
+- Current UN/multilateral counts after this slice: UNDP has 3 discovered and 223 downloaded source-document rows with 192 RFP documents; IOM has 11 discovered and 13 downloaded rows with 13 RFP documents; UN Procurement has 44 discovered and 12 downloaded rows with 12 RFP documents; UNICEF Supply Division has 12 discovered, 9 downloaded, and 19 failed rows with 10 RFP documents.
+- Current live totals after this run: 6,235 total opportunities, 6,234 non-rejected opportunities, 1,786 RFP documents, and 12,472 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_un_multilateral_refresh_20260531T ... npm run rfp:acquire` completed with 178 records, 16 imports, 162 updates, 3 source documents created, 150 source documents existing, 0 failed records, and 4 warnings.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_un_multilateral_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` confirmed only one actionable UNDP direct/detail candidate after duplicate-source filtering.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_undp_detail_post_refresh_20260531T ... npm run source-docs:intake` completed with 1 local HTML download, 0 failures, and 1 duplicate parse result.
+- The UNDP detail remainder dry-run selected 0 rows after the live run.
+- Live DB checks confirmed global totals plus UNDP/IOM/UN Procurement/UNICEF source-document status and RFP document counts.
+
+Remaining after this slice:
+- Add source-specific parser support for WHO, FAO, IFAD, and UNESCO if we want those configured sources to contribute records reliably.
+- Keep duplicate-source suppression in place; the discovered IOM, UN Procurement, and UNICEF rows mostly represent already-ingested documents rather than fresh parser backlog.
+- Continue configured African/Global South source refreshes and detail-page support before scaling degraded broad search.
+
 ### 2026-05-31 - Development Bank Refresh And BOAD Intake Drain
 
 Status: live-proved, persisted, Africa/Global South development-bank focused, BOAD procurement-plan noise filtered, direct BOAD queue drained, and current database totals captured.
