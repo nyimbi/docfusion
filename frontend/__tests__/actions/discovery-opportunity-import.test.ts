@@ -167,6 +167,8 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.useRealTimers();
+	delete process.env.NRC_TENDER_MAX_PAGES;
+	delete process.env.NRC_TENDER_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -3271,6 +3273,65 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://winrock.org/contracts/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
+	it("routes NRC configured tender sources through its source API and detail documents", async () => {
+		process.env.NRC_TENDER_MAX_PAGES = "1";
+		process.env.NRC_TENDER_DETAIL_LIMIT = "1";
+		fetchMock.mockImplementation(async (url: string) => {
+			if (url.includes("/api/SearchApi/SearchCategories")) {
+				return new Response(JSON.stringify({
+					searchEntries: [{
+						title: "Managed Incident Response Services (SOC/SIEM Implementation)",
+						date: "19. May 2099",
+						description: "Request for Proposal.",
+						pageUrl: "/tender/managed-incident-response-services-socsiem-implementation",
+					}],
+					pageNumber: 1,
+					lastPage: 1,
+				}), { status: 200, headers: { "content-type": "application/json" } });
+			}
+			return new Response(`
+				<article>
+					<h1>Managed Incident Response Services (SOC/SIEM Implementation)</h1>
+					<span>Published 19. May 2099 </span>
+					<p><strong>Deadline for submission is 7 June 2099 at 17:00.</strong></p>
+					<a href="/globalassets/pdf/tenders/global/managed-incident-response-services/rfp-it-soc-2099.docx">
+						<div class="filename">RFP-IT-SOC-2099.docx</div>
+					</a>
+				</article>
+			`, { status: 200, headers: { "content-type": "text/html" } });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.nrc.no/themes/177/tender"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Managed Incident Response Services (SOC/SIEM Implementation)",
+			source: "nrc",
+			sourcePlatform: "Norwegian Refugee Council",
+			sourceFile: "source:https://www.nrc.no/themes/177/tender",
+			rfpLink: "https://www.nrc.no/globalassets/pdf/tenders/global/managed-incident-response-services/rfp-it-soc-2099.docx",
+			tags: ["external-discovery", "source-scrape", "nrc", "ngo", "source-documents", "source-api"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.nrc.no/themes/177/tender",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

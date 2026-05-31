@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add NRC Tender Source-API Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: aggressively expand official source-backed acquisition with Norwegian Refugee Council tenders, using NRC's public tender category API plus detail-page fetches so JavaScript-rendered tender listings become reliable source candidates with linked documents.
+
+Changes in this slice:
+- Added an NRC parser for `https://www.nrc.no/themes/177/tender` that calls the official tender category API, follows tender detail pages, extracts visible deadlines, published dates, references, and source-document package links, and filters expired entries when a deadline is visible.
+- Registered NRC in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added targeted NRC search queries so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can discover indexed NRC detail pages and direct tender/RFP packages.
+- Routed NRC configured source URLs through source-API acquisition, labeled imported opportunities as `Norwegian Refugee Council`, and preserved direct document links in source metadata for downstream intake.
+
+Live run:
+- `live_discovery_import_nrc_20260531T` ran the NRC tender source URL with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 8 candidates, 8 created, 0 failed, and 0 warnings.
+- The run created 9 source-document rows for NRC PDF/DOCX packages. Downloads were intentionally disabled for this proof to verify acquisition without spending parse compute.
+- After hardening reference extraction against embedded file-size labels and NRC JSON-LD date formats, `live_discovery_import_nrc_hardened_20260531T` re-ran the same source URL and updated the same 8 opportunities with 0 creates, 0 failures, 0 warnings, and 9 existing source documents.
+- The live database now has 8 NRC opportunities, including hotel accommodation tenders in Katsina and Sokoto, the Partner Group Cash Transfer Outcome Monitoring RFP, Protection of Civilians consultancy, managed incident response services, fundraising services, land-titling/GIS institutional support, and IDMC media relations consultancy.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/nrc-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 82 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifacts: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_nrc_20260531T/live-discovery-import.json` and `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_nrc_hardened_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected-opportunity source-document intake for the highest-value NRC imports so the newly discovered PDF/DOCX packages are downloaded and parsed before response generation.
+- If NRC adds more pages beyond the current category result depth, increase `NRC_TENDER_MAX_PAGES` in the scheduled job rather than changing parser behavior.
+
 ### 2026-05-31 - Add Winrock Contracts Source Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
