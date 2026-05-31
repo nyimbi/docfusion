@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Norwegian Refugee Council Direct Document Intake
+
+Status: live-proved, persisted, local-extraction only, and current retryable direct-document queue drained with one stale 404 recorded.
+
+Purpose: expand Global South NGO/donor coverage with NRC direct RFP/TOR/ITB documents, including Sudan and Nigeria opportunities, while continuing to prefer local extraction over Docling.
+
+Live proof:
+- `source_document_intake_nrc_direct_probe_20260531T` dry-selected 9 current NRC direct documents.
+- `source_document_intake_nrc_direct_20260531T` selected 9 NRC documents, downloaded 8, completed 8 parse jobs, failed 1 stale source URL, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- All 8 successful documents used lightweight local extraction: DOCX files used local DOCX parsing and the PDF used local `pdftotext`; Docling was not invoked.
+- The failed NRC document was `tor-idmc-media-relations-consultancy.pdf`, which returned `HTTP 404: Not Found` after source-recovery attempts.
+- `source_document_intake_nrc_remainder_probe_20260531T` selected 0 rows after the live run when failed retries were disabled.
+- Current NRC source-document counts after this run: 8 downloaded and 1 failed source-document row, 8 RFP documents, and 104 persisted requirements.
+- Current live totals after this run: 6,082 opportunities, 1,755 RFP documents, and 12,298 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nrc_direct_20260531T ... npm run source-docs:intake` completed with 8 downloads, 8 completed parses, 1 failed stale URL, and 0 parser failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nrc_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 retryable rows after the run.
+- Live DB checks confirmed global totals plus NRC downloaded/failed source-document status, RFP document, requirement counts, and the failed 404 URL.
+
+Remaining after this slice:
+- Treat the single NRC failed row as a stale URL unless future search refresh discovers a replacement document link.
+- Continue with IRC/IOM/Oxfam direct rows and source-refresh campaigns, while keeping ZIP handling and noisy sources bounded.
+
 ### 2026-05-31 - Enabel Global South Direct Document Drain
 
 Status: live-proved, persisted, lightweight-extraction only, and current direct-document queue drained.
