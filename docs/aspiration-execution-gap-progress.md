@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Mali and Togo Direct Intake Expansion
+
+Status: live-proved, persisted, selector-hardened, focused-tested, typechecked, and pushed.
+
+Purpose: aggressively expand West African RFP/tender coverage by draining proven direct-document backlogs from DGMP Mali and DNCCP Togo, using local extraction first and Docling only as fallback.
+
+Live proof:
+- `source_document_intake_west_africa_direct_followup_20260531T` selected 36 direct documents across DGMP Mali and DNCCP Togo, downloaded 34, completed 30 parse jobs, linked 4 duplicates, failed 2 download attempts, timed out 0 parse jobs, had 0 `not_queued`, and extracted 223 requirements in the run summary.
+- The run used local DOCX parsing for many Mali/Togo documents, local binary-text extraction for at least one legacy Mali `.doc`, local `pdftotext` where possible for PDFs, and Docling only after local extraction failed.
+- Docling had one socket close and one timeout during the batch, but parser fallback still completed those documents with reviewable requirements; the run did not block on Docling instability.
+- `source_document_intake_togo_direct_retry_20260531T` continued the Togo drain with 8 more selected direct documents, 7 downloaded, 7 completed parses, 1 download timeout, 0 duplicates, 0 parse failures, 0 `not_queued`, and 54 additional requirements.
+- The Togo continuation added useful lot/DAO material, including local DOCX lots and `DAO-FORAGES-2.pdf`, while surfacing post-award evaluation/cancellation filenames as selector noise.
+- The source-document intake selector now excludes Togo-style post-award evaluation-result and cancellation notices, while preserving active DAO solicitation files.
+- Current live totals after these drains: 6,082 opportunities, 1,330 RFP documents, and 9,156 persisted RFP requirements.
+- Current Mali source-document counts: 139 discovered and 24 downloaded source-document rows, 20 RFP documents, and 157 persisted requirements.
+- Current Togo source-document counts: 40 discovered, 31 downloaded, and 3 failed source-document rows, 31 RFP documents, and 226 persisted requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_west_africa_direct_followup_20260531T ... npm run source-docs:intake` completed successfully.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_togo_direct_retry_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed global totals and Mali/Togo downloaded document, RFP document, and requirement counts.
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests after selector hardening.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- Continue bounded Mali and Togo drains; both still have discovered source-document backlog.
+- Retry the remaining Togo failed source-document rows after the host cools down or via alternate URL recovery if repeated timeouts persist.
+- Keep post-award noise filters broad enough to save parse capacity, but preserve actual DAO/AAO/AMI solicitation packages.
+
 ### 2026-05-31 - ECREEE Direct ToR Intake Drain
 
 Status: live-proved, persisted, selector-hardened, focused-tested, typechecked, and pushed.
