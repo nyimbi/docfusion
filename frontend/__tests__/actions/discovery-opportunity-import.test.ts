@@ -2662,8 +2662,8 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Request for Proposal (RFP) for the Provision of Training for 10,000 returnee migrants in Guinea in business and entrepreneurial skills",
-			source: "source-scrape",
-			sourceId: "iom-30000026651-rfp-003-gn10-05-2026",
+				source: "iom",
+				sourceId: "iom-30000026651-rfp-003-gn10-05-2026",
 			sourcePlatform: "IOM",
 			sourceFile: "source:https://www.iom.int/procurement-opportunities",
 			countryRegion: "Guinea",
@@ -2743,7 +2743,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Supply of Information and Communication Technology Equipment",
-			source: "source-scrape",
+			source: "nest_tanzania",
 			sourceId: "nest-ocds-mv5oob-122383-3-2025-2026-G-32-S003",
 			sourcePlatform: "NeST Tanzania",
 			sourceFile: "source:https://nest.go.tz/gateway/nest-data-portal-api/api/releases",
@@ -2818,7 +2818,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Procurement of Blank Number Plate",
-			source: "source-scrape",
+			source: "maneps_malawi",
 			sourceId: "maneps-ac48e846-41c3-4ff3-9755-4361e30739de",
 			sourcePlatform: "MANEPS Malawi",
 			sourceFile: "source:https://maneps.mw/rms/api/tender-notices/active-tenders-search",
@@ -2874,7 +2874,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Procurement of Wastewater Treatment Plant Management Services.",
-			source: "source-scrape",
+			source: "cpbn_namibia",
 			sourceId: "cpbn-108",
 			sourcePlatform: "Namibia CPBN",
 			sourceFile: "source:https://www.cpbn.com.na/index/external/2",
@@ -2939,7 +2939,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Business Continuity Management System",
-			source: "source-scrape",
+			source: "esppra_eswatini",
 			sourceId: "esppra-26904",
 			sourcePlatform: "ESPPRA Eswatini",
 			sourceFile: "source:https://esppra.co.sz/sppra/tender.php",
@@ -3009,7 +3009,7 @@ describe("discoverAndImportOpportunities", () => {
 		expect(String(fetchMock.mock.calls[0]?.[0])).toContain("sSortDir_0=desc");
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Procurement of Laboratory and ICT Equipment, Workshop, Farm Machinery and Implements",
-			source: "source-scrape",
+			source: "nocopo_nigeria",
 			sourceId: "nocopo-ocds-gyl66f-535011001-000010",
 			sourcePlatform: "Nigeria NOCOPO",
 			sourceFile: "source:https://nocopo.bpp.gov.ng/Open-Data",
@@ -3074,7 +3074,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "OAB-TD-2026-10487 - FRAMEWORK AGREEMENT FOR UNSKILLED WORKS",
-			source: "source-scrape",
+			source: "ceb_mauritius",
 			sourceId: "ceb-mauritius-oab-td-2026-10487",
 			sourcePlatform: "Mauritius CEB",
 			sourceFile: "source:https://ceb.mu/procurement/tender",
@@ -3358,7 +3358,7 @@ describe("discoverAndImportOpportunities", () => {
 		});
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Consultancy Service for the preparation of a comprehensive risk assessment report",
-			source: "source-scrape",
+			source: "ghaneps",
 			sourceId: "ghaneps-2961470",
 			sourcePlatform: "Ghana GHANEPS",
 			countryRegion: "Ghana",
@@ -3440,7 +3440,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "E2966CXMWP - Funding analysis, lender engagement and credit impact assessment.",
-			source: "source-scrape",
+			source: "etenders_sa",
 			sourceId: "etenders-sa-ocds-9t57fa-157517",
 			sourcePlatform: "South Africa eTenders",
 			sourceFile: "source:https://ocds-api.etenders.gov.za/api/OCDSReleases",

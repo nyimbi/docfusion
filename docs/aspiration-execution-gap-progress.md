@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Africa National Source Identity Repair
+
+Status: code repaired, tests passed, live-proved on four African national portals, and DB counts refreshed.
+
+Purpose: improve reliable African tender collection by preserving source-specific provenance for national e-procurement parsers instead of collapsing parser-backed records into the generic `source-scrape` bucket. This makes source health, retries, prioritization, and source-specific backlog analysis materially more accurate for Africa/Global South acquisition.
+
+Live proof:
+- `live_discovery_import_africa_source_identity_repair_20260601T` ran metadata-only against NeST Tanzania, MANEPS Malawi, Ghana GHANEPS, and South Africa eTenders with `sourceScrapeLimit=3` and downloads disabled.
+- The live proof processed 12 records, imported 0, updated 12, skipped 0, failed 0, and produced 0 warnings.
+- All four source health rollups were healthy: 3 candidates and 3 updates each for NeST Tanzania, MANEPS Malawi, Ghana GHANEPS, and South Africa eTenders.
+- The run found 9 existing source-document rows and attempted 0 downloads by design, avoiding the slow document-download tail while validating live acquisition metadata.
+- Live DB checks after the run showed specific source rows for the refreshed portals: `nest_tanzania=3`, `maneps_malawi=3`, `ghaneps=3`, and `etenders_sa=3`.
+- Current live totals remain 6,279 total opportunities, 6,278 non-rejected opportunities, 1,959 RFP documents, and 13,803 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/actions/discovery-opportunity-import.test.ts` passed: 82 tests.
+- `npm run test -- --run __tests__/services/aggressive-rfp-acquisition.test.ts` passed: 6 tests.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_discovery_import_africa_source_identity_repair_20260601T ... npx tsx scripts/run-live-discovery-import.ts` passed with 12 updated records, 0 failures, 0 warnings, and healthy source status for all four sources.
+- Live DB checks confirmed global totals and specific source counts for the repaired Africa national sources.
+
+Remaining after this slice:
+- Existing generic `source-scrape` rows still include older configured-source imports; they should be reduced by source-specific refreshes as priority sources are revisited.
+- The slow full `africa_national` campaign tail still needs a separate timeout or chunking improvement before it is suitable as a routine proof run with downloads enabled.
+
 ### 2026-06-01 - African Union Source Repair And Browser Fallback Alignment
 
 Status: code repaired, live-proved against the African Union source, and DB counts refreshed.
