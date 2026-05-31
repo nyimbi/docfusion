@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Pacific Community Source Acquisition Restored
+
+Status: live-proved, code fixed, pushed, Global South regional source restored, and current Pacific queue state verified.
+
+Purpose: turn Pacific Community from a failed configured source into a reliable direct-HTTP source so Pacific tenders can be collected without depending on degraded search fanout or failing browser fallback.
+
+Live proof:
+- SPC procurement pages are server-rendered and direct HTTP works with the configured browser-like user agent, so the SPC parser no longer declares `requiresJavascript: true`.
+- The source-document intake allowlist now accepts `spc.int/procurement/tenders/...` detail pages so future current SPC rows can flow through the existing local HTML detail fetcher.
+- `aggressive_rfp_acquisition_global_regional_spc_direct_http_20260531T` reran the `global_regional_search` campaign after the code change.
+- The refresh processed 190 records, imported 30 new opportunities, updated 160 existing opportunities, failed 0 records, created 31 source-document rows, found 158 existing source-document rows, and recorded 66 warnings.
+- The Pacific Community configured source moved from failed to healthy: 111 candidates, 30 imports, 81 updates, 0 failed, and 0 source-specific warnings.
+- Current Pacific Community source-document state after the run: 149 discovered rows and 7 downloaded rows.
+- Current Pacific opportunity state: 110 Pacific Community opportunities total, 6 current/future-dated opportunities, 8 RFP documents, and 19 persisted requirements.
+- The follow-on Pacific direct/detail dry-run selected 0 rows because the current/future-dated Pacific opportunities were already downloaded; the remaining discovered rows are expired.
+- Current live totals after this run: 6,265 total opportunities, 6,264 non-rejected opportunities, 1,786 RFP documents, and 12,472 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts __tests__/scrapers/spc-parser.test.ts` passed 20 tests.
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_global_regional_spc_direct_http_20260531T ... npm run rfp:acquire` completed with 190 records, 30 imports, 160 updates, 31 source documents created, 158 source documents existing, 0 failed records, and 66 warnings.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_pacific_community_spc_direct_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 current rows after confirming the active Pacific rows were already downloaded.
+- Live DB checks confirmed global totals plus Pacific Community source-document, current-opportunity, RFP-document, and requirement counts.
+
+Remaining after this slice:
+- Do not spend parser capacity on the 149 discovered Pacific rows unless an explicit archive/backfill mode is desired; they are expired.
+- Keep SPC on direct HTTP/source-parser acquisition, not browser-only scraping.
+- Broad regional search remains noisy and low-yield until SearXNG/Google/DuckDuckGo health improves; configured-source fixes are currently producing the material gains.
+
 ### 2026-05-31 - Global Regional Refresh And Pacific Backlog Probe
 
 Status: live-proved, persisted, Global South regional source coverage refreshed, search degradation measured again, and direct-document backlog checked.
