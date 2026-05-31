@@ -78,6 +78,18 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2026/05/avis-dattribution-definitive-du-marche.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "Avis-dannulation-de-la-DP.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/09/Avis-dannulation-de-la-DP.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Resultat-Evaluation_DAO.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/10/Resultat-Evaluation_DAO.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "PV-PUBLICATION-DES-RESULTATS-DEVALUATION-DES-OFFRES-BON_0001.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/11/PV-PUBLICATION-DES-RESULTATS-DEVALUATION-DES-OFFRES-BON_0001.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "gbg_master.pdf",
 			sourceUrl: "https://www.ungm.org/Areas/Public/Downloads/gbg_master.pdf",
 		})).toBe(false);
@@ -108,6 +120,10 @@ describe("source document intake selection helpers", () => {
 		expect(isLikelySolicitationSource({
 			documentName: "ToR-Recruitment-Data-Management-Specialist-ReCCAWA.pdf",
 			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/ToR-Recruitment-Data-Management-Specialist-ReCCAWA.pdf",
+		})).toBe(true);
+		expect(isLikelySolicitationSource({
+			documentName: "DAO-FORAGES-2.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/11/DAO-FORAGES-2.pdf",
 		})).toBe(true);
 	});
 
