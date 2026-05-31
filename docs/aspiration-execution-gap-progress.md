@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Mali DGMP Direct Intake Batch 3
+
+Status: live-proved, persisted, and Africa-priority.
+
+Purpose: continue aggressively expanding African tender/RFP coverage by draining another clean DGMP Mali direct-document batch before moving to slower scan-heavy queues.
+
+Live proof:
+- `source_document_intake_mali_direct_batch3_probe_20260531T` dry-selected 40 DGMP Mali direct documents, all solicitation-shaped `AAO` DOCX/PDF files, with no result/opening-minute noise.
+- `source_document_intake_mali_direct_batch3_20260531T` selected 40 Mali documents, downloaded 40, failed 0, completed 35 parse jobs, linked 5 duplicate parses, timed out 0 parse jobs, and had 0 zero-requirement or `not_queued` parses.
+- The run used local DOCX extraction for most selected notices and local `pdftotext` where usable PDF text existed.
+- Two scanned PDFs used Docling only after `pdftotext` could not extract usable text, matching the lightweight-first fallback policy.
+- Current Mali source-document counts after this drain: 49 discovered and 114 downloaded source-document rows, 105 RFP documents, and 802 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,521 RFP documents, and 10,876 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_mali_direct_batch3_20260531T ... npm run source-docs:intake` completed with 40 downloads, 35 completed parses, 5 duplicate parses, and 0 failures.
+- Live DB checks confirmed global totals plus Mali downloaded/discovered document status, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Mali still has 49 discovered direct-document rows; run one more smaller Mali drain if the remaining selection stays solicitation-shaped.
+- Keep the next source selection weighted toward African and Global South national/regional portals before generic configured scrape backlog.
+
 ### 2026-05-31 - Mali DGMP Direct Intake Batch 2
 
 Status: live-proved, persisted, and high-throughput.
