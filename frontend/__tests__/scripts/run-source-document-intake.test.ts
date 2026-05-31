@@ -98,6 +98,18 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/11/PV-PUBLICATION-DES-RESULTATS-DEVALUATION-DES-OFFRES-BON_0001.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "PV-de-resultat_Adduction-deau-Cinkasse.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2024/11/PV-de-resultat_Adduction-deau-Cinkasse.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "PV-DOUVERTURE-DES-OFFRES.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2025/02/PV-DOUVERTURE-DES-OFFRES.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "RESULTATS-BALAYAGE-CGOLFE1_2025.pdf",
+			sourceUrl: "https://dnccp.gouv.tg/dnccp/wp-content/uploads/2025/02/RESULTATS-BALAYAGE-CGOLFE1_2025.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "gbg_master.pdf",
 			sourceUrl: "https://www.ungm.org/Areas/Public/Downloads/gbg_master.pdf",
 		})).toBe(false);
