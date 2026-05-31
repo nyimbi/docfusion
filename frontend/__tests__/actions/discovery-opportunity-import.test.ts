@@ -177,6 +177,8 @@ afterEach(() => {
 	delete process.env.GETS_MAX_PAGES;
 	delete process.env.GETS_DETAIL_LIMIT;
 	delete process.env.TRADEMARK_AFRICA_DETAIL_LIMIT;
+	delete process.env.BOAD_PAGE_LIMIT;
+	delete process.env.BOAD_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -3933,12 +3935,66 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, Tetra Tech, and TradeMark Africa configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, and BOAD configured sources through static source parsers", async () => {
+		process.env.BOAD_PAGE_LIMIT = "1";
+		process.env.BOAD_DETAIL_LIMIT = "1";
+		const boadInertiaHtml = (props: Record<string, unknown>) =>
+			`<div id="app" data-page="${JSON.stringify({ component: "Page", props }).replace(/"/g, "&quot;")}"></div>`;
+		const boadRow = {
+			id: 2931,
+			external_id: 572296,
+			type: "tender",
+			slug: "ami-taxe-carbone-accord-paris-rdc-consultants",
+			link: "/fr/opportunites/appels-doffre/ami-taxe-carbone-accord-paris-rdc-consultants/",
+			title: "Avis à Manifestation d'Intérêt - Recrutement de consultant pour la mise en œuvre de la taxe carbone et Accord de Paris en RDC",
+			acf: {
+				presentation: {
+					title: null,
+					text: "<p>Date limite de soumission : 15 juin 2099</p>",
+				},
+				start_at: "21/05/2099",
+				end_at: "15/06/2099",
+				files: [572291],
+			},
+		};
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
 			error: "The operation was aborted due to timeout",
 		});
 		fetchMock.mockImplementation(async (url: string) => {
+			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
+				return new Response(boadInertiaHtml({
+					tenders: {
+						current_page: 1,
+						last_page: 1,
+						data: [boadRow],
+					},
+				}), { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.boad.org/fr/opportunites/appels-doffre/ami-taxe-carbone-accord-paris-rdc-consultants/") {
+				return new Response(boadInertiaHtml({
+					page: boadRow,
+					blocks: [{
+						acf_fc_layout: "tender_header_block",
+						component: "TenderHeaderBlock",
+						data: {
+							title: boadRow.title,
+							presentation: boadRow.acf.presentation,
+							files: [{
+								title: "Termes de Références - Recrutement de consultant",
+								acf: {
+									file: {
+										title: "TERMES DE REFERENCE TAXE CARBONE RDC",
+										filename: "TERMES-DE-REFERENCE-TAXE-CARBONE-RDC.pdf",
+										mime_type: "application/pdf",
+										url: "https://admin.boad.org/wp-content/uploads/2099/05/TERMES-DE-REFERENCE-TAXE-CARBONE-RDC.pdf",
+									},
+								},
+							}],
+						},
+					}],
+				}), { status: 200, headers: { "content-type": "text/html" } });
+			}
 			if (url === "https://trademarkafrica.com/procurement/") {
 				return new Response(`
 					<div class="uc_post_title"><a data-post-link="https://trademarkafrica.com/tma-fwa-dts-01-2026-cloud-hosting/" href="javascrpit:void(0)">
@@ -3995,14 +4051,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://jhpiego.org/work-with-us/",
 				"https://intdev.tetratech.com.au/partner-with-us/",
 				"https://trademarkafrica.com/procurement/",
+				"https://www.boad.org/fr/opportunites/appels-doffre",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 4,
-			imported: 4,
+			total: 5,
+			imported: 5,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4038,6 +4095,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://trademarkafrica.com/wp-content/uploads/2099/04/TMA-FWA-DTS-01-2099.pdf",
 			tags: ["external-discovery", "source-scrape", "trademark-africa", "africa", "regional-trade", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Avis à Manifestation d'Intérêt - Recrutement de consultant pour la mise en œuvre de la taxe carbone et Accord de Paris en RDC",
+			source: "boad",
+			sourcePlatform: "BOAD",
+			sourceFile: "source:https://www.boad.org/fr/opportunites/appels-doffre",
+			rfpLink: "https://admin.boad.org/wp-content/uploads/2099/05/TERMES-DE-REFERENCE-TAXE-CARBONE-RDC.pdf",
+			tags: ["external-discovery", "source-scrape", "boad", "development-bank", "west-africa", "uemoa", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4059,6 +4124,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://trademarkafrica.com/procurement/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.boad.org/fr/opportunites/appels-doffre",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

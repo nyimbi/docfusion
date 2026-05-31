@@ -25,6 +25,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.unesco.org/en/procurement",
 				"https://www.unwomen.org/en/about-us/procurement",
 				"https://cdn.ppda.go.ug/api/bid-invitations",
+				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -185,6 +186,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
+			"site:boad.org/fr/opportunites/appels-doffre \"Date limite\"",
+			"site:boad.org/fr/opportunites/appels-doffre \"Avis de manifestation\" consultant",
 			"site:dai.com/uploads \"request for proposals\" DAI",
 			"site:plan-international.org/calls-tender tender deadline",
 			"site:rescue.org/rfp RFP procurement",

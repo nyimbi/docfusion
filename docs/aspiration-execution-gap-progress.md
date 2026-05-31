@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add BOAD West Africa Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South RFP acquisition with the West African Development Bank tender portal, which exposes current UEMOA-region notices, consultant AMIs, procurement plans, deadlines, and tender-document packages through server-rendered Inertia data.
+
+Changes in this slice:
+- Added a BOAD parser for `https://www.boad.org/fr/opportunites/appels-doffre`, including Inertia JSON extraction, paginated listing fetches, French deadline parsing, expired-deadline filtering, detail-page tender-document extraction, and country/notice/category inference.
+- Routed BOAD listing and tender-detail URLs through the direct source-parser path, labeled imported records as `BOAD`, and preserved BOAD PDF/document links for downstream source-document intake.
+- Added BOAD to default discovery and the aggressive development-bank acquisition campaign, with targeted BOAD `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked BOAD packages.
+
+Live run:
+- `live_discovery_import_boad_20260531T2` ran BOAD with source-API parsing enabled, first-five-page listing fetch, detail enrichment, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 12 candidates, 12 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 13 source-document rows from linked BOAD tender documents. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/boad-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 89 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_boad_20260531T2/live-discovery-import.json`.
+
+Remaining after this slice:
+- Raise `BOAD_PAGE_LIMIT` for scheduled broad harvesting when we want more than the first five BOAD pages, while keeping selected document parsing on the lightweight extraction path before Docling fallback.
+- Continue adding African and Global South sources with current deadlines and direct document packages before lower-yield generic sources.
+
 ### 2026-05-31 - Refresh African National And Regional Acquisition
 
 Status: live-run and recorded.
