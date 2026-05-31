@@ -117,6 +117,7 @@ function acquisitionOptionsFromEnv(): AggressiveRfpAcquisitionOptions {
 		sourceScrapeLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SOURCE_SCRAPE_LIMIT, 40, 0, 500),
 		scrapeLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SCRAPE_LIMIT, 4, 0, 20),
 		browserFallbackLimit: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_BROWSER_FALLBACK_LIMIT, 4, 0, 20),
+		sourceChunkSize: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_SOURCE_CHUNK_SIZE, 0, 0, 100),
 		downloadLimit: process.env.AGGRESSIVE_RFP_ACQUISITION_DOWNLOAD_DOCUMENTS === "0"
 			? 0
 			: boundedNumber(process.env.AGGRESSIVE_RFP_ACQUISITION_DOWNLOAD_LIMIT, 12, 0, 25),

@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Africa National Acquisition Chunking
+
+Status: code repaired, tests passed, live-proved across the full African national source group, and DB counts refreshed.
+
+Purpose: make broad African and Global South tender collection operationally robust by splitting large source-backed campaigns into bounded chunks. This prevents the full `africa_national` campaign from behaving as one long fragile unit, keeps per-chunk evidence, and avoids duplicating Google/SearXNG/DuckDuckGo search fanout when a mixed source+search campaign is chunked.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_chunked_metadata_20260601T` ran the full `africa_national` campaign as 7 source chunks with `sourceChunkSize=4`, `sourceScrapeLimit=2`, downloads disabled, and browser fallback limited to 1.
+- The live proof completed all 7 chunks, failed 0 chunks, processed 49 records, imported 0 new opportunities, updated 49 existing opportunities, and produced 1 warning.
+- Healthy chunked African sources included Kenya PPIP, South Africa eTenders, NeST Tanzania, Uganda PPDA, Rwanda UMUCYO, Ghana GHANEPS, MANEPS Malawi, Nigeria NOCOPO, Namibia CPBN, Eswatini ESPPRA, African Union, AUDA-NEPAD, Africa CDC, COMESA, SADC, ECOWAS, ECREEE, Sierra Leone MoF, Niger public procurement, Benin public procurement, Mali DGMP tenders/EOIs, DNCCP Togo, and GIZ Ghana/South Africa.
+- Zambia ZPPA returned no current opportunities and was isolated as one source warning inside chunk 2 rather than obscuring the broader Africa run.
+- Downloads were intentionally disabled for this proof, so the run attempted 0 downloads and did not change document or requirement totals.
+- Current live totals remain 6,279 total opportunities, 6,278 non-rejected opportunities, 1,959 RFP documents, and 13,803 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/services/aggressive-rfp-acquisition.test.ts` passed: 8 tests.
+- `npm run test -- --run __tests__/actions/discovery-opportunity-import.test.ts` passed: 82 tests.
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_africa_chunked_metadata_20260601T ... npm run rfp:acquire` passed with 7 completed chunks, 49 updated records, 0 failed chunks, and 1 source warning.
+- Live DB checks confirmed global totals after the metadata-only acquisition proof.
+
+Remaining after this slice:
+- Downloads-enabled full Africa runs should still be scheduled as a separate parse/intake pass so slow PDF/DOCX extraction does not mask source collection health.
+- Source-specific repairs should continue for portals that return empty or degraded results, starting with Zambia ZPPA and any sources that remain discovered-only after refresh.
+- The same chunking option should be used for donor/NGO and regional Global South campaigns when running broad live refreshes.
+
 ### 2026-06-01 - Africa National Source Identity Repair
 
 Status: code repaired, tests passed, live-proved on four African national portals, and DB counts refreshed.

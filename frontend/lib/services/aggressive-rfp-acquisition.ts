@@ -19,6 +19,7 @@ export type AggressiveRfpAcquisitionOptions = {
 	browserFallbackLimit: number;
 	downloadLimit: number;
 	downloadParseMode: NonNullable<DiscoveryImportInput["downloadParseMode"]>;
+	sourceChunkSize?: number;
 };
 
 export type AggressiveRfpAcquisitionRunInput = {
@@ -370,27 +371,51 @@ export function buildAggressiveRfpAcquisitionInputs(
 	campaigns = DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS
 ): AggressiveRfpAcquisitionRunInput[] {
 	const selected = selectAggressiveRfpAcquisitionCampaigns(options.campaignIds, campaigns);
-	return selected.map((campaign) => {
+	return selected.flatMap((campaign) => {
 		const hasQueries = Boolean(campaign.queries?.length);
 		const hasSources = Boolean(campaign.sourceUrls?.length);
-		return {
-			campaign,
-			input: {
-				queries: hasQueries ? campaign.queries : [],
-				sourceUrls: hasSources ? campaign.sourceUrls : [],
-				engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
-				searchEngineFanout: true,
-				searchPages: options.searchPages,
-				limitPerQuery: options.limitPerQuery,
-				sourceScrapeLimit: options.sourceScrapeLimit,
-				scrapeTopResults: hasQueries,
-				scrapeLimit: hasQueries ? options.scrapeLimit : 0,
-				browserFallback: true,
-				browserFallbackLimit: options.browserFallbackLimit,
-				downloadDiscoveredDocuments: options.downloadLimit > 0,
-				downloadLimit: options.downloadLimit,
-				downloadParseMode: options.downloadParseMode,
-			},
-		};
+		const sourceChunks = sourceUrlChunks(campaign.sourceUrls ?? [], options.sourceChunkSize);
+		return sourceChunks.map((sourceUrls, index) => {
+			const chunked = sourceChunks.length > 1;
+			const includeQueries = hasQueries && index === 0;
+			const chunkLabel = chunked ? ` (sources ${index + 1}/${sourceChunks.length})` : "";
+			return {
+				campaign: chunked
+					? {
+						...campaign,
+						id: `${campaign.id}__sources_${index + 1}`,
+						label: `${campaign.label}${chunkLabel}`,
+						sourceUrls,
+						queries: includeQueries ? campaign.queries : [],
+					}
+					: campaign,
+				input: {
+					queries: includeQueries ? campaign.queries : [],
+					sourceUrls: hasSources ? sourceUrls : [],
+					engines: [...DEFAULT_DISCOVERY_SEARCH_ENGINES],
+					searchEngineFanout: true,
+					searchPages: options.searchPages,
+					limitPerQuery: options.limitPerQuery,
+					sourceScrapeLimit: options.sourceScrapeLimit,
+					scrapeTopResults: includeQueries,
+					scrapeLimit: includeQueries ? options.scrapeLimit : 0,
+					browserFallback: true,
+					browserFallbackLimit: options.browserFallbackLimit,
+					downloadDiscoveredDocuments: options.downloadLimit > 0,
+					downloadLimit: options.downloadLimit,
+					downloadParseMode: options.downloadParseMode,
+				},
+			};
+		});
 	});
+}
+
+function sourceUrlChunks(sourceUrls: string[], sourceChunkSize: number | undefined): string[][] {
+	if (!sourceUrls.length) return [[]];
+	if (!sourceChunkSize || sourceChunkSize <= 0 || sourceChunkSize >= sourceUrls.length) return [sourceUrls];
+	const chunks: string[][] = [];
+	for (let index = 0; index < sourceUrls.length; index += sourceChunkSize) {
+		chunks.push(sourceUrls.slice(index, index + sourceChunkSize));
+	}
+	return chunks;
 }

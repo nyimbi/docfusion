@@ -124,6 +124,39 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(run.input.downloadDiscoveredDocuments).toBe(false);
 	});
 
+	it("can chunk broad African source campaigns into bounded source-backed runs", () => {
+		const runs = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["africa_national"],
+			limitPerQuery: 9,
+			searchPages: 1,
+			sourceScrapeLimit: 40,
+			scrapeLimit: 4,
+			browserFallbackLimit: 4,
+			downloadLimit: 0,
+			downloadParseMode: "queued",
+			sourceChunkSize: 4,
+		});
+
+		expect(runs).toHaveLength(7);
+		expect(runs.map((run) => run.campaign.id)).toEqual([
+			"africa_national__sources_1",
+			"africa_national__sources_2",
+			"africa_national__sources_3",
+			"africa_national__sources_4",
+			"africa_national__sources_5",
+			"africa_national__sources_6",
+			"africa_national__sources_7",
+		]);
+		expect(runs[0].campaign.label).toBe("African national procurement portals (sources 1/7)");
+		expect(runs.every((run) => run.input.sourceUrls.length <= 4)).toBe(true);
+		expect(runs.flatMap((run) => run.input.sourceUrls)).toEqual(
+			DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.find((campaign) => campaign.id === "africa_national")?.sourceUrls
+		);
+		expect(runs.every((run) => run.input.queries.length === 0)).toBe(true);
+		expect(runs.every((run) => run.input.scrapeTopResults === false)).toBe(true);
+		expect(runs.every((run) => run.input.scrapeLimit === 0)).toBe(true);
+	});
+
 	it("builds mixed global public-sector campaigns with search fanout and direct sources", () => {
 		const [run] = buildAggressiveRfpAcquisitionInputs({
 			campaignIds: ["global_public_sector"],
@@ -155,6 +188,37 @@ describe("aggressive RFP acquisition campaigns", () => {
 		expect(run.input.scrapeTopResults).toBe(true);
 		expect(run.input.scrapeLimit).toBe(2);
 		expect(run.input.downloadLimit).toBe(6);
+	});
+
+	it("does not duplicate search fanout when chunking a mixed source and search campaign", () => {
+		const runs = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["global_regional_search"],
+			limitPerQuery: 5,
+			searchPages: 2,
+			sourceScrapeLimit: 20,
+			scrapeLimit: 2,
+			browserFallbackLimit: 2,
+			downloadLimit: 6,
+			downloadParseMode: "queued",
+			sourceChunkSize: 2,
+		});
+
+		expect(runs).toHaveLength(3);
+		expect(runs[0].campaign.id).toBe("global_regional_search__sources_1");
+		expect(runs[0].input.queries).toEqual(expect.arrayContaining([
+			"site:iadb.org procurement \"request for proposals\"",
+			"site:spc.int/procurement \"request for proposal\"",
+		]));
+		expect(runs[0].input.scrapeTopResults).toBe(true);
+		expect(runs[0].input.scrapeLimit).toBe(2);
+		for (const run of runs.slice(1)) {
+			expect(run.input.queries).toEqual([]);
+			expect(run.input.scrapeTopResults).toBe(false);
+			expect(run.input.scrapeLimit).toBe(0);
+		}
+		expect(runs.flatMap((run) => run.input.sourceUrls)).toEqual(
+			DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.find((campaign) => campaign.id === "global_regional_search")?.sourceUrls
+		);
 	});
 
 	it("selects requested campaigns by id", () => {
