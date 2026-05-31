@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add SADC Southern Africa Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with the SADC procurement portal, a regional Southern Africa source that publishes current consultancy notices, general procurement notices, closing dates/times, and direct PDF/DOCX/XLSX procurement attachments.
+
+Changes in this slice:
+- Added a SADC parser for `https://www.sadc.int/procurement-opportunities`, including static listing-card extraction, detail-page enrichment, Botswana-time closing parsing, expired-deadline filtering, SADC reference extraction, category/type inference, and direct procurement-document capture.
+- Routed SADC listing/detail URLs through the direct source-parser path, labeled imported records as `SADC`, and preserved SADC attachment links for downstream source-document intake.
+- Added SADC to default discovery and the aggressive African acquisition campaign, with a targeted SADC `site:` query for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked SADC tender packages.
+
+Live run:
+- `live_discovery_import_sadc_20260531T` ran the SADC procurement source with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 3 candidates, 3 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 7 source-document rows from linked SADC procurement attachments. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/sadc-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 89 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_sadc_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit SADC imports with lightweight text extraction first; use Docling only as fallback.
+- Continue adding African and Global South direct-document sources with current closing dates before lower-yield generic searches.
+
 ### 2026-05-31 - Add DBSA South Africa RFP Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

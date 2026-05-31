@@ -3935,7 +3935,7 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, and DBSA configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, DBSA, and SADC configured sources through static source parsers", async () => {
 		process.env.BOAD_PAGE_LIMIT = "1";
 		process.env.BOAD_DETAIL_LIMIT = "1";
 		const boadInertiaHtml = (props: Record<string, unknown>) =>
@@ -3971,6 +3971,41 @@ describe("discoverAndImportOpportunities", () => {
 						<td>26 May 2099</td>
 						<td>19 June 2099 at 23H55</td>
 					</tr></tbody></table>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.sadc.int/procurement-opportunities") {
+				return new Response(`
+					<div class="view-content clearfix">
+						<div class="views-view-grid horizontal cols-1 clearfix">
+							<div class="col-md-3 col-sm-4 col-xs-6 grid-item">
+								<div class="column">
+									<div class="views-field views-field-fieldset"><span class="field-content"><div class="date-green">
+										<div class="views-field views-field-field-closing-date date-large"><div class="field-content">29</div></div>
+										<div class="views-field views-field-field-closing-date-1 date-small"><div class="field-content">Jun 2099</div></div>
+									</div></span></div>
+									<div class="views-field views-field-title"><span class="field-content"><a href="/procurement-opportunities/individual-consultancy-provide-technical-advice-executive-secretary" hreflang="en">INDIVIDUAL CONSULTANCY TO PROVIDE TECHNICAL ADVICE TO THE EXECUTIVE SECRETARY</a></span></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.sadc.int/procurement-opportunities/individual-consultancy-provide-technical-advice-executive-secretary") {
+				return new Response(`
+					<h1><span>INDIVIDUAL CONSULTANCY TO PROVIDE TECHNICAL ADVICE TO THE EXECUTIVE SECRETARY</span></h1>
+					<p><span>Closing Date:</span> June 29, 2099</p>
+					<p><span>Closing Time:</span> 12:00 PM</p>
+					<article class="node node--type-tender">
+						<div class="field field--name-body field--type-text-with-summary field--entity-node field--label-hidden field__item">
+							<p><strong>Reference Number:</strong> SADC/3/5/2/448</p>
+							<p>The assignment provides technical advice to the Executive Secretary.</p>
+						</div>
+						<div class="field field--name-field-attachment field--type-file field--entity-node field--label-hidden field__items clearfix">
+							<table><tbody>
+								<tr><td><a href="/sites/default/files/2099-05/REOI%20-%20TA%20ES%20OFFICE.docx">Request for Expression of Interest</a></td></tr>
+							</tbody></table>
+						</div>
+					</article>
 				`, { status: 200, headers: { "content-type": "text/html" } });
 			}
 			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
@@ -4064,14 +4099,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://trademarkafrica.com/procurement/",
 				"https://www.boad.org/fr/opportunites/appels-doffre",
 				"https://www.dbsa.org/procurement",
+				"https://www.sadc.int/procurement-opportunities",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 6,
-			imported: 6,
+			total: 7,
+			imported: 7,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4123,6 +4159,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://www.dbsa.org/sites/ppdf.dbsa.org/files/media/documents/2099-05/RFP090-2099%20Digital%20Agency.pdf",
 			tags: ["external-discovery", "source-scrape", "dbsa", "south-africa", "development-bank", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "INDIVIDUAL CONSULTANCY TO PROVIDE TECHNICAL ADVICE TO THE EXECUTIVE SECRETARY",
+			source: "sadc",
+			sourcePlatform: "SADC",
+			sourceFile: "source:https://www.sadc.int/procurement-opportunities",
+			rfpLink: "https://www.sadc.int/sites/default/files/2099-05/REOI%20-%20TA%20ES%20OFFICE.docx",
+			tags: ["external-discovery", "source-scrape", "sadc", "southern-africa", "regional-procurement", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4156,6 +4200,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://www.dbsa.org/procurement",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.sadc.int/procurement-opportunities",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,
