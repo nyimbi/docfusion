@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Probe High-Intent Search Fanout Yield
+
+Status: live-proved with degraded search fanout.
+
+Purpose: verify whether broad high-intent Google/DuckDuckGo/SearXNG search fanout is currently adding African and Global South RFP coverage beyond the configured source drains.
+
+Live run:
+- `aggressive_rfp_acquisition_high_intent_search_africa_20260531T` ran the `high_intent_search` campaign with search pages limited to 1, 4 results per query, top-result scraping limited to 2, browser fallback limited to 1, and downloads disabled.
+- The run completed without failed imports: 7 records processed, 0 imported, 7 updated, 0 failed.
+- It created 0 new source-document rows and reported 61 warnings.
+
+Search fanout result:
+- Primary SearXNG at `https://search.lindela.io` repeatedly reported degraded engines: Google access denied, DuckDuckGo CAPTCHA, Brave too many requests, and Startpage CAPTCHA.
+- Public searx.space fallback instances were also mostly unusable for these queries, returning 403, 418, or 429 responses.
+- The application client did recover at least one query via direct DuckDuckGo HTML fallback, but the overall yield was low: search fanout refreshed existing records rather than expanding the collection.
+
+Conclusion:
+- For the current infrastructure state, configured African and Global South source drains are materially more reliable and higher-yield than generic high-intent search fanout.
+- Keep search fanout enabled as a supplemental discovery path, but prioritize direct source parsers and source-document drains until SearXNG fanout health improves.
+
+Verification:
+- Live aggressive search proof artifact: `.omx/logs/platform-completion/aggressive-rfp-acquisition-aggressive_rfp_acquisition_high_intent_search_africa_20260531T/aggressive-rfp-acquisition.json`.
+
+Remaining after this slice:
+- Improve SearXNG fanout health or add targeted site-specific search campaigns only where direct source pages are unavailable.
+- Continue configured-source and document-intake runs as the primary African/Global South acquisition path.
+
 ### 2026-05-31 - Parse Selected African And Global South Source Documents
 
 Status: live-proved and database-counted.
