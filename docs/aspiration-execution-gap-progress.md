@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - ECOWAS and DBSA Direct Intake Drain
+
+Status: live-proved, persisted, and local-extraction-only.
+
+Purpose: expand African and Global South tender/RFP coverage by draining current ECOWAS and Development Bank of Southern Africa direct-document rows into parsed RFP documents and extracted requirements.
+
+Live proof:
+- `source_document_intake_ecowas_dbsa_direct_20260531T` selected 22 direct documents across ECOWAS and DBSA, downloaded 22, completed 21 parse jobs, failed 0, timed out 0, had 1 duplicate parse, had 0 `not_queued`, and extracted 263 requirements in the run summary.
+- Every parsed item used local extraction before any heavier fallback: PDFs used local `pdftotext`, DBSA ZIP packages yielded local XLSX/DOCX parsing, and Docling was not needed.
+- The batch covered ECOWAS education-policy and intranet REOIs/ToRs, Nigeria ROGEAP invitation-to-bid and request-for-bids packages, ECOWAS general procurement notice and financial-specialist REOI, plus DBSA digital-agency, business-modelling, industrial-park, mining-distribution, WESS technology, addendum, functional-requirements sheet, and CV/company-experience templates.
+- Current ECOWAS source-document counts after the drain: 7 discovered and 14 downloaded source-document rows, 14 RFP documents, and 210 persisted requirements.
+- Current DBSA source-document counts after the drain: 10 downloaded source-document rows, 9 RFP documents, and 91 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,401 RFP documents, and 9,943 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_ecowas_dbsa_direct_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed global totals plus ECOWAS and DBSA downloaded document, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- ECOWAS still has 7 discovered source-document rows; dry probe or drain the remainder after checking for plan/result noise.
+- Continue with other African and Global South high-yield sources, especially South Africa eTenders and remaining Sierra Leone rows.
+
 ### 2026-05-31 - Africa CDC Direct Procurement Intake Drain
 
 Status: live-proved, persisted, and local-extraction-only.
