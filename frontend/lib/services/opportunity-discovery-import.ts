@@ -374,7 +374,7 @@ const DEFAULT_PERSISTENCE_RETRY_DELAY_MS = 500;
 const DEFAULT_DISCOVERY_SEARCH_CONCURRENCY = 4;
 const MAX_DISCOVERY_SOURCE_DOCUMENTS = 5;
 const MIN_DISCOVERY_SOURCE_DOCUMENT_SCORE = 6;
-const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)|\/\/idbdocs\.iadb\.org\/wsdocs\/getdocument\.aspx\?docnum=/i;
+const DOCUMENT_URL_PATTERN = /\.(pdf|docx?|xlsx?|zip)(?:[?#]|$)|\/\/idbdocs\.iadb\.org\/wsdocs\/getdocument\.aspx\?docnum=|\/\/www\.contractsfinder\.service\.gov\.uk\/Notice\/Attachment\//i;
 const DOCUMENT_LINK_KEYWORDS = [
 	"rfp",
 	"request for proposal",
@@ -529,6 +529,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 	else if (host === "ceb.mu" && safeUrlPathname(sourceUrl).startsWith("/procurement/tender")) sourceId = "ceb_mauritius";
 	else if (host.includes("ebrd.com")) sourceId = "ebrd";
 	else if (host.includes("sam.gov")) sourceId = "sam_gov";
+	else if (host === "contractsfinder.service.gov.uk" && /^(?:\/Published\/Notices\/OCDS\/Search|\/Search|\/Notice\/)/i.test(safeUrlPathname(sourceUrl))) sourceId = "contracts_finder";
 	else if (host === "find-tender.service.gov.uk" && /^(?:\/api\/1\.0\/ocdsReleasePackages|\/Search\/Results)/.test(safeUrlPathname(sourceUrl))) sourceId = "find_tender";
 	else if (host.includes("ec.europa.eu") && sourceUrl.includes("funding-tenders")) sourceId = "eu_funding_tenders";
 	else if (host.includes("dgmarket.com")) sourceId = "dgmarket";
@@ -569,6 +570,7 @@ function parserForSourceUrl(sourceUrl: string): TenderParser {
 
 function isSourceApiParser(parser: TenderParser): boolean {
 	return parser.sourceId === "sam_gov"
+		|| parser.sourceId === "contracts_finder"
 		|| parser.sourceId === "find_tender"
 		|| parser.sourceId === "eu_funding_tenders"
 		|| parser.sourceId === "adb"
@@ -946,7 +948,7 @@ function shouldAttachPageWideDocumentLinks(candidate: DiscoveryCandidate): boole
 }
 
 function sourceOpportunityDocumentLinks(opportunity: OpportunityData | undefined): DiscoveryDocumentLink[] {
-	const metadataLinks = ["giz", "fhi360", "dtGlobal", "care", "enabel", "winrock", "nrc", "oxfamNigeria", "irc", "idb"].flatMap((key) => {
+	const metadataLinks = ["giz", "fhi360", "dtGlobal", "care", "enabel", "winrock", "nrc", "oxfamNigeria", "irc", "idb", "contractsFinder"].flatMap((key) => {
 		const metadata = opportunity?.metadata?.[key];
 		if (!metadata || typeof metadata !== "object") return [];
 		const links = (metadata as { documentLinks?: unknown }).documentLinks;
@@ -987,6 +989,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "ceb_mauritius") return "Mauritius CEB";
 	if (opportunity?.source === "ebrd") return "EBRD";
 	if (opportunity?.source === "sam_gov") return "SAM.gov";
+	if (opportunity?.source === "contracts_finder") return "UK Contracts Finder";
 	if (opportunity?.source === "find_tender") return "UK Find a Tender";
 	if (opportunity?.source === "eu_funding_tenders") return "EU Funding & Tenders";
 	if (opportunity?.source === "comesa") return "COMESA";
@@ -1042,6 +1045,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "ceb_mauritius" ? ["ceb", "mauritius", "national-procurement", "direct-documents"] : []),
 		...(opportunity?.source === "ebrd" ? ["ebrd", "development-bank", "global-procurement"] : []),
 		...(opportunity?.source === "sam_gov" ? ["sam-gov", "us-federal"] : []),
+		...(opportunity?.source === "contracts_finder" ? ["contracts-finder", "uk", "public-procurement", "ocds"] : []),
 		...(opportunity?.source === "find_tender" ? ["find-tender", "uk", "public-procurement", "ocds"] : []),
 		...(opportunity?.source === "eu_funding_tenders" ? ["eu-funding-tenders", "european-commission"] : []),
 		...(opportunity?.source === "comesa" ? ["comesa", "regional-procurement"] : []),
@@ -1384,7 +1388,7 @@ function buildOpportunityFromDiscovery(
 	const documentUrl = documentLinks[0]?.url
 		?? sourceOpportunity?.documentUrl
 		?? extractDocumentUrlFromMarkdown(candidate.scrape?.markdown, candidate.result.url);
-	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev"
+	const source = sourceOpportunity?.source === "afdb" || sourceOpportunity?.source === "adb" || sourceOpportunity?.source === "idb" || sourceOpportunity?.source === "aiib" || sourceOpportunity?.source === "cdb" || sourceOpportunity?.source === "kenya_ppip" || sourceOpportunity?.source === "undp" || sourceOpportunity?.source === "ungm" || sourceOpportunity?.source === "world_bank" || sourceOpportunity?.source === "ebrd" || sourceOpportunity?.source === "sam_gov" || sourceOpportunity?.source === "contracts_finder" || sourceOpportunity?.source === "find_tender" || sourceOpportunity?.source === "eu_funding_tenders" || sourceOpportunity?.source === "comesa" || sourceOpportunity?.source === "un_procurement" || sourceOpportunity?.source === "unicef" || sourceOpportunity?.source === "irc" || sourceOpportunity?.source === "giz" || sourceOpportunity?.source === "mercy_corps" || sourceOpportunity?.source === "plan_international" || sourceOpportunity?.source === "save_children" || sourceOpportunity?.source === "spc" || sourceOpportunity?.source === "rti" || sourceOpportunity?.source === "abt_global" || sourceOpportunity?.source === "fhi360" || sourceOpportunity?.source === "nrc" || sourceOpportunity?.source === "oxfam_nigeria" || sourceOpportunity?.source === "palladium" || sourceOpportunity?.source === "jhpiego" || sourceOpportunity?.source === "dt_global" || sourceOpportunity?.source === "care" || sourceOpportunity?.source === "enabel" || sourceOpportunity?.source === "winrock" || sourceOpportunity?.source === "tetra_tech_intdev"
 		? sourceOpportunity.source
 		: discoveryMethod === "source_scrape" ? "source-scrape" : "searxng";
 

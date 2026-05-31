@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add UK Contracts Finder OCDS Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand public-sector RFP acquisition with the United Kingdom's official Contracts Finder OCDS search API, replacing generic configured-source scraping for this portal with structured active tender collection and stable amendment de-duplication.
+
+Changes in this slice:
+- Added a Contracts Finder parser for `https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search`, including active tender filtering, expired/award/withdrawn filtering, buyer/value/category/CPV extraction, attachment preservation, and stable notice IDs across repeated tender amendments.
+- Routed Contracts Finder API, search, and notice URLs through the source-API parser path, labeled imported records as `UK Contracts Finder`, and preserved Contracts Finder metadata for downstream intake.
+- Replaced the default and aggressive Contracts Finder configured source URL with the official OCDS API endpoint while retaining search fanout queries for indexed notice rediscovery.
+- Treated Contracts Finder attachment URLs as source-document URLs even though the portal serves them from extensionless `/Notice/Attachment/...` paths.
+
+Live run:
+- `live_discovery_import_contracts_finder_50_20260531T` ran one Contracts Finder API page with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 50 candidates, 50 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 50 source-document rows. Downloads were intentionally disabled for this proof to verify acquisition breadth without spending parse compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/contracts-finder-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 85 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_contracts_finder_50_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Increase `CONTRACTS_FINDER_MAX_API_PAGES` and source-scrape limits for scheduled broad harvesting when we want more than the first 50 fresh records per run.
+- Run selected source-document intake for high-fit Contracts Finder imports; many records point to buyer portals or extensionless Contracts Finder attachment URLs that should be fetched only after opportunity triage.
+
 ### 2026-05-31 - Add UK Find a Tender OCDS Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

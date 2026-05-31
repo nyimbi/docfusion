@@ -169,6 +169,7 @@ afterEach(() => {
 	vi.useRealTimers();
 	delete process.env.NRC_TENDER_MAX_PAGES;
 	delete process.env.NRC_TENDER_DETAIL_LIMIT;
+	delete process.env.CONTRACTS_FINDER_MAX_API_PAGES;
 	delete process.env.FIND_TENDER_MAX_API_PAGES;
 });
 
@@ -1129,6 +1130,116 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
+	it("routes UK Contracts Finder configured sources through the public OCDS parser", async () => {
+		process.env.CONTRACTS_FINDER_MAX_API_PAGES = "1";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		fetchMock.mockResolvedValue(new Response(JSON.stringify({
+			releases: [{
+				ocid: "ocds-b5fd17-07ec2535-27cf-4ca2-86e0-3298e6c1b3af",
+				id: "5f8725b0-d8ae-49a5-93a1-978d948733b3-899683",
+				date: "2099-05-29T15:09:40+01:00",
+				tag: ["tender"],
+				initiationType: "tender",
+				tender: {
+					id: "Digital assessments for businesses",
+					title: "The Delivery of a Digital Assessment to Action Programme",
+					description: "Provide small businesses with a digital assessment and action plan.",
+					datePublished: "2099-05-19T12:04:39+01:00",
+					status: "active",
+					classification: {
+						scheme: "CPV",
+						id: "72000000",
+						description: "IT services: consulting, software development, Internet and support",
+					},
+					value: {
+						amount: 10000,
+						currency: "GBP",
+					},
+					procurementMethod: "open",
+					procurementMethodDetails: "Open procedure",
+					tenderPeriod: {
+						endDate: "2099-06-08T09:00:00+01:00",
+					},
+					mainProcurementCategory: "services",
+					documents: [
+						{
+							id: "1",
+							documentType: "tenderNotice",
+							description: "Opportunity notice on Contracts Finder",
+							url: "https://www.contractsfinder.service.gov.uk/Notice/5f8725b0-d8ae-49a5-93a1-978d948733b3",
+							format: "text/html",
+						},
+						{
+							id: "2",
+							documentType: "technicalSpecifications",
+							description: "Specification",
+							url: "https://www.contractsfinder.service.gov.uk/Notice/Attachment/01ac2251-35eb-4dbb-b0e1-0de57ddee11b",
+							format: "application/pdf",
+						},
+					],
+				},
+				parties: [{
+					id: "GB-CFS-1",
+					name: "Winchester City Council",
+					roles: ["buyer"],
+					address: {
+						countryName: "England",
+					},
+					contactPoint: {
+						name: "Emily Reason",
+						email: "ereason@example.gov.uk",
+					},
+				}],
+				buyer: {
+					id: "GB-CFS-1",
+					name: "Winchester City Council",
+				},
+			}],
+		}), { status: 200, headers: { "content-type": "application/json" } }));
+		selectResultsQueue.push([]);
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Accept: "application/json",
+				}),
+			})
+		);
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "The Delivery of a Digital Assessment to Action Programme",
+			source: "contracts_finder",
+			sourcePlatform: "UK Contracts Finder",
+			sourceFile: "source:https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
+			rfpLink: "https://www.contractsfinder.service.gov.uk/Notice/Attachment/01ac2251-35eb-4dbb-b0e1-0de57ddee11b",
+			portalUrl: "https://www.contractsfinder.service.gov.uk/Notice/5f8725b0-d8ae-49a5-93a1-978d948733b3",
+			tags: ["external-discovery", "source-scrape", "contracts-finder", "uk", "public-procurement", "ocds", "source-api"],
+		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,
