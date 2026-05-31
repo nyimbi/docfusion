@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { comesaParser, parseComesaTenderDetailMarkdown } from "@/lib/scrapers/parsers/comesa";
+import {
+	comesaParser,
+	parseComesaOpenTendersHtml,
+	parseComesaTenderDetailMarkdown,
+} from "@/lib/scrapers/parsers/comesa";
 
 const comesaMarkdown = `
 * [Open Tenders](https://www.comesa.int/category/open-tenders/)
@@ -49,6 +53,51 @@ describe("COMESA parser", () => {
 		});
 		expect(result.opportunities[1]).toMatchObject({
 			category: "Consultancy",
+			documentUrl: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
+		});
+	});
+
+	it("extracts current tender posts from COMESA WordPress archive HTML", () => {
+		const opportunities = parseComesaOpenTendersHtml(`
+<div class="post-list-item">
+	<h3 class="post-title">
+		<a href="https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/" rel="bookmark">
+			Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat
+		</a>
+	</h3>
+	<div class="post-meta small muted space-bottom-small">
+		<span class="date">12/05/2026</span>
+	</div>
+	<div class="post-excerpt">
+		<p>The COMESA Secretariat has set aside funding towards contracting a medical insurance service provider. <br /> <a class="read-more" href="https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/">Read more</a></p>
+	</div>
+</div>
+<div class="post-list-item">
+	<h3 class="post-title">
+		<a href="https://www.comesa.int/procurement-of-consultancy-services-to-review-the-development-of-comesa-regional-agri-food-systems-investment-plan-rasip-2026-2031/" rel="bookmark">
+			Procurement of Consultancy Services to Review the Development of COMESA Regional Agri Food Systems Investment Plan (RASIP) 2026-2031
+		</a>
+	</h3>
+	<div class="post-meta small muted space-bottom-small">
+		<span class="date">08/05/2026</span>
+	</div>
+	<div class="post-excerpt">
+		<p>REQUEST FOR EXPRESSIONS OF INTEREST (REOI) Procurement Title: Procurement of Consultancy Services to Review RASIP. For more details visit https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems</p>
+	</div>
+</div>
+		`);
+
+		expect(opportunities).toHaveLength(2);
+		expect(opportunities[0]).toMatchObject({
+			source: "comesa",
+			sourceId: "tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-sec",
+			category: "Tender",
+			opportunityType: "tender",
+			portalUrl: "https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/",
+		});
+		expect(opportunities[1]).toMatchObject({
+			category: "Consultancy",
+			opportunityType: "rfp",
 			documentUrl: "https://www.nepad.org/tenders/procurement-of-consultancy-services-review-development-of-comesa-regional-agri-food-systems",
 		});
 	});

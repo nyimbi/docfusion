@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Repair COMESA Direct Source Collection
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: remove the COMESA timeout from the Africa national campaign by bypassing the generic Firecrawl/browser listing scrape for the source page while preserving opportunistic detail-document enrichment.
+
+Changes in this slice:
+- Added direct browser-header HTTP fetch support to the COMESA parser for `https://www.comesa.int/category/open-tenders/`.
+- Added COMESA WordPress archive HTML parsing alongside the existing markdown parser.
+- Marked COMESA as a source-API parser so configured-source discovery uses the direct parser for the listing page instead of spending Firecrawl/browser fallback time on it.
+- Kept COMESA detail-page enrichment via Firecrawl as opportunistic only; if detail enrichment fails, the listing record remains usable.
+
+Live proof:
+- Direct parser probe against `https://www.comesa.int/category/open-tenders/` returned 2 current COMESA open-tender records.
+- `live_discovery_import_comesa_direct_source_20260531T` ran a COMESA-only import.
+- Result: 2 records processed, 0 imported, 2 updated, 0 skipped, 0 failed, 0 warnings.
+- Source health: healthy with 2 candidates.
+- Source documents: 0 created, 2 existing, 0 download attempts.
+
+Verification:
+- `npm test -- --run __tests__/scrapers/comesa-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 84 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_comesa_direct_source_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Rerun the broader `africa_national` campaign later to confirm COMESA stays healthy inside the full batch.
+- Continue adding official African and Global South sources with direct structured listings or direct document access.
+
 ### 2026-05-31 - Refresh Africa National Sources After MoF Expansion
 
 Status: live-proved.

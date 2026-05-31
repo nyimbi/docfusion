@@ -612,6 +612,7 @@ function isSourceApiParser(parser: TenderParser): boolean {
 		|| parser.sourceId === "world_bank"
 		|| parser.sourceId === "cdb"
 		|| parser.sourceId === "ceb_mauritius"
+		|| parser.sourceId === "comesa"
 		|| parser.sourceId === "sadc"
 		|| parser.sourceId === "ecowas"
 		|| parser.sourceId === "ecreee"

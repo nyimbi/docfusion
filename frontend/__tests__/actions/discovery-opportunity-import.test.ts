@@ -5070,24 +5070,26 @@ describe("discoverAndImportOpportunities", () => {
 
 	it("imports COMESA configured sources with the COMESA parser", async () => {
 		const documentUrl = "https://www.comesa.int/wp-content/uploads/2026/05/RFP-Medical-Scheme-2026-Final.docx";
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			text: async () => `
+<div class="post-list-item">
+	<h3 class="post-title">
+		<a href="https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/" rel="bookmark">
+			Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat
+		</a>
+	</h3>
+	<div class="post-meta small muted space-bottom-small">
+		<span class="date">12/05/2026</span>
+	</div>
+	<div class="post-excerpt">
+		<p>The COMESA Secretariat has set aside funding towards contracting a medical insurance service provider.</p>
+	</div>
+</div>
+			`,
+		});
 		firecrawlScrapeMock.mockResolvedValueOnce({
-			success: true,
-			data: {
-				markdown: [
-					"* [Open Tenders](https://www.comesa.int/category/open-tenders/)",
-					"",
-					"[](https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/)",
-					"",
-					"### [Tender for Provision of Staff Medical Insurance Cover for Staff of The COMESA Secretariat](https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/)",
-					"",
-					"12/05/2026",
-					"",
-					"The COMESA Secretariat has set aside funding towards contracting a medical insurance service provider.",
-				].join("\n"),
-				links: ["https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/"],
-				metadata: { title: "Open Tenders Archives - COMESA" },
-			},
-		}).mockResolvedValueOnce({
 			success: true,
 			data: {
 				markdown: [
@@ -5113,9 +5115,12 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(searchSearxngMock).not.toHaveBeenCalled();
-		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.comesa.int/category/open-tenders/", expect.objectContaining({
-			formats: ["markdown", "html", "links"],
+		expect(fetchMock).toHaveBeenCalledWith("https://www.comesa.int/category/open-tenders/", expect.objectContaining({
+			headers: expect.objectContaining({
+				"Accept": expect.stringContaining("text/html"),
+			}),
 		}));
+		expect(firecrawlScrapeMock).not.toHaveBeenCalledWith("https://www.comesa.int/category/open-tenders/", expect.anything());
 		expect(firecrawlScrapeMock).toHaveBeenCalledWith("https://www.comesa.int/tender-of-provision-of-staff-medical-insurance-cover-for-staff-of-the-comesa-secretariat/", expect.objectContaining({
 			formats: ["markdown", "links"],
 		}));
@@ -5146,8 +5151,8 @@ describe("discoverAndImportOpportunities", () => {
 				}),
 				discovery: expect.objectContaining({
 					resultEngine: "firecrawl-source",
-					scrapeMethod: "firecrawl",
-					scrapedWithFirecrawl: true,
+					scrapeMethod: "source_api",
+					scrapedWithFirecrawl: false,
 					sourceUrl: "https://www.comesa.int/category/open-tenders/",
 				}),
 			}),
