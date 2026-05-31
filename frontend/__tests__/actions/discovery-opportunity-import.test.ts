@@ -3339,6 +3339,54 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes Oxfam Nigeria procurement pages through its strict deadline parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<main>
+				<p>Oxfam in Nigeria is seeking the services of an experienced and reliable consultancy service provider.</p>
+				<p><strong>Main Objective</strong></p>
+				<p>Capacity building for LGA budget and planning officers on Basic Excel skills to support the use of ICT for budget preparation, implementation, monitoring, and evaluation.</p>
+				<p>Interested parties can download the <a href="https://oxfam.app.box.com/s/example/folder/384191668623"><strong>Terms of Reference</strong></a> (link embedded)</p>
+				<ul>
+					<li><strong>Submission Deadline:</strong> June 7, 2099, at 23:59 (WAT).</li>
+				</ul>
+			</main>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://nigeria.oxfam.org/procurement-and-consultancy"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Capacity building for LGA budget and planning officers on Basic Excel skills to support the use of ICT for budget preparation, implementation, monitoring, and evaluation.",
+			source: "oxfam_nigeria",
+			sourcePlatform: "Oxfam in Nigeria",
+			sourceFile: "source:https://nigeria.oxfam.org/procurement-and-consultancy",
+			rfpLink: "https://oxfam.app.box.com/s/example/folder/384191668623",
+			tags: ["external-discovery", "source-scrape", "oxfam-nigeria", "ngo", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://nigeria.oxfam.org/procurement-and-consultancy",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

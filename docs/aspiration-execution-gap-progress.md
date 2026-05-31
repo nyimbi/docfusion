@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Oxfam Nigeria Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand official NGO acquisition with Oxfam in Nigeria's procurement and consultancy page, capturing the current deadline-backed consultancy/RFP and its linked Terms of Reference package.
+
+Changes in this slice:
+- Added an Oxfam Nigeria parser for `https://nigeria.oxfam.org/procurement-and-consultancy`, including main-objective title extraction, visible submission deadline parsing, Terms of Reference link preservation, Nigeria country tagging, and expiry filtering once the visible deadline passes.
+- Registered Oxfam Nigeria in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added a targeted Oxfam Nigeria query so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can rediscover the source page when direct source scraping is unavailable.
+- Routed the configured source URL through the dedicated parser, labeled imported opportunities as `Oxfam in Nigeria`, and preserved source-document metadata for downstream intake.
+
+Live run:
+- `live_discovery_import_oxfam_nigeria_20260531T` ran the Oxfam Nigeria source URL with source scraping enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 1 candidate, 1 created, 0 failed, and 0 warnings.
+- The run created 1 source-document row for the linked Terms of Reference Box folder. Downloads were intentionally disabled for this proof to verify acquisition without spending parse compute.
+- The live database now has the Oxfam Nigeria capacity-building consultancy with a June 7, 2026 submission deadline.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/nrc-parser.test.ts __tests__/scrapers/oxfam-nigeria-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 85 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_oxfam_nigeria_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Box-hosted Oxfam TOR folders may need a downloader/browser path if selected for response generation; the acquisition path now preserves the folder URL so intake can handle that separately.
+
 ### 2026-05-31 - Add NRC Tender Source-API Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
