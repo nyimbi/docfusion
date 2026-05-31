@@ -16,6 +16,39 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa National Refresh And Lightweight Intake Drain
+
+Status: live-proved, persisted, Africa-focused, lightweight-extraction only for the follow-on intake, and refreshed Tanzania/Rwanda direct queues drained.
+
+Purpose: aggressively expand African tender coverage by refreshing the Africa national source group, then immediately convert the newly replenished lightweight Tanzania and Rwanda queues into parsed RFP documents and requirements.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_national_refresh_20260531T` ran the `africa_national` campaign with downloads disabled to separate discovery breadth from parser load.
+- The refresh processed 1,127 records, imported 47 new opportunities, updated 1,080 existing opportunities, created 50 source-document rows, reused 994 existing source-document rows, and recorded 0 failed records.
+- The refresh produced one warning: Zambia ZPPA current tenders returned no opportunities.
+- `source_document_intake_tanzania_nest_refresh_probe_20260531T` dry-selected 20 refreshed NeST Tanzania direct rows.
+- `source_document_intake_tanzania_nest_refresh_20260531T` selected 20 NeST Tanzania documents, downloaded 20, completed 20 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every Tanzania document used lightweight `local_html_text`; Docling was not invoked.
+- `source_document_intake_rwanda_post_refresh_probe_20260531T` dry-selected 1 refreshed Rwanda UMUCYO detail row.
+- `source_document_intake_rwanda_post_refresh_20260531T` selected 1 Rwanda UMUCYO document, downloaded 1, completed 1 parse job, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- The Rwanda document used lightweight `local_html_text`; Docling was not invoked.
+- `source_document_intake_tanzania_nest_refresh_remainder_probe_20260531T` and `source_document_intake_rwanda_post_refresh_remainder_probe_20260531T` both selected 0 rows after the live runs.
+- Current NeST Tanzania counts after this drain: 230 downloaded source-document rows, 230 RFP documents, and 729 persisted requirements.
+- Current Rwanda UMUCYO counts after this drain: 48 discovered and 52 downloaded source-document rows, 52 RFP documents, and 537 persisted requirements.
+- Current live totals after this run: 6,129 opportunities, 1,778 RFP documents, and 12,420 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_africa_national_refresh_20260531T ... npm run rfp:acquire` completed with 1,127 records, 47 imports, 1,080 updates, 50 source documents created, 994 source documents existing, and 0 failed records.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_tanzania_nest_refresh_20260531T ... npm run source-docs:intake` completed with 20 downloads, 20 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_rwanda_post_refresh_20260531T ... npm run source-docs:intake` completed with 1 download, 1 completed parse, and 0 failures/timeouts/zero-requirement parses.
+- Remainder dry-runs for NeST Tanzania and Rwanda UMUCYO selected 0 rows after the live drains.
+- Live DB checks confirmed global totals plus NeST Tanzania and Rwanda UMUCYO source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Keep using source refreshes to replenish proven lightweight Africa queues before spending parser capacity on scan-heavy sources.
+- Continue with broader African and Global South discovery, including donor/NGO and high-intent search campaigns through SearXNG/Google/DuckDuckGo, then drain clean direct queues first.
+- Investigate a Zambia ZPPA replacement or fallback path because the source returned no opportunities during this refresh.
+
 ### 2026-05-31 - IRC Direct PDF And ZIP Intake
 
 Status: live-proved, persisted, local-extraction only, ZIP extraction verified, and current IRC/IOM/Oxfam direct queue drained.
