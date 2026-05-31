@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - South Africa eTenders Direct PDF Intake
+
+Status: live-proved, persisted, and Docling-sensitive.
+
+Purpose: expand current African national tender coverage after ECREEE by draining a bounded South Africa eTenders direct-PDF batch.
+
+Live proof:
+- `source_document_intake_south_africa_direct_probe_20260531T` dry-selected 20 South Africa eTenders direct PDF downloads, including bid documents, RFQs, panels, service tenders, and works tenders.
+- `source_document_intake_south_africa_direct_20260531T` selected 20 South Africa documents, downloaded 20, completed 18 parse jobs, linked 2 duplicate parses, failed 0, timed out 0, had 0 zero-requirement parses, and had 0 `not_queued` parses.
+- Text-friendly PDFs used local `pdftotext`; several scanned or odd PDFs attempted Docling after `pdftotext` could not extract usable text.
+- Docling was intermittently unavailable or timed out for multiple South Africa PDFs, but the intake still produced completed parser jobs with extracted requirements.
+- Current South Africa eTenders source-document counts after this drain: 11 discovered, 145 downloaded, and 2 failed source-document rows, 138 RFP documents, and 1,401 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,606 RFP documents, and 11,488 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_south_africa_direct_20260531T ... npm run source-docs:intake` completed with 20 downloads, 18 completed parses, 2 duplicate parses, and 0 failures/timeouts.
+- Live DB checks confirmed global totals plus South Africa downloaded/discovered/failed document status, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Avoid a larger South Africa batch until Docling is healthier or scanned-PDF fallback improves; this source is more scan/Docling-sensitive than Mali or ECREEE.
+- Prefer next drains from direct-document queues that are local-extraction friendly, or build detail-page scraping for high-value HTML/API sources such as Niger, Tanzania, Rwanda, and Ghana.
+
 ### 2026-05-31 - ECREEE Direct ToR Intake
 
 Status: live-proved, persisted, and regional Africa-priority.
