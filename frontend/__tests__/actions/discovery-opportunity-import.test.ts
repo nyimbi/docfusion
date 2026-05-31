@@ -3233,6 +3233,51 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes Winrock configured contract sources through its source-document parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<div class="border-t-6 border-gray-lighter pt-4 grid md:flex gap-4">
+				<div class="md:w-2/3 grid gap-2 children:mb-0">
+					<h3><a href="https://winrock.org/contracts/pre-qualification-of-cashew-business-development-service-providers/" class="font-bold no-underline">Pre-Qualification of Cashew Production Business Development Service Providers</a></h3>
+					Program: Women Economic Empowerment through Cashew Processing (WEECAP) Countries: Cote d'Ivoire, Senegal, Guinea-Bissau Issued by: Winrock International Release Date: October 17th, 2098 Round 1 Submission Deadline: November 14, 2098 Round 2 Submission Deadline: February 14, 2099 Round 3 Submission Deadline: June 14, 2099
+				</div>
+			</div>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://winrock.org/contracts/"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Pre-Qualification of Cashew Production Business Development Service Providers",
+			source: "winrock",
+			sourcePlatform: "Winrock International",
+			sourceFile: "source:https://winrock.org/contracts/",
+			rfpLink: "https://winrock.org/contracts/pre-qualification-of-cashew-business-development-service-providers/",
+			tags: ["external-discovery", "source-scrape", "winrock", "ngo", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://winrock.org/contracts/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,

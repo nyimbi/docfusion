@@ -37,6 +37,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.care.org/about-us/contact-us/request-for-proposals/",
 				"https://www.enabel.be/public-procurement/",
 				"https://www.enabel.be/grants/",
+				"https://winrock.org/contracts/",
 				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
 				"https://intdev.tetratech.com.au/partner-with-us/",
 			]));
@@ -162,6 +163,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.care.org/about-us/contact-us/request-for-proposals/",
 			"https://www.enabel.be/public-procurement/",
 			"https://www.enabel.be/grants/",
+			"https://winrock.org/contracts/",
 		]));
 		expect(donor.input.queries).toEqual(expect.arrayContaining([
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
@@ -176,6 +178,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:care.org/about-us/contact-us/request-for-proposals \"Tender submission deadline\"",
 			"site:enabel.be/public-procurement \"Closing date\" \"Status :\" \"Open\"",
 			"site:enabel.be/grants \"Closing date\" \"Status :\" \"Open\"",
+			"site:winrock.org/contracts RFP \"Submission Deadline\"",
+			"site:winrock.org/contracts \"download this\" RFP OR EOI OR TOR",
 			"site:cowater.com/wp-content/uploads/2026 RFP deadline",
 		]));
 		expect(donor.input.scrapeTopResults).toBe(true);

@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Winrock Contracts Source Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: aggressively expand official source-backed acquisition with Winrock International's current contracts page, which exposes live NGO/implementer contract opportunities and detail pages without JavaScript.
+
+Changes in this slice:
+- Added a Winrock parser for `https://winrock.org/contracts/`, including listing-card extraction, detail-page support, reference extraction, deadline parsing across multi-round submissions, expiry filtering when deadlines are visible, and direct PDF package extraction from detail pages.
+- Registered Winrock in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added targeted Winrock search queries so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can discover indexed Winrock contract details and direct RFP/EOI/TOR downloads.
+- Routed Winrock configured source URLs through the dedicated parser, labeled imported opportunities as `Winrock International`, and preserved source-document tags/metadata for downstream intake.
+
+Live run:
+- `live_discovery_import_winrock_20260531T` ran the Winrock contracts source URL with source scraping enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 3 candidates, 3 created, 0 failed, and 0 warnings.
+- The run created 3 source-document rows for the Winrock contract detail pages. Downloads were intentionally disabled for this proof to avoid repeat parsing compute; downstream intake can fetch the detail pages and their linked PDFs when those opportunities are selected.
+- The live database now has 3 Winrock opportunities: `Demande de proposition`, `Survivors of Trafficking Advisory Group Member Terms of Reference`, and `Pre-Qualification of Cashew Production Business Development Service Providers`; the pre-qualification record carries the visible June 14, 2026 deadline.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/winrock-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 81 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_winrock_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- For Winrock detail pages with linked PDFs, a later selected-opportunity source-document intake should download the detail page and linked PDF package before response-package backfill.
+- Consider a follow-up detail-enrichment pass that fetches Winrock contract detail pages during source acquisition without changing opportunity identity or creating duplicate records.
+
 ### 2026-05-31 - Add Enabel Procurement and Grant Source Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

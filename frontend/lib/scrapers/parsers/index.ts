@@ -52,6 +52,7 @@ import "./unicef";
 import "./umucyo-rwanda";
 import "./undp";
 import "./ungm";
+import "./winrock";
 import "./world-bank";
 import "./zppa-zambia";
 
@@ -99,6 +100,7 @@ export { unicefParser } from "./unicef";
 export { umucyoRwandaParser } from "./umucyo-rwanda";
 export { undpParser } from "./undp";
 export { ungmParser } from "./ungm";
+export { winrockParser } from "./winrock";
 export { worldBankParser } from "./world-bank";
 export { zppaZambiaParser } from "./zppa-zambia";
 
