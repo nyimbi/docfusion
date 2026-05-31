@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - BADEA Direct PDF Intake Drain
+
+Status: live-proved and persisted.
+
+Purpose: expand African development-bank RFP coverage by draining BADEA's direct PDF backlog into parsed RFP documents and extracted requirements.
+
+Live proof:
+- `source_document_intake_badea_direct_probe_20260531T` confirmed BADEA had direct PDF source documents ready for intake.
+- `source_document_intake_badea_direct_20260531T` selected 19 BADEA direct PDFs, downloaded 19, completed 18 parse jobs, linked 1 duplicate RFP document, failed 0, timed out 0, had 0 `not_queued`, and extracted 111 requirements in the run summary.
+- Local `pdftotext` handled the largest clean PDFs first, including 141k-character and 277k-character extractions.
+- Docling was used only after `pdftotext` could not extract usable text; the run survived Docling socket/connection failures by continuing through parser fallback where needed.
+- One stale BADEA media URL returned 404, but source-document recovery found an alternate PDF and completed parsing with 13 requirements.
+- Current BADEA source-document counts after the drain: 0 discovered, 19 downloaded, 18 RFP documents, and 152 completed-job requirements in the live DB rollup.
+- Current live totals after this drain: 6,082 opportunities, 1,269 RFP documents, and 8,615 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_badea_direct_20260531T ... npm run source-docs:intake` completed successfully.
+- Live DB checks confirmed BADEA downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Move to the next high-yield African/Global South source-document backlog; current candidates include Mali DGMP, ECREEE, Sierra Leone Ministry of Finance, DNCCP Togo, South Africa eTenders, and World Bank.
+- Keep Docling as fallback only; investigate service stability separately if more scanned PDFs start depending on it.
+
 ### 2026-05-31 - IDB Direct Document Intake Enablement
 
 Status: implemented, focused-tested, typechecked, live-proved, and expanded.
