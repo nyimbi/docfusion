@@ -16,6 +16,38 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Configured Global South Intake And Development Refresh
+
+Status: live-proved, persisted, lightweight-extraction only for intake, and refreshed development/regional queue confirmed empty.
+
+Purpose: keep African and Global South sourcing moving after the named Africa queues were exhausted by draining the remaining clean generic configured-source candidates, then refresh development-bank and regional Global South sources without spending parser capacity on search noise.
+
+Live proof:
+- `source_document_intake_africa_global_south_candidate_probe_20260531T` selected 0 rows across the named Africa/Global South source platforms, confirming the prior named-source drains remained exhausted.
+- `source_document_intake_configured_source_probe_20260531T` found 3 clean candidates in the generic `Configured Source Scrape` bucket: one UNGM/UN Women online-training RFP page and two GTAI/KfW tender pages, including a Zambia water-treatment rehabilitation tender.
+- `source_document_intake_configured_source_clean_live_20260531T` selected 3, downloaded 3, completed 3 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- All 3 documents used lightweight `local_html_text`; Docling was not invoked.
+- The intake run added 3 RFP documents and 14 persisted requirements, moving live totals from 1,949 RFP documents and 13,789 requirements to 1,952 RFP documents and 13,803 requirements.
+- Current live totals after this run: 6,272 total opportunities, 6,271 non-rejected opportunities, 1,952 RFP documents, and 13,803 persisted RFP requirements.
+- `source_document_intake_configured_source_clean_remainder_probe_20260531T` selected 0 rows afterward for the generic configured-source bucket.
+- `aggressive_rfp_acquisition_development_global_south_refresh_20260531T` refreshed the `development_banks` and `global_regional_search` campaigns with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=180`, `scrapeLimit=2`, and `browserFallbackLimit=2`.
+- The refresh processed 432 records, imported 0 new opportunities, updated 432 existing opportunities, failed 0 records, created 0 source-document rows, found 448 existing source-document rows, and recorded 66 warnings.
+- Healthy configured source scrapes included World Bank, BOAD, DBSA, AIIB, IsDB, EBRD, Caribbean Development Bank, Mauritius CEB, EU Funding & Tenders, IADB procurement notices, Pacific Community, and Tetra Tech Australia.
+- Search fanout remained degraded: direct Google returned 429; `search.lindela.io` reported Brave/DuckDuckGo/Google/Startpage degradation; public SearXNG fallbacks frequently returned 403/418/429; regional search queries produced no accepted candidates.
+- `source_document_intake_development_global_south_post_refresh_probe_20260531T` selected 0 rows afterward for the refreshed development-bank and regional Global South source set.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_configured_source_clean_live_20260531T ... npm run source-docs:intake` completed with 3 downloads, 3 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_configured_source_clean_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_development_global_south_refresh_20260531T ... npm run rfp:acquire` completed with 2 campaigns, 432 records updated, 0 failed records, 448 existing source documents, and 66 warnings.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_development_global_south_post_refresh_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals plus the three new RFP documents and their 14 requirements.
+
+Remaining after this slice:
+- The currently selectable named Africa/Global South, generic configured-source, and refreshed development/regional source-document queues are drained.
+- Broad web search is still the collection bottleneck; configured source scraping is reliable, while Google/SearXNG/DuckDuckGo fanout is mostly rate-limited or CAPTCHA-blocked from this host.
+- Next material source growth should add or repair source-specific scrapers for portals that are still empty/degraded rather than rerunning the exhausted intake selectors.
+
 ### 2026-05-31 - Africa National Donor Refresh And eTenders Drain
 
 Status: live-proved, persisted, source refresh converted into parsed South Africa eTenders documents, and selected post-refresh queue drained to zero.
