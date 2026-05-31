@@ -176,6 +176,7 @@ afterEach(() => {
 	delete process.env.CANADABUYS_DETAIL_LIMIT;
 	delete process.env.GETS_MAX_PAGES;
 	delete process.env.GETS_DETAIL_LIMIT;
+	delete process.env.TRADEMARK_AFRICA_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -3932,10 +3933,30 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, and TradeMark Africa configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
 			error: "The operation was aborted due to timeout",
+		});
+		fetchMock.mockImplementation(async (url: string) => {
+			if (url === "https://trademarkafrica.com/procurement/") {
+				return new Response(`
+					<div class="uc_post_title"><a data-post-link="https://trademarkafrica.com/tma-fwa-dts-01-2026-cloud-hosting/" href="javascrpit:void(0)">
+						<div class="ue_p_title">TMA/FWA/DTS/01/2026: Prequalification of Cloud Hosting and Digital Infrastructure Service Providers for TradeMark Africa Digital Platforms</div>
+					</a></div>
+					<div class="uc_post_text">Tender Advert Tender Document Bid Extension TMA Supplier Code of Conduct Submission Deadline: 04 JUNE 2099 ON OR BEFORE 10.00 AM (KENYA TIME)</div>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://trademarkafrica.com/tma-fwa-dts-01-2026-cloud-hosting/") {
+				return new Response(`
+					<h1 class="elementor-heading-title">TMA/FWA/DTS/01/2026: Prequalification of Cloud Hosting and Digital Infrastructure Service Providers for TradeMark Africa Digital Platforms</h1>
+					<ul>
+						<li><a href="/wp-content/uploads/2099/04/TMA-FWA-DTS-01-2099.pdf">Tender Document</a></li>
+					</ul>
+					<p><strong>Submission Deadline: 04 JUNE 2099 ON OR BEFORE 10.00 AM (KENYA TIME)</strong></p>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response("not found", { status: 404 });
 		});
 		fetchPublicHttpUrlMock.mockImplementation(async (url: string) => {
 			if (url.includes("thepalladiumgroup.com/tenders")) {
@@ -3973,14 +3994,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://thepalladiumgroup.com/tenders",
 				"https://jhpiego.org/work-with-us/",
 				"https://intdev.tetratech.com.au/partner-with-us/",
+				"https://trademarkafrica.com/procurement/",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 3,
-			imported: 3,
+			total: 4,
+			imported: 4,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4008,6 +4030,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://intdev.tetratech.com.au/wp-content/uploads/strategic-border-management-rft.pdf",
 			tags: ["external-discovery", "source-scrape", "tetra-tech-intdev", "donor-implementer", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "TMA/FWA/DTS/01/2026: Prequalification of Cloud Hosting and Digital Infrastructure Service Providers for TradeMark Africa Digital Platforms",
+			source: "trademark_africa",
+			sourcePlatform: "TradeMark Africa",
+			sourceFile: "source:https://trademarkafrica.com/procurement/",
+			rfpLink: "https://trademarkafrica.com/wp-content/uploads/2099/04/TMA-FWA-DTS-01-2099.pdf",
+			tags: ["external-discovery", "source-scrape", "trademark-africa", "africa", "regional-trade", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4023,6 +4053,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://intdev.tetratech.com.au/partner-with-us/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://trademarkafrica.com/procurement/",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,

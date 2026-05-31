@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add TradeMark Africa Tender Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South RFP acquisition with a live Africa-focused regional trade procurement source that exposes current tender cards, submission deadlines, and tender-document attachments.
+
+Changes in this slice:
+- Added a TradeMark Africa parser for `https://trademarkafrica.com/procurement/`, including procurement-card extraction, PRQ/TMA reference capture, Kenya/East Africa time deadline parsing, expired-deadline filtering, and detail-page enrichment.
+- Routed TradeMark Africa procurement and tender-detail URLs through the direct source parser path, labeled imported records as `TradeMark Africa`, and preserved tender-document links from detail pages for downstream source-document intake.
+- Added TradeMark Africa to default discovery and the aggressive donor/NGO acquisition campaign, with a targeted `site:trademarkafrica.com/procurement` search query for SearXNG/Google/DuckDuckGo fanout.
+- Kept broad live acquisition lightweight: downloads and parsing stayed disabled in the proof while source-document rows were seeded from linked tender documents.
+
+Live run:
+- `live_discovery_import_trademark_africa_20260531T` ran the TradeMark Africa procurement source with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 7 candidates, 7 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 15 source-document rows from linked tender documents. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/trademark-africa-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 88 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_trademark_africa_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit TradeMark Africa imports so newly captured PDF tender packages are downloaded and parsed with the lightweight extraction path before Docling fallback.
+- Keep prioritizing African and Global South portals with current deadlines and direct tender packages before adding lower-yield generic sources.
+
 ### 2026-05-31 - Add New Zealand GETS Current Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.
