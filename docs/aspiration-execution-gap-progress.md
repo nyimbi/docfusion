@@ -16,6 +16,39 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Development Bank Refresh And BOAD Intake Drain
+
+Status: live-proved, persisted, Africa/Global South development-bank focused, BOAD procurement-plan noise filtered, direct BOAD queue drained, and current database totals captured.
+
+Purpose: expand broad Global South development-bank tender coverage while preserving parser capacity for live solicitations rather than procurement plans, model plans, or other source noise.
+
+Live proof:
+- `aggressive_rfp_acquisition_development_banks_refresh_20260531T` ran the `development_banks` source group with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=120`, `scrapeLimit=0`, and `browserFallbackLimit=2`.
+- The refresh processed 244 records, imported 89 new opportunities, updated 155 existing opportunities, failed 0 records, created 93 source-document rows, found 168 existing source-document rows, and recorded 0 warnings.
+- Healthy development-bank source coverage included World Bank, AfDB, ADB, BADEA, BOAD, DBSA, AIIB, IsDB, EBRD, CDB, CEB Mauritius, and EU Funding & Tenders.
+- `source_document_intake_development_banks_probe_20260531T` initially selected 10 BOAD direct documents, but 6 were AGPM/PPM procurement-plan or model-plan files.
+- The intake non-solicitation filter now rejects `AGPM` and `PPM` document-name tokens so recurring BOAD procurement-plan rows do not outrank live tenders.
+- `source_document_intake_development_banks_post_filter_probe_20260531T` then selected only 4 BOAD solicitation documents and no AGPM/PPM plan files.
+- `source_document_intake_boad_post_filter_20260531T` selected 4 BOAD documents, downloaded 4, completed 4 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- BOAD extraction followed the lightweight-first policy: 3 PDFs used local `pdftotext`; 1 weak-text/scanned PDF attempted Docling after `pdftotext` produced no usable text, then still completed parsing successfully.
+- `source_document_intake_boad_post_filter_remainder_probe_20260531T` selected 0 rows after the live run.
+- Current BOAD counts after this drain: 9 discovered and 4 downloaded source-document rows, 4 RFP documents, and 25 persisted requirements.
+- Current World Bank counts after the development-bank refresh: 23 discovered and 53 downloaded source-document rows, 53 RFP documents, and 332 persisted requirements.
+- Current live totals after this run: 6,219 total opportunities, 6,218 non-rejected opportunities, 1,786 RFP documents, and 12,472 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_development_banks_refresh_20260531T ... npm run rfp:acquire` completed with 244 records, 89 imports, 155 updates, 93 source documents created, 168 source documents existing, 0 failed records, and 0 warnings.
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed 16 tests, including the new BOAD AGPM/PPM regressions.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_development_banks_post_filter_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 4 BOAD solicitation PDFs and no AGPM/PPM plan files.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_boad_post_filter_20260531T ... npm run source-docs:intake` completed with 4 downloads, 4 completed parses, 25 extracted requirements, and 0 failures/timeouts/zero-requirement parses.
+- The BOAD remainder dry-run selected 0 rows after the live drain.
+- Live DB checks confirmed global totals plus BOAD/World Bank source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Investigate why 23 World Bank source-document rows remain discovered but were not selected by the direct-document intake probe; likely causes include non-direct URLs, duplicates, or prior-attempt eligibility filtering.
+- Continue development-bank and Global South configured-source refreshes because this lane produced high-volume imports without search warnings.
+- Keep broad web-search acquisition constrained until SearXNG/Google/DuckDuckGo fanout health improves; current configured-source scraping is producing cleaner volume.
+
 ### 2026-05-31 - High Intent Search QA Guard
 
 Status: live-proved, search-health measured, anti-bot import guard added, bad live row quarantined, and no parser load incurred.
