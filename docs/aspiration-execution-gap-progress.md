@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Tanzania NeST OCDS Detail Intake
+
+Status: live-proved, persisted, and lightweight-extraction friendly.
+
+Purpose: expand African national tender coverage by converting NeST Tanzania OCDS release URLs from discovered source documents into parseable RFP/tender HTML without invoking Docling.
+
+Live proof:
+- `source_document_intake_tanzania_nest_detail_probe_20260531T` dry-selected 20 active NeST Tanzania release URLs from the discovered source-document queue.
+- `source_document_intake_tanzania_nest_detail_20260531T` selected 20 NeST Tanzania documents, downloaded 20, completed 20 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every document used the existing NeST OCDS release-to-HTML path plus `local_html_text`; Docling was not needed.
+- Current NeST Tanzania source-document counts after this drain: 60 discovered and 479 downloaded source-document rows, 150 RFP documents, and 468 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,626 RFP documents, and 11,564 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_tanzania_nest_detail_20260531T ... npm run source-docs:intake` completed with 20 downloads, 20 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- Live DB checks confirmed global totals plus NeST Tanzania discovered/downloaded document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Continue draining NeST in bounded batches while the queue remains lightweight and parseable.
+- Add Niger detail-page intake next; Niger currently has 199 discovered source documents and no downloaded/RFP documents.
+
 ### 2026-05-31 - South Africa eTenders Direct PDF Intake
 
 Status: live-proved, persisted, and Docling-sensitive.
