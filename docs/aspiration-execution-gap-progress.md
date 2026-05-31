@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Mali DGMP Direct Intake Remainder
+
+Status: live-proved, persisted, and direct backlog drained.
+
+Purpose: finish the remaining clean DGMP Mali direct-document queue before shifting attention to the next African or Global South source.
+
+Live proof:
+- `source_document_intake_mali_direct_remainder_probe_20260531T` dry-selected 8 remaining DGMP Mali direct documents, all `AAO` DOCX solicitation files.
+- `source_document_intake_mali_direct_remainder_20260531T` selected 8 Mali documents, downloaded 8, completed 8 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 zero-requirement parses, and had 0 `not_queued` parses.
+- All 8 remainder documents used local DOCX parsing and extracted nonzero requirements.
+- Current Mali source-document counts after this drain: 1 discovered and 162 downloaded source-document rows, 153 RFP documents, and 1,144 persisted requirements.
+- The only remaining Mali `discovered` row is `Acquisition de matériels informatiques.html` at the DGMP listing page, not a direct document URL.
+- Current live totals after this drain: 6,082 opportunities, 1,569 RFP documents, and 11,218 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_mali_direct_remainder_20260531T ... npm run source-docs:intake` completed with 8 downloads, 8 completed parses, and 0 failures/timeouts/duplicates.
+- Live DB checks confirmed global totals plus Mali downloaded/discovered document status, RFP document, completed-job, and requirement counts.
+- A follow-up query confirmed the one remaining Mali `discovered` row is the non-direct DGMP listing HTML URL.
+
+Remaining after this slice:
+- Move to the next African/Global South national or regional source backlog; likely candidates are Benin, Togo, South Africa eTenders, Sierra Leone Ministry of Finance, ECREEE, BOAD, ECOWAS, and TradeMark Africa.
+- Keep Benin in smaller batches because it is scan-heavy and depends more often on Docling.
+
 ### 2026-05-31 - Mali DGMP Direct Intake Batch 4
 
 Status: live-proved, persisted, and high-throughput.
