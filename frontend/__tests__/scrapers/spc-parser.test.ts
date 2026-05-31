@@ -5,6 +5,10 @@ import { spcParser } from "@/lib/scrapers/parsers/spc";
 const SOURCE_URL = "https://www.spc.int/procurement";
 
 describe("Pacific Community procurement parser", () => {
+	it("uses direct HTTP fallback instead of browser-only scraping", () => {
+		expect(spcParser.requiresJavascript).toBe(false);
+	});
+
 	it("extracts SPC tender rows and uses the tender detail as the source document", async () => {
 		const result = await spcParser.parse({
 			url: SOURCE_URL,

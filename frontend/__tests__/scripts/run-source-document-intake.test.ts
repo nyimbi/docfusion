@@ -245,6 +245,15 @@ describe("source document intake selection helpers", () => {
 		expect(isDirectDocumentIntakeSource(source)).toBe(true);
 	});
 
+	it("accepts Pacific Community tender detail pages as local HTML source documents", () => {
+		const source = {
+			documentName: "Preferred Supplier Agreement Genomic Software Development and Analyses.html",
+			sourceUrl: "https://www.spc.int/procurement/tenders/preferred-supplier-agreement-genomic-software-development-and-analyses",
+		};
+		expect(isSupportedDocumentSource(source)).toBe(true);
+		expect(isDirectDocumentIntakeSource(source)).toBe(true);
+	});
+
 	it("accepts UNDP SharePoint package folders for notice-detail recovery", () => {
 		const source = {
 			documentName: "AllItems.aspx",

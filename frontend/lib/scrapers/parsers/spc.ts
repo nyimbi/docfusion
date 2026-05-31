@@ -162,7 +162,7 @@ export function parseSpcProcurement(content: string | undefined, sourceUrl: stri
 export const spcParser: TenderParser = {
 	sourceId: "spc",
 	name: "Pacific Community Procurement",
-	requiresJavascript: true,
+	requiresJavascript: false,
 
 	async parse(input: ParseInput): Promise<ParseResult> {
 		return {
