@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Enrich Africa CDC Imports With Detail-Page Source Documents
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: close the Africa CDC listing/document gap by following bounded detail-page links during configured-source Firecrawl imports so broad Africa CDC acquisition also seeds linked bid PDFs for downstream lightweight text extraction and response readiness.
+
+Changes in this slice:
+- Added bounded configured-source detail enrichment for parser sources that require it, currently scoped to Africa CDC.
+- Introduced `CONFIGURED_SOURCE_DETAIL_LIMIT` with a safe default and cap so detail-page enrichment improves source-document capture without unbounded scraping.
+- Merged detail-page parser output back into listing-derived opportunities before import, preserving listing identity while adding detail-page PDF links, submission email, richer summary, and source-document metadata.
+- Extended Africa CDC import regression coverage to prove listing rows are enriched through Firecrawl detail scrapes and seed source-document rows.
+
+Live run:
+- `live_discovery_import_africa_cdc_details_20260531T` ran the Africa CDC Supply Chain opportunities source with Firecrawl source scraping, `CONFIGURED_SOURCE_DETAIL_LIMIT=3`, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 8 candidates, 0 created, 8 updated, 0 failed, and 0 warnings.
+- The bounded detail enrichment created 4 source-document rows from Africa CDC detail-page bid documents. Downloads and parsing were intentionally disabled for this proof.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/africa-cdc-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 94 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_africa_cdc_details_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for Africa CDC PDFs with lightweight text extraction first; use Docling only as fallback.
+- Add detail enrichment for other listing-first sources only where live evidence shows document links are detail-page-only.
+
 ### 2026-05-31 - Add Africa CDC Supply Chain Opportunity Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

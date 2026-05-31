@@ -183,6 +183,7 @@ afterEach(() => {
 	delete process.env.ECREEE_DETAIL_LIMIT;
 	delete process.env.ISDB_PAGE_LIMIT;
 	delete process.env.ISDB_DETAIL_LIMIT;
+	delete process.env.CONFIGURED_SOURCE_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1675,31 +1676,58 @@ describe("discoverAndImportOpportunities", () => {
 	});
 
 	it("imports Africa CDC supply-chain opportunities through Firecrawl", async () => {
+		process.env.CONFIGURED_SOURCE_DETAIL_LIMIT = "1";
 		searchSearxngMock.mockResolvedValue({ results: [] });
-		firecrawlScrapeMock.mockResolvedValue({
-			success: true,
-			data: {
-				html: `
-					<div class="row" style="margin-bottom:30px;padding-bottom:30px;border-bottom: 1px solid #ececec;">
-						<div class="col-md-6"><strong><a href="https://africacdc.org/opportunity/consultancy-to-scaling-of-the-africa-cdc-continental-public-health-data-intelligence-hdi/">Consultancy to Scaling of the Africa CDC Continental Public Health Data Intelligence (HDI)</a></strong></div>
-						<div class="col-md-2">7 July 2099</div>
-						<div class="col-md-2">RFP No. ACDC/SDI/CS/02</div>
-						<div class="col-md-2">Consultancy Services</div>
-					</div>
-					<div class="row" style="margin-bottom:30px;padding-bottom:30px;border-bottom: 1px solid #ececec;">
-						<div class="col-md-6"><strong><a href="https://africacdc.org/opportunity/open-call-for-expression-of-interest-experts-to-serve-on-the-technical-committees-of-the-african-medicines-agency/">Open Call for Expression of Interest: Experts to Serve on the Technical Committees of the African Medicines Agency</a></strong></div>
-						<div class="col-md-2">18 June 2099</div>
-						<div class="col-md-2">N/A</div>
-						<div class="col-md-2">Call for Expression of Interest</div>
-					</div>
-				`,
-				markdown: "",
-				links: [],
-				metadata: {
-					title: "Opportunities - Africa CDC",
-					description: "Current opportunities listed under the Africa CDC Supply Chain Division",
+		firecrawlScrapeMock.mockImplementation(async (url: string) => {
+			if (url === "https://africacdc.org/supply-chain-division/opportunities/") {
+				return {
+					success: true,
+					data: {
+						html: `
+							<div class="row" style="margin-bottom:30px;padding-bottom:30px;border-bottom: 1px solid #ececec;">
+								<div class="col-md-6"><strong><a href="https://africacdc.org/opportunity/consultancy-to-scaling-of-the-africa-cdc-continental-public-health-data-intelligence-hdi/">Consultancy to Scaling of the Africa CDC Continental Public Health Data Intelligence (HDI)</a></strong></div>
+								<div class="col-md-2">7 July 2099</div>
+								<div class="col-md-2">RFP No. ACDC/SDI/CS/02</div>
+								<div class="col-md-2">Consultancy Services</div>
+							</div>
+							<div class="row" style="margin-bottom:30px;padding-bottom:30px;border-bottom: 1px solid #ececec;">
+								<div class="col-md-6"><strong><a href="https://africacdc.org/opportunity/open-call-for-expression-of-interest-experts-to-serve-on-the-technical-committees-of-the-african-medicines-agency/">Open Call for Expression of Interest: Experts to Serve on the Technical Committees of the African Medicines Agency</a></strong></div>
+								<div class="col-md-2">18 June 2099</div>
+								<div class="col-md-2">N/A</div>
+								<div class="col-md-2">Call for Expression of Interest</div>
+							</div>
+						`,
+						markdown: "",
+						links: [],
+						metadata: {
+							title: "Opportunities - Africa CDC",
+							description: "Current opportunities listed under the Africa CDC Supply Chain Division",
+						},
+					},
+				};
+			}
+			return {
+				success: true,
+				data: {
+					html: `
+						<h5 class="elementor-heading-title elementor-size-default"><span>Request for Proposals</span></h5>
+						<h1 class="elementor-heading-title elementor-size-default">Consultancy to Scaling of the Africa CDC Continental Public Health Data Intelligence (HDI)</h1>
+						<div class="elementor-widget-theme-post-content"><div class="elementor-widget-container">
+							<p><strong>Submission Deadline:</strong> July 7, 2099,<br><strong>Submission Email:</strong> <a href="mailto:procurement@africacdc.org">procurement@africacdc.org</a></p>
+						</div></div>
+						<h5 class="elementor-heading-title elementor-size-default">Deadline</h5>
+						<h3 class="elementor-heading-title elementor-size-default">7 July 2099</h3>
+						<h5 class="elementor-heading-title elementor-size-default">Bid Number</h5>
+						<h3 class="elementor-heading-title elementor-size-default">RFP No. ACDC/SDI/CS/02</h3>
+						<a class="elementor-button" href="https://africacdc.org/wp-content/uploads/2099/05/PROCUREMENT-NOTICE-26-May-2099.pdf">Download bid document</a>
+					`,
+					markdown: "",
+					links: ["https://africacdc.org/wp-content/uploads/2099/05/PROCUREMENT-NOTICE-26-May-2099.pdf"],
+					metadata: {
+						title: "Africa CDC HDI RFP",
+					},
 				},
-			},
+			};
 		});
 
 		const result = await discoverAndImportOpportunities({
@@ -1709,7 +1737,11 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(result.results).toMatchObject({ total: 2, imported: 2, failed: 0 });
-		expect(result.sourceDocumentsCreated).toBe(0);
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
+			"https://africacdc.org/opportunity/consultancy-to-scaling-of-the-africa-cdc-continental-public-health-data-intelligence-hdi/",
+			expect.objectContaining({ formats: ["markdown", "html", "links"] })
+		);
 		expect(createOpportunityMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
 			title: "Consultancy to Scaling of the Africa CDC Continental Public Health Data Intelligence (HDI)",
 			source: "africa_cdc",
@@ -1718,12 +1750,20 @@ describe("discoverAndImportOpportunities", () => {
 			sourceFile: "source:https://africacdc.org/supply-chain-division/opportunities/",
 			opportunityType: "rfp",
 			countryRegion: "Africa",
-			rfpLink: "https://africacdc.org/opportunity/consultancy-to-scaling-of-the-africa-cdc-continental-public-health-data-intelligence-hdi/",
+			documentUrl: "https://africacdc.org/wp-content/uploads/2099/05/PROCUREMENT-NOTICE-26-May-2099.pdf",
+			rfpLink: "https://africacdc.org/wp-content/uploads/2099/05/PROCUREMENT-NOTICE-26-May-2099.pdf",
 			tags: ["external-discovery", "source-scrape", "africa-cdc", "african-union", "africa", "health-procurement"],
 			metadata: expect.objectContaining({
 				africaCdc: expect.objectContaining({
 					reference: "RFP No. ACDC/SDI/CS/02",
-					bidType: "Consultancy Services",
+					bidType: "Request for Proposals",
+					submissionEmail: "procurement@africacdc.org",
+					documentLinks: [
+						{
+							label: "Download bid document",
+							url: "https://africacdc.org/wp-content/uploads/2099/05/PROCUREMENT-NOTICE-26-May-2099.pdf",
+						},
+					],
 				}),
 			}),
 		}));

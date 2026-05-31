@@ -377,6 +377,7 @@ const DEFAULT_UNDP_DETAIL_LIMIT = 5;
 const DEFAULT_WORLD_BANK_DETAIL_LIMIT = 5;
 const DEFAULT_CONFIGURED_SOURCE_SCRAPE_ATTEMPTS = 2;
 const DEFAULT_CONFIGURED_SOURCE_MAX_PAGES = 3;
+const DEFAULT_CONFIGURED_SOURCE_DETAIL_LIMIT = 10;
 const DEFAULT_CONFIGURED_SOURCE_DISCOVERY_TIMEOUT_MS = 90_000;
 const DEFAULT_PERSISTENCE_RETRY_ATTEMPTS = 3;
 const DEFAULT_PERSISTENCE_RETRY_DELAY_MS = 500;
@@ -1152,6 +1153,12 @@ function configuredSourceMaxPages(): number {
 	return Math.min(5, Math.max(1, Math.trunc(parsed)));
 }
 
+function configuredSourceDetailLimit(): number {
+	const parsed = Number(process.env.CONFIGURED_SOURCE_DETAIL_LIMIT ?? DEFAULT_CONFIGURED_SOURCE_DETAIL_LIMIT);
+	if (!Number.isFinite(parsed)) return DEFAULT_CONFIGURED_SOURCE_DETAIL_LIMIT;
+	return Math.min(50, Math.max(0, Math.trunc(parsed)));
+}
+
 function sourceOpportunityType(opportunity: OpportunityData | undefined): OpportunityInput["opportunityType"] | undefined {
 	if (!opportunity?.opportunityType) return undefined;
 	if (opportunity.opportunityType === "contract") return "tender";
@@ -1915,9 +1922,16 @@ async function scrapeAndParseConfiguredSource(
 				lastParseResult,
 				limitPerSource
 			);
+			const enrichedParseResult = await enrichConfiguredSourceOpportunityDetailsWithFirecrawl(
+				firecrawl,
+				parser,
+				sourceUrl,
+				paginatedParseResult,
+				limitPerSource
+			);
 			return {
 				parser,
-				parseResult: paginatedParseResult,
+				parseResult: enrichedParseResult,
 				scrapeResult,
 				attempts: attempt,
 				method: "firecrawl",
@@ -2145,6 +2159,85 @@ async function scrapeAdditionalConfiguredSourcePages(
 		...firstPageResult,
 		opportunities,
 		nextPageUrl: opportunities.length >= limitPerSource ? currentResult.nextPageUrl : undefined,
+	};
+}
+
+function shouldEnrichConfiguredSourceDetails(parser: TenderParser): boolean {
+	return parser.sourceId === "africa_cdc";
+}
+
+function mergeConfiguredSourceDetailOpportunity(listing: OpportunityData, detail: OpportunityData): OpportunityData {
+	return {
+		...listing,
+		...detail,
+		title: detail.title || listing.title,
+		organization: detail.organization ?? listing.organization,
+		deadline: detail.deadline ?? listing.deadline,
+		source: detail.source || listing.source,
+		sourceId: detail.sourceId ?? listing.sourceId,
+		noticeId: detail.noticeId ?? listing.noticeId,
+		portalUrl: detail.portalUrl ?? listing.portalUrl,
+		documentUrl: detail.documentUrl ?? listing.documentUrl,
+		category: detail.category ?? listing.category,
+		countryRegion: detail.countryRegion ?? listing.countryRegion,
+		projectSummary: detail.projectSummary ?? listing.projectSummary,
+		submissionMethod: detail.submissionMethod ?? listing.submissionMethod,
+		rfpLink: detail.rfpLink ?? listing.rfpLink,
+		opportunityType: detail.opportunityType ?? listing.opportunityType,
+		publishedDate: detail.publishedDate ?? listing.publishedDate,
+		tags: [...new Set([...(listing.tags ?? []), ...(detail.tags ?? [])])],
+		metadata: {
+			...(listing.metadata ?? {}),
+			...(detail.metadata ?? {}),
+		},
+	};
+}
+
+async function enrichConfiguredSourceOpportunityDetailsWithFirecrawl(
+	firecrawl: FirecrawlClient,
+	parser: TenderParser,
+	sourceUrl: string,
+	parseResult: ParseResult,
+	limitPerSource: number
+): Promise<ParseResult> {
+	if (!shouldEnrichConfiguredSourceDetails(parser)) return parseResult;
+
+	const detailLimit = Math.min(configuredSourceDetailLimit(), limitPerSource, parseResult.opportunities.length);
+	if (detailLimit <= 0) return parseResult;
+
+	const sourceIdentity = normalizeUrlForIdentity(sourceUrl);
+	const enriched = [...parseResult.opportunities];
+	const seenDetailUrls = new Set<string>();
+	for (let index = 0; index < detailLimit; index += 1) {
+		const opportunity = enriched[index];
+		if (!opportunity) continue;
+		const detailUrl = opportunity.portalUrl;
+		if (!detailUrl || normalizeUrlForIdentity(detailUrl) === sourceIdentity || seenDetailUrls.has(detailUrl)) continue;
+		seenDetailUrls.add(detailUrl);
+
+		try {
+			const scrapeResult = await firecrawl.scrape(detailUrl, {
+				formats: ["markdown", "html", "links"],
+				timeout: 20000,
+			});
+			if (!scrapeResult.success || !scrapeResult.data) continue;
+			const detailResult = await parser.parse({
+				html: scrapeResult.data.html,
+				markdown: scrapeResult.data.markdown ?? "",
+				links: scrapeResult.data.links ?? [],
+				url: detailUrl,
+			});
+			const detail = detailResult.opportunities[0];
+			if (!detail) continue;
+			enriched[index] = mergeConfiguredSourceDetailOpportunity(opportunity, detail);
+		} catch {
+			continue;
+		}
+	}
+
+	return {
+		...parseResult,
+		opportunities: enriched,
 	};
 }
 
