@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add IRC Bid Opportunity Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand official NGO acquisition with the International Rescue Committee procurement page, capturing current bid opportunities and preserving package redirects without relying on degraded generic search fanout.
+
+Changes in this slice:
+- Added an IRC parser for `https://www.rescue.org/procurement-policies-and-bid-opportunities`, including listing-card extraction, published-date capture, detail-page enrichment, and package-link preservation.
+- Hardened IRC detail fetches so Box/Form/direct package redirects and non-HTML payloads are stored as source-document links instead of being treated as page text.
+- Registered IRC in default scheduled discovery and the aggressive donor/NGO acquisition campaign.
+- Added targeted IRC search queries so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can rediscover the procurement page and indexed `/rfp/` details when direct source scraping is unavailable.
+- Routed IRC configured source URLs through the dedicated parser, labeled imported opportunities as `International Rescue Committee`, and preserved source-document metadata for downstream intake.
+
+Live run:
+- The first IRC live run exposed a real redirect failure mode: detail pages can resolve to binary Office/PDF payloads, and following those redirects as text can poison opportunity summaries and PostgreSQL JSON updates.
+- `live_discovery_import_irc_hardened_20260531T` reran the IRC procurement source URL with source scraping enabled, search-result scraping disabled, downloads disabled, and queued parse mode after the redirect hardening.
+- Source health was healthy: 5 candidates, 2 created, 3 updated, 0 failed, and 0 warnings.
+- The run created 5 source-document rows for the IRC package/detail links. Downloads were intentionally disabled for this proof to verify acquisition without spending parse compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/irc-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 83 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_irc_hardened_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- IRC Box/Form/PDF package links should flow through selected source-document intake before response generation; acquisition now preserves those links safely, but this proof intentionally did not download or parse them.
+
 ### 2026-05-31 - Add Oxfam Nigeria Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

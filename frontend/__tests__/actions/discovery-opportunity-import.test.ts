@@ -3387,6 +3387,61 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
+	it("routes IRC bid opportunities through its detail-link parser", async () => {
+		firecrawlScrapeMock.mockResolvedValue({
+			success: false,
+			error: "The operation was aborted due to timeout",
+		});
+		fetchPublicHttpUrlMock.mockResolvedValue(new Response(`
+			<ul>
+				<li class="rpll-one-column-list__item">
+					<div class="rplc-teaser-basic rplc-teaser-basic--date-before-summary">
+						<a href="/rfp/it-equipment-opt-palestine" class="rplc-teaser-basic__wrapper-link" aria-label="IT Equipment for oPT, Palestine">
+							<div class="rplc-teaser-basic__slug"><div>RFP</div></div>
+							<h2 class="rplc-teaser-basic__title">IT Equipment for oPT, Palestine</h2>
+							<div class="rplc-teaser-basic__date"><div>May 21, 2099</div></div>
+							<div class="rplc-teaser-basic__summary"><div class="rpla-paragraph">Supply IT equipment for the IRC response.</div></div>
+						</a>
+					</div>
+				</li>
+			</ul>
+		`, { status: 200, headers: { "content-type": "text/html" } }));
+		fetchMock.mockResolvedValue(new Response("", {
+			status: 302,
+			headers: { location: "https://rescue.box.com/s/package123" },
+		}));
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.rescue.org/procurement-policies-and-bid-opportunities"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toEqual({
+			total: 1,
+			imported: 1,
+			updated: 0,
+			skipped: 0,
+			failed: 0,
+		});
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "IT Equipment for oPT, Palestine",
+			source: "irc",
+			sourcePlatform: "International Rescue Committee",
+			sourceFile: "source:https://www.rescue.org/procurement-policies-and-bid-opportunities",
+			rfpLink: "https://rescue.box.com/s/package123",
+			tags: ["external-discovery", "source-scrape", "irc", "ngo", "source-documents"],
+		}));
+		expect(result.sourceHealth).toEqual([
+			expect.objectContaining({
+				sourceUrl: "https://www.rescue.org/procurement-policies-and-bid-opportunities",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+		]);
+	});
+
 	it("routes Palladium, Jhpiego, and Tetra Tech configured sources through static source parsers", async () => {
 		firecrawlScrapeMock.mockResolvedValue({
 			success: false,
