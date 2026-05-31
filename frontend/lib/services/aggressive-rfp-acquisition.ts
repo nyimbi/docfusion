@@ -295,6 +295,8 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"site:boad.org/fr/opportunites/appels-doffre \"Date limite\"",
 			"site:boad.org/fr/opportunites/appels-doffre \"Avis de manifestation\" consultant",
 			"site:dbsa.org/procurement RFP closing date",
+			"site:isdb.org/project-procurement/tenders \"Expression of Interest\"",
+			"site:isdb.org/project-procurement/sites/pproc/files pdf \"IsDB\"",
 			"site:gtai.de/en/trade/ \"KfW-Tenders\" \"Tender Notice\" \"Deadline\"",
 			"site:fcdoservices.gov.uk \"tender\" \"deadline\"",
 			"site:chemonics.com \"request for proposals\" \"deadline\"",

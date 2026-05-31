@@ -199,6 +199,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:boad.org/fr/opportunites/appels-doffre \"Date limite\"",
 			"site:boad.org/fr/opportunites/appels-doffre \"Avis de manifestation\" consultant",
 			"site:dbsa.org/procurement RFP closing date",
+			"site:isdb.org/project-procurement/tenders \"Expression of Interest\"",
+			"site:isdb.org/project-procurement/sites/pproc/files pdf \"IsDB\"",
 			"site:sadc.int/procurement-opportunities \"Closing Date\" procurement",
 			"site:ecowas.int/procurement \"Closing date\"",
 			"site:ecowas.int/nwp_events procurement \"Closing date\"",

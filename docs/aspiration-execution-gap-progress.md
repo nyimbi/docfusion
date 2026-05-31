@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add IsDB Global South Project Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with IsDB project procurement, a static Drupal source covering IsDB member-country tenders, expressions of interest, general/specific procurement notices, prequalification notices, deadlines, and direct PDF/DOCX procurement documents.
+
+Changes in this slice:
+- Added an IsDB parser for `https://www.isdb.org/project-procurement/tenders`, including bounded Drupal pagination, structured listing extraction, contract-award filtering, tender type/country/deadline capture, detail-page enrichment, issue-date/submission metadata extraction, and direct document-link capture.
+- Routed IsDB project-procurement URLs through the direct source-parser path, labeled imported records as `Islamic Development Bank`, and preserved IsDB document links for downstream source-document intake.
+- Added targeted IsDB `site:` queries to default discovery and aggressive donor/development-bank search fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked IsDB procurement packages.
+
+Live run:
+- `live_discovery_import_isdb_20260531T` ran the IsDB tender source with source-API parsing enabled, first-page listing/detail fetches bounded by `ISDB_PAGE_LIMIT=1` and `ISDB_DETAIL_LIMIT=25`, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 25 candidates, 25 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 33 source-document rows from linked IsDB procurement documents. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/isdb-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 90 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_isdb_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit IsDB imports with lightweight text extraction first; use Docling only as fallback.
+- Increase `ISDB_PAGE_LIMIT` in scheduled/batch acquisition when the operator wants deeper IsDB archive backfill.
+
 ### 2026-05-31 - Add BADEA Africa Development-Bank Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

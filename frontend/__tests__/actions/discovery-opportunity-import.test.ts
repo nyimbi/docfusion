@@ -181,6 +181,8 @@ afterEach(() => {
 	delete process.env.BOAD_DETAIL_LIMIT;
 	delete process.env.ECREEE_PAGE_LIMIT;
 	delete process.env.ECREEE_DETAIL_LIMIT;
+	delete process.env.ISDB_PAGE_LIMIT;
+	delete process.env.ISDB_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -1553,6 +1555,60 @@ describe("discoverAndImportOpportunities", () => {
 			sourcePlatform: "Asian Infrastructure Investment Bank",
 			deadline: new Date(2026, 5, 10),
 			documentUrl: "https://www.aiib.org/en/projects/details/2026/_download/Pakistan/Corrigendum-No-01-1.pdf",
+		}));
+	});
+
+	it("imports IsDB project procurement notices with linked source documents", async () => {
+		process.env.ISDB_PAGE_LIMIT = "1";
+		process.env.ISDB_DETAIL_LIMIT = "1";
+		searchSearxngMock.mockResolvedValue({ results: [] });
+		fetchMock.mockImplementation(async (url: string) => {
+			if (url === "https://www.isdb.org/project-procurement/tenders") {
+				return new Response(`
+					<article role="article" about="/project-procurement/tenders/2099/eoi/bcc2099-001-digital-health-platform" data-nid="9901" class="display-teaser teaser type-tender">
+						<div class="field-title mt-4"><h2><a href="/project-procurement/tenders/2099/eoi/bcc2099-001-digital-health-platform">BCC2099-001 - Digital Health Platform Evaluation</a></h2></div>
+						<div class="field field--name-field-tender-status field--type-entity-reference field--label-hidden field--item"><div>Active</div></div>
+						<div class="field field--name-field-tender-type field--type-entity-reference field--label-hidden field--item"><div>Expression of Interest</div></div>
+						<div class="field field--name-field-world-country field--type-entity-reference field--label-hidden field--item">Nigeria</div>
+						<div class="field field--name-field-close-date field--type-datetime field--label-hidden field--item"><time datetime="00Z">24 August 2099</time></div>
+					</article>
+					<article role="article" about="/project-procurement/tenders/2099/contract-award/closed-award" data-nid="9902" class="display-teaser teaser type-tender">
+						<div class="field-title mt-4"><h2><a href="/project-procurement/tenders/2099/contract-award/closed-award">Closed Award</a></h2></div>
+						<div class="field field--name-field-tender-type field--type-entity-reference field--label-hidden field--item"><div>Contract Award</div></div>
+					</article>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.isdb.org/project-procurement/tenders/2099/eoi/bcc2099-001-digital-health-platform") {
+				return new Response(`
+					<div class="field field--name-field-notice-type field--type-entity-reference field--label-inline"><div class="field--label">Notice Type</div><div class="field--item">International Competitive Bidding</div></div>
+					<div class="field field--name-field-issue-date field--type-datetime field--label-inline"><div class="field--label">Issue Date</div><div class="field--item"><time datetime="2099-08-07T12:00:00Z">7 August 2099</time></div></div>
+					<div class="field field--name-field-close-date field--type-datetime field--label-inline"><div class="field--label">Last date of submission</div><div class="field--item"><time datetime="2099-08-24T12:00:00Z">24 August 2099</time></div></div>
+					<div class="field field--name-field-tender-type field--type-entity-reference field--label-inline"><div class="field--label">Tender Type</div><div class="field--item">Expression of Interest</div></div>
+					<div class="field field--name-field-documents field--type-file field--label-inline"><div class="field--label">Documents</div><div class="field--items"><div class="field--item"><a href="/project-procurement/sites/pproc/files/2099-08/ToR-Digital-Health.pdf">ToR Digital Health.pdf</a></div></div></div>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			return new Response("not found", { status: 404 });
+		});
+
+		const result = await discoverAndImportOpportunities({
+			sourceUrls: ["https://www.isdb.org/project-procurement/tenders"],
+			sourceScrapeLimit: 5,
+			browserFallback: false,
+		});
+
+		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
+		expect(result.sourceDocumentsCreated).toBe(1);
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "BCC2099-001 - Digital Health Platform Evaluation",
+			source: "isdb",
+			sourceId: "isdb-9901",
+			sourcePlatform: "Islamic Development Bank",
+			sourceFile: "source:https://www.isdb.org/project-procurement/tenders",
+			opportunityType: "eoi",
+			countryRegion: "Nigeria",
+			documentUrl: "https://www.isdb.org/project-procurement/sites/pproc/files/2099-08/ToR-Digital-Health.pdf",
+			tags: ["external-discovery", "source-scrape", "isdb", "development-bank", "global-south", "project-procurement", "source-documents"],
 		}));
 	});
 
