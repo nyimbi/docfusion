@@ -16,6 +16,36 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add Sierra Leone MoF Procurement Drain
+
+Status: implemented and live-proved.
+
+Purpose: expand African and Global South RFP acquisition with another official government source that publishes direct procurement PDFs outside the existing national/regional parser set.
+
+Changes in this slice:
+- Added a Sierra Leone Ministry of Finance public-notices parser for procurement-shaped SPN, REOI, RFP, tender, bid, and consulting-service notices.
+- Registered `https://mof.gov.sl/public-notices/` in default discovery sources and the `africa_national` aggressive acquisition campaign.
+- Added targeted MoF search queries for supplemental Google/SearXNG/DuckDuckGo fanout.
+- Registered the source in configured-source routing, source-health/source-platform tagging, and source-document link extraction.
+- Tightened MoF document filtering after live proof exposed a false-positive fiscal-report PDF attached to a procurement-looking title; the parser now only attaches procurement-shaped documents.
+
+Live proof:
+- `live_discovery_import_mof_sierra_leone_filtered_20260531T` ran a source-only import against `https://mof.gov.sl/public-notices/`.
+- Result: 10 records processed, 1 imported, 9 updated, 0 skipped, 0 failed, 0 warnings.
+- Source health: healthy with 10 candidates.
+- Source documents: 1 created, 9 existing, 1 downloaded, 0 download failures.
+- Direct parser probe returned 97 procurement-shaped MoF notices and 0 Fiscal Report-linked false positives.
+- Database spot check after the live runs showed 11 `mof_sierra_leone` opportunities and 11 MoF source-document rows, 6 with extracted text.
+
+Verification:
+- `npm test -- --run __tests__/scrapers/mof-sierra-leone-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts` passed.
+- `npx tsc --noEmit --pretty false` passed.
+- Live proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_mof_sierra_leone_filtered_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Continue adding official African national portals with direct document access before spending more effort on degraded generic search fanout.
+- Run broader `africa_national` acquisition with downloads after this source is committed so the new MoF drain participates in regular collection.
+
 ### 2026-05-31 - Probe High-Intent Search Fanout Yield
 
 Status: live-proved with degraded search fanout.

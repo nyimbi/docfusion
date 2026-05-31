@@ -33,6 +33,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.sadc.int/procurement-opportunities",
 				"https://www.ecowas.int/procurement/",
 				"https://www.ecreee.org/category/procurement-notices/",
+				"https://mof.gov.sl/public-notices/",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -106,6 +107,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.sadc.int/procurement-opportunities",
 			"https://www.ecowas.int/procurement/",
 			"https://www.ecreee.org/category/procurement-notices/",
+			"https://mof.gov.sl/public-notices/",
 		]));
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);
@@ -214,6 +216,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:ecowas.int/nwp_events procurement \"Closing date\"",
 			"site:ecreee.org/category/procurement-notices procurement deadline",
 			"site:ecreee.org \"Procurement notice\" \"deadline\"",
+			"site:mof.gov.sl/public-notices \"SPN\" OR \"REOI\" procurement",
+			"site:mof.gov.sl/wp-content/uploads \"Specific Procurement Notice\" \"Request for proposals\"",
 			"site:dai.com/uploads \"request for proposals\" DAI",
 			"site:plan-international.org/calls-tender tender deadline",
 			"site:rescue.org/rfp RFP procurement",
