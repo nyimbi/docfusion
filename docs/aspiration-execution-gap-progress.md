@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add DBSA South Africa RFP Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand Global South acquisition with the Development Bank of Southern Africa procurement page, a live South African development-finance source with current RFP/RFI rows, closing dates, and direct tender-volume attachments.
+
+Changes in this slice:
+- Added a DBSA parser for `https://www.dbsa.org/procurement`, including open RFP/RFI table extraction, South Africa closing-time parsing, expired-deadline filtering, RFP/RFI type inference, and direct PDF/ZIP document-link capture.
+- Routed DBSA procurement URLs through the direct source-parser path, labeled imported records as `Development Bank of Southern Africa`, and preserved DBSA tender-volume links for downstream source-document intake.
+- Added DBSA to default discovery and the aggressive development-bank acquisition campaign, with a targeted DBSA `site:` query for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked DBSA tender packages.
+
+Live run:
+- `live_discovery_import_dbsa_20260531T` ran the DBSA procurement source with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 6 candidates, 6 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 10 source-document rows from linked DBSA tender documents. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/dbsa-parser.test.ts __tests__/scrapers/boad-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 91 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_dbsa_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit DBSA imports with lightweight text extraction first; use Docling only as fallback.
+- Continue adding African and Global South direct-document sources with current closing dates before lower-yield generic searches.
+
 ### 2026-05-31 - Add BOAD West Africa Tender Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

@@ -3935,7 +3935,7 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, and BOAD configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, and DBSA configured sources through static source parsers", async () => {
 		process.env.BOAD_PAGE_LIMIT = "1";
 		process.env.BOAD_DETAIL_LIMIT = "1";
 		const boadInertiaHtml = (props: Record<string, unknown>) =>
@@ -3962,6 +3962,17 @@ describe("discoverAndImportOpportunities", () => {
 			error: "The operation was aborted due to timeout",
 		});
 		fetchMock.mockImplementation(async (url: string) => {
+			if (url === "https://www.dbsa.org/procurement") {
+				return new Response(`
+					<table class="table"><tbody><tr>
+						<td><strong>RFP 090/2099:</strong> Appointment of a Integrated Digital Marketing and Development Partner<br>
+							<a href="/sites/ppdf.dbsa.org/files/media/documents/2099-05/RFP090-2099%20Digital%20Agency.pdf">Tender Volume</a>
+						</td>
+						<td>26 May 2099</td>
+						<td>19 June 2099 at 23H55</td>
+					</tr></tbody></table>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
 			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
 				return new Response(boadInertiaHtml({
 					tenders: {
@@ -4052,14 +4063,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://intdev.tetratech.com.au/partner-with-us/",
 				"https://trademarkafrica.com/procurement/",
 				"https://www.boad.org/fr/opportunites/appels-doffre",
+				"https://www.dbsa.org/procurement",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 5,
-			imported: 5,
+			total: 6,
+			imported: 6,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4103,6 +4115,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://admin.boad.org/wp-content/uploads/2099/05/TERMES-DE-REFERENCE-TAXE-CARBONE-RDC.pdf",
 			tags: ["external-discovery", "source-scrape", "boad", "development-bank", "west-africa", "uemoa", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "RFP 090/2099: Appointment of a Integrated Digital Marketing and Development Partner",
+			source: "dbsa",
+			sourcePlatform: "Development Bank of Southern Africa",
+			sourceFile: "source:https://www.dbsa.org/procurement",
+			rfpLink: "https://www.dbsa.org/sites/ppdf.dbsa.org/files/media/documents/2099-05/RFP090-2099%20Digital%20Agency.pdf",
+			tags: ["external-discovery", "source-scrape", "dbsa", "south-africa", "development-bank", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4130,6 +4150,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://www.boad.org/fr/opportunites/appels-doffre",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.dbsa.org/procurement",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,
