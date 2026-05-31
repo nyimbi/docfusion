@@ -43,8 +43,9 @@ Live proof:
 - The 4 not-queued IDB rows were reprocessed after the patch: 2 linked to an existing duplicate PDF RFP, 1 PDF parsed with 7 requirements, and 1 trusted HTML shell parsed with 5 requirements.
 - A sixth drain, `source_document_intake_idb_global_south_direct_batch6_20260531T`, selected 12 more IDB direct documents, downloaded 12, completed 12 parse jobs, failed 0, timed out 0, had 0 `not_queued`, and extracted 60 additional requirements.
 - Batch 6 proved the intended extraction order: PDFs used local `pdftotext` where possible, Docling was used only after `pdftotext` failed, and sparse trusted IDB HTML shells completed through metadata fallback instead of being dropped.
-- Current IDB source-document counts after batch 6: 14 discovered, 58 downloaded, 53 RFP documents, and 341 extracted requirements.
-- Current live totals after this drain: 6,082 opportunities, 1,237 RFP documents, and 8,422 persisted RFP requirements.
+- A final seventh drain, `source_document_intake_idb_global_south_direct_batch7_20260531T`, selected the remaining 14 discovered IDB direct documents, downloaded 14, completed 14 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 `not_queued`, and extracted 80 additional requirements.
+- Current IDB source-document counts after batch 7: 0 discovered, 72 downloaded, 67 RFP documents, and 421 extracted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,251 RFP documents, and 8,502 persisted RFP requirements.
 
 Verification:
 - `npm test -- --run __tests__/services/rfp-document-service.test.ts` passed with 45 tests.
@@ -53,7 +54,7 @@ Verification:
 - Live DB checks confirmed IDB downloaded document, RFP document, and requirement counts.
 
 Remaining after this slice:
-- Continue draining the remaining 14 IDB discovered source documents in bounded batches.
+- IDB direct-document backlog is drained to 0 discovered source documents; keep scheduled discovery/import running to pick up new IDB notices.
 - Add more direct-document endpoint patterns for Global South sources discovered by search fanout when valid document URLs do not use file extensions.
 
 ### 2026-05-31 - Global South Search Fanout Acquisition Pass
