@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Tanzania NeST OCDS Detail Intake Batch 2
+
+Status: live-proved, persisted, and lightweight-extraction friendly.
+
+Purpose: continue aggressively draining the proven Tanzania NeST OCDS source-document queue after the first NeST batch showed reliable local HTML extraction and parser completion.
+
+Live proof:
+- `source_document_intake_tanzania_nest_batch2_probe_20260531T` dry-selected 40 additional active NeST Tanzania release URLs from the discovered source-document queue.
+- `source_document_intake_tanzania_nest_batch2_20260531T` selected 40 NeST Tanzania documents, downloaded 40, completed 40 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every document again used the NeST OCDS release-to-HTML path plus `local_html_text`; Docling was not needed.
+- Current NeST Tanzania source-document counts after this second drain: 20 discovered and 190 downloaded source-document rows, 190 RFP documents, and 596 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,673 RFP documents, and 11,730 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_tanzania_nest_batch2_20260531T ... npm run source-docs:intake` completed with 40 downloads, 40 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- Live DB checks confirmed global totals plus NeST Tanzania discovered/downloaded document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Drain the remaining 20 current NeST rows in one final bounded batch if the next dry probe remains clean.
+- Continue shifting capacity toward African and Global South queues that are not yet using the proven local HTML path, especially Rwanda UMUCYO detail extraction, Ghana GHANEPS, Zambia ZPPA, Benin, BOAD, ECOWAS, and TradeMark Africa.
+
 ### 2026-05-31 - Niger Public Procurement Detail Intake
 
 Status: live-proved, persisted, and current-deadline queue drained.
