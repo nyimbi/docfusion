@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add ECREEE West Africa Clean-Energy Procurement Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand African and Global South acquisition with ECREEE, an ECOWAS regional clean-energy source that publishes West African procurement notices, expressions of interest, recruitment/consultancy calls, deadlines where available, and direct PDF/DOCX tender attachments.
+
+Changes in this slice:
+- Added an ECREEE parser for `https://www.ecreee.org/category/procurement-notices/`, including bounded WordPress archive pagination, listing-date extraction, detail-page enrichment, Cabo Verde-time deadline parsing, stale/expired notice filtering, procurement ID extraction, opportunity type inference, and direct PDF/DOCX/XLSX/ZIP document capture.
+- Routed ECREEE archive/detail URLs through the direct source-parser path, labeled imported records as `ECREEE`, and preserved ECREEE attachment links for downstream source-document intake.
+- Added ECREEE to default discovery and the aggressive African acquisition campaign, with targeted ECREEE `site:` queries for SearXNG/Google/DuckDuckGo fanout.
+- Kept the live proof lightweight: downloads and document parsing stayed disabled while source-document rows were seeded from linked ECREEE tender packages.
+
+Live run:
+- `live_discovery_import_ecreee_20260531T` ran the ECREEE procurement source with source-API parsing enabled, bounded archive/detail fetches, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 25 candidates, 25 created, 0 updated, 0 failed, and 0 warnings.
+- The run created 56 source-document rows from linked ECREEE procurement attachments. Downloads and parsing were intentionally disabled for this proof to verify acquisition and document-link capture without spending document-processing compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/ecreee-parser.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 90 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_ecreee_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for high-fit ECREEE imports with lightweight text extraction first; use Docling only as fallback.
+- Continue expanding African and Global South direct sources with current archive pages and linked document packages.
+
 ### 2026-05-31 - Add ECOWAS West Africa Procurement Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

@@ -179,6 +179,8 @@ afterEach(() => {
 	delete process.env.TRADEMARK_AFRICA_DETAIL_LIMIT;
 	delete process.env.BOAD_PAGE_LIMIT;
 	delete process.env.BOAD_DETAIL_LIMIT;
+	delete process.env.ECREEE_PAGE_LIMIT;
+	delete process.env.ECREEE_DETAIL_LIMIT;
 });
 
 describe("discoverAndImportOpportunities", () => {
@@ -3935,9 +3937,11 @@ describe("discoverAndImportOpportunities", () => {
 		]);
 	});
 
-	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, DBSA, SADC, and ECOWAS configured sources through static source parsers", async () => {
+	it("routes Palladium, Jhpiego, Tetra Tech, TradeMark Africa, BOAD, DBSA, SADC, ECOWAS, and ECREEE configured sources through static source parsers", async () => {
 		process.env.BOAD_PAGE_LIMIT = "1";
 		process.env.BOAD_DETAIL_LIMIT = "1";
+		process.env.ECREEE_PAGE_LIMIT = "1";
+		process.env.ECREEE_DETAIL_LIMIT = "1";
 		const boadInertiaHtml = (props: Record<string, unknown>) =>
 			`<div id="app" data-page="${JSON.stringify({ component: "Page", props }).replace(/"/g, "&quot;")}"></div>`;
 		const boadRow = {
@@ -4023,6 +4027,34 @@ describe("discoverAndImportOpportunities", () => {
 					<a href="https://www.ecowas.int/wp-content/uploads/2099/05/FINAL-SISS-Request-for-bids.pdf" class="accordion-title" target="_blank">
 						FINAL SISS Request for bids <div><span>2.43 MB</span> <span>pdf</span></div>
 					</a>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.ecreee.org/category/procurement-notices/") {
+				return new Response(`
+					<article class="style-three post category-procurement-notices">
+						<div class="post-meta"><span><i class="fa fa-calendar"></i> May 18, 2099</span></div>
+						<h3 class="entry-title"><a href="https://www.ecreee.org/call-for-expressions-of-interest-warep-phase-1/">
+							Call for Expressions of Interest: Consultancy for the WAREP Completion Report
+						</a></h3>
+						<div class="entry-content">ECREEE invites qualified consultants for a West Africa regional energy assignment.</div>
+					</article>
+				`, { status: 200, headers: { "content-type": "text/html" } });
+			}
+			if (url === "https://www.ecreee.org/call-for-expressions-of-interest-warep-phase-1/") {
+				return new Response(`
+					<article class="single-post category-procurement-notices">
+						<h1 class="entry-title">Call for Expressions of Interest: Consultancy for the WAREP Completion Report</h1>
+						<time class="entry-date published" datetime="2099-05-18T22:01:22-01:00">May 18, 2099</time>
+						<div class="entry-content default-page">
+							<div class="field-name-field-procurement-id"><div class="field-item odd">ECR/WAREP/EOI/2099/01</div></div>
+							<div class="field-name-field-procurment-dead-line"><span class="date-display-single">Wednesday, June 22, 2099 - 23:59</span></div>
+							<p>The ECOWAS Centre for Renewable Energy and Energy Efficiency invites qualified consultants.</p>
+							<ul class="post-attachments">
+								<li><a href="https://www.ecreee.org/wp-content/uploads/2099/05/WAREP-Terms-of-Reference.pdf">WAREP Terms of Reference</a></li>
+							</ul>
+							<div class="clearfix"></div>
+						</div>
+					</article>
 				`, { status: 200, headers: { "content-type": "text/html" } });
 			}
 			if (url === "https://www.boad.org/fr/opportunites/appels-doffre") {
@@ -4118,14 +4150,15 @@ describe("discoverAndImportOpportunities", () => {
 				"https://www.dbsa.org/procurement",
 				"https://www.sadc.int/procurement-opportunities",
 				"https://www.ecowas.int/procurement/",
+				"https://www.ecreee.org/category/procurement-notices/",
 			],
 			sourceScrapeLimit: 5,
 			browserFallback: false,
 		});
 
 		expect(result.results).toEqual({
-			total: 8,
-			imported: 8,
+			total: 9,
+			imported: 9,
 			updated: 0,
 			skipped: 0,
 			failed: 0,
@@ -4193,6 +4226,14 @@ describe("discoverAndImportOpportunities", () => {
 			rfpLink: "https://www.ecowas.int/wp-content/uploads/2099/05/FINAL-SISS-Request-for-bids.pdf",
 			tags: ["external-discovery", "source-scrape", "ecowas", "west-africa", "regional-procurement", "source-documents"],
 		}));
+		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
+			title: "Call for Expressions of Interest: Consultancy for the WAREP Completion Report",
+			source: "ecreee",
+			sourcePlatform: "ECREEE",
+			sourceFile: "source:https://www.ecreee.org/category/procurement-notices/",
+			rfpLink: "https://www.ecreee.org/wp-content/uploads/2099/05/WAREP-Terms-of-Reference.pdf",
+			tags: ["external-discovery", "source-scrape", "ecreee", "ecowas", "west-africa", "renewable-energy", "source-documents"],
+		}));
 		expect(result.sourceHealth).toEqual([
 			expect.objectContaining({
 				sourceUrl: "https://thepalladiumgroup.com/tenders",
@@ -4238,6 +4279,12 @@ describe("discoverAndImportOpportunities", () => {
 			}),
 			expect.objectContaining({
 				sourceUrl: "https://www.ecowas.int/procurement/",
+				status: "healthy",
+				candidates: 1,
+				imported: 1,
+			}),
+			expect.objectContaining({
+				sourceUrl: "https://www.ecreee.org/category/procurement-notices/",
 				status: "healthy",
 				candidates: 1,
 				imported: 1,
