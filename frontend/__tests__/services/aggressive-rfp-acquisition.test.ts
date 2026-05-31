@@ -34,6 +34,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.ecowas.int/procurement/",
 				"https://www.ecreee.org/category/procurement-notices/",
 				"https://mof.gov.sl/public-notices/",
+				"https://www.marchespublics.ne/appels-offres",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -108,6 +109,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.ecowas.int/procurement/",
 			"https://www.ecreee.org/category/procurement-notices/",
 			"https://mof.gov.sl/public-notices/",
+			"https://www.marchespublics.ne/appels-offres",
 		]));
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);

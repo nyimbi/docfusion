@@ -161,6 +161,7 @@ export const DEFAULT_DISCOVERY_SOURCE_URLS = [
 	"https://www.ecowas.int/procurement/",
 	"https://www.ecreee.org/category/procurement-notices/",
 	"https://mof.gov.sl/public-notices/",
+	"https://www.marchespublics.ne/appels-offres",
 	"https://www.un.org/procurement/solicitations-opportunities",
 	"https://www.unicef.org/supply/service-contracts-tender-calendar",
 	"https://www.caribank.org/work-with-us/procurement/procurement-notices",
