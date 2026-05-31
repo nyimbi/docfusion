@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Niger Public Procurement Detail Intake
+
+Status: live-proved, persisted, and current-deadline queue drained.
+
+Purpose: expand West African national tender coverage by converting Niger public procurement detail pages into downloaded RFP/tender source documents and parsed requirements.
+
+Live proof:
+- `source_document_intake_niger_detail_probe_before_20260531T` dry-selected 5 Niger detail-page source documents and showed the queue was eligible for normal HTML intake.
+- `source_document_intake_niger_detail_probe_live_20260531T` selected 3 Niger detail pages, downloaded 3, completed 3 parse jobs, failed 0, timed out 0, and extracted 15 persisted requirements.
+- `source_document_intake_niger_detail_batch_20260531T` requested a larger bounded batch, selected the remaining 4 current-deadline Niger detail pages, downloaded 4, completed 4 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Every Niger detail page used the generic HTML download path and `local_html_text`; no new code or Docling fallback was needed.
+- Current Niger source-document counts after this drain: 192 discovered, 7 downloaded, and 0 failed source-document rows, 7 RFP documents, and 38 persisted requirements.
+- A remainder probe selected 0 more Niger rows; the remaining 192 discovered Niger rows are past-deadline records, with deadlines from 2019-05-16 through 2026-04-27.
+- Current live totals after this drain: 6,082 opportunities, 1,633 RFP documents, and 11,602 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_niger_detail_probe_live_20260531T ... npm run source-docs:intake` completed with 3 downloads, 3 completed parses, and 0 failures/timeouts.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_niger_detail_batch_20260531T ... npm run source-docs:intake` completed with 4 downloads, 4 completed parses, and 0 failures/timeouts.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_niger_detail_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows after the active-current Niger drain.
+- Live DB checks confirmed global totals, Niger source-document status counts, RFP document counts, requirement counts, and that all remaining Niger discovered rows are past-deadline.
+
+Remaining after this slice:
+- Refresh Niger discovery from the portal before expecting more current Niger rows; the active current-deadline queue is drained.
+- Move next to other African/Global South current queues with substantial discovered backlog, especially Benin, Tanzania NeST, Pacific/Global South regional sources, Rwanda UMUCYO detail extraction, Ghana GHANEPS, Zambia ZPPA, BOAD, ECOWAS, and TradeMark Africa.
+
 ### 2026-05-31 - Tanzania NeST OCDS Detail Intake
 
 Status: live-proved, persisted, and lightweight-extraction friendly.
