@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Rwanda UMUCYO Detail Queue Drain
+
+Status: live-proved, persisted, lightweight-extraction only, and current detail-document queue drained.
+
+Purpose: finish the remaining Rwanda UMUCYO tender detail rows using the portal-specific HTML detail extraction path instead of scan/PDF-heavy fallback.
+
+Live proof:
+- `source_document_intake_rwanda_umucyo_detail_probe_20260531T` dry-selected the 2 remaining current UMUCYO detail URLs.
+- `source_document_intake_rwanda_umucyo_detail_20260531T` selected 2 Rwanda UMUCYO detail pages, downloaded 2, completed 2 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Both documents used the UMUCYO detail-page fetch path plus `local_html_text`; Docling was not needed.
+- `source_document_intake_rwanda_umucyo_remainder_probe_20260531T` selected 0 rows after the live drain.
+- Current Rwanda UMUCYO source-document counts after this drain: 48 discovered and 51 downloaded source-document rows, 51 RFP documents, and 526 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,737 RFP documents, and 12,105 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_rwanda_umucyo_detail_20260531T ... npm run source-docs:intake` completed with 2 downloads, 2 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_rwanda_umucyo_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows after the current UMUCYO detail drain.
+- Live DB checks confirmed global totals plus Rwanda UMUCYO discovered/downloaded source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Refresh Rwanda UMUCYO discovery to pick up newly listed tender detail URLs; current eligible detail rows are drained.
+- Prefer additional HTML/detail queues before another scan-heavy PDF batch while Docling remains intermittently unstable.
+
 ### 2026-05-31 - Benin Public Procurement Direct PDF Drain
 
 Status: live-proved, persisted, scan-heavy, and current direct-document queue drained.
