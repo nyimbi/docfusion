@@ -164,6 +164,15 @@ describe("source document intake selection helpers", () => {
 		expect(isDirectDocumentIntakeSource(source)).toBe(true);
 	});
 
+	it("accepts IDB direct document endpoints without file extensions", () => {
+		const source = {
+			documentName: "getdocument.aspx",
+			sourceUrl: "https://idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=EZIDB0000647-1931927994-2389",
+		};
+		expect(isSupportedDocumentSource(source)).toBe(true);
+		expect(isDirectDocumentIntakeSource(source)).toBe(true);
+	});
+
 	it("accepts UNDP SharePoint package folders for notice-detail recovery", () => {
 		const source = {
 			documentName: "AllItems.aspx",

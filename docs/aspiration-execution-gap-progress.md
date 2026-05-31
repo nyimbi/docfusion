@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - IDB Direct Document Intake Enablement
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: convert newly discovered Global South development-bank opportunities from source rows into parsed, response-usable RFP requirements.
+
+Changes in this slice:
+- Added Inter-American Development Bank `idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=...` endpoints to the trusted direct-document intake patterns.
+- Kept these endpoints eligible for `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1` even though the URL and filename do not include a `.pdf` extension.
+- Added selector coverage so future IDB rows are not left stranded as discovered source documents.
+
+Live proof:
+- Before the patch, `source_document_intake_idb_global_south_20260531T` selected 0 IDB documents because the endpoints lacked file extensions.
+- After the patch, `source_document_intake_idb_global_south_direct_20260531T` selected 4 IDB direct documents, downloaded 4, completed 4 parse jobs, failed 0, timed out 0, and extracted 32 total requirements.
+- All 4 IDB PDFs used local `pdftotext` extraction successfully, producing 11, 9, 5, and 7 requirements without needing Docling.
+- Current IDB source-document counts after the run: 68 discovered, 4 downloaded, 4 RFP documents, and 32 extracted requirements.
+
+Verification:
+- `npm test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 16 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live DB checks confirmed IDB downloaded document, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Continue draining the remaining 68 IDB discovered source documents in bounded batches.
+- Add more direct-document endpoint patterns for Global South sources discovered by search fanout when valid document URLs do not use file extensions.
+
 ### 2026-05-31 - Global South Search Fanout Acquisition Pass
 
 Status: live-proved and persisted.
