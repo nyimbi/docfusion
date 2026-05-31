@@ -1062,6 +1062,7 @@ describe("RFP document fetch storage", () => {
 			mimeType: "text/html",
 			parsingStatus: "not_queued",
 		});
+		expect(doclingMock.processRfpDocument).not.toHaveBeenCalled();
 		expect(dbMock.insert).not.toHaveBeenCalled();
 		expect(processRfpParsingJob).not.toHaveBeenCalled();
 		expect(dbMock.query.rfpDocuments.findFirst).not.toHaveBeenCalled();

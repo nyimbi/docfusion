@@ -2625,7 +2625,8 @@ async function extractSupportedDocumentText(
       });
       return localHtml;
     }
-    logger.warn(`[RFP Document Service] Local HTML extraction could not extract usable text from ${filename}; trying DocLing`);
+    logger.warn(`[RFP Document Service] Local HTML extraction could not extract usable text from ${filename}; skipping DocLing for HTML source`);
+    return undefined;
   }
 
   if (extension === ".docx" || extension === ".doc" || extension === ".xlsx" || extension === ".xls") {

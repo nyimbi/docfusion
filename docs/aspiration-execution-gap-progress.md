@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa And Global South Broad Backlog Drain
+
+Status: live-proved, persisted, broader Africa/Global South selector exhausted, parser-waste fix added, and ready to shift to source refresh/source-specific repair.
+
+Purpose: keep the RFP sourcing lane focused on African and Global South opportunities after the prior direct/detail queues were exhausted, then convert any broader current supported backlog that was outside the earlier narrow runs.
+
+Live proof:
+- The backlog diagnosis showed the earlier narrow drains were complete, but a broader African/Global South source set still had current supported discovered rows in Winrock International, IRC, Oxfam Nigeria, AUDA-NEPAD, UNDP, DNCCP Togo, DGMP Mali, and BOAD.
+- `source_document_intake_africa_global_south_broad_backlog_probe_20260531T` selected 18 current supported candidates.
+- `source_document_intake_africa_global_south_broad_backlog_live_20260531T` selected 18, downloaded 18, failed 0, completed 10 parse jobs, had 1 duplicate, 7 `not_queued` sparse/weak pages, 0 parse failures, 0 zero-requirement parses, and 0 parse timeouts.
+- The live run added 10 RFP documents and 63 persisted requirements, moving live totals from 1,930 RFP documents and 13,639 requirements to 1,940 RFP documents and 13,702 requirements.
+- Current live totals after this run: 6,265 total opportunities, 6,264 non-rejected opportunities, 1,940 RFP documents, and 13,702 persisted RFP requirements.
+- `source_document_intake_africa_global_south_broad_backlog_remainder_probe_20260531T` selected 0 rows after the live run, confirming the broader selector is now exhausted for the selected African/Global South source set.
+- Productive sources included Winrock International, AUDA-NEPAD, UNDP SharePoint packages recovered through public UNDP notices, DNCCP Togo, DGMP Mali, and BOAD.
+- The run measured one concrete parser-waste path: sparse IRC/Oxfam/form-hosted HTML pages were downloaded but not queued, and the old extraction flow tried Docling after local HTML extraction failed.
+- The document extraction path now skips Docling for HTML/HTM sources when local HTML extraction does not find usable tender text; substantive HTML pages still queue through local extraction, and binary/PDF fallback behavior is unchanged.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_broad_backlog_live_20260531T ... npm run source-docs:intake` completed with 18 downloads, 10 completed parse jobs, 1 duplicate, 7 `not_queued`, and 0 failures/timeouts.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_broad_backlog_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals and source-document status for Winrock International, IRC, Oxfam Nigeria, AUDA-NEPAD, UNDP, DNCCP Togo, DGMP Mali, and BOAD.
+- `npm run test -- --run __tests__/services/rfp-document-service.test.ts __tests__/scripts/run-source-document-intake.test.ts` passed 62 tests.
+
+Remaining after this slice:
+- Next material acquisition work should refresh African national, donor/NGO, UN/multilateral, and development-bank sources rather than rerunning the now-exhausted broad backlog selector.
+- Rwanda UMUCYO still has 48 discovered rows blocked because they are unselected/unsupported list rows, not eligible detail endpoints; this needs source-specific repair or refresh rather than parser retries.
+- UN Procurement and UNICEF discovered rows remain mostly duplicate prior-attempt URLs, so do not spend parser capacity on them without new source evidence.
+- Consider a broader French cancellation/no-result filter only if future BOAD/DNCCP/ECOWAS batches show repeated measurable parser waste; one BOAD cancellation row alone is not enough to justify a large filter pass.
+
 ### 2026-05-31 - Africa And Global South Detail Queue Exhausted
 
 Status: live-proved, persisted, selected detail queue drained to zero, and ready to shift to source-specific backlog repair.
