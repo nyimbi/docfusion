@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - IRC Direct PDF And ZIP Intake
+
+Status: live-proved, persisted, local-extraction only, ZIP extraction verified, and current IRC/IOM/Oxfam direct queue drained.
+
+Purpose: expand Global South NGO/donor coverage with International Rescue Committee direct RFP documents and verify that ZIP packages can contribute parseable RFP content.
+
+Live proof:
+- `source_document_intake_irc_iom_direct_probe_20260531T` dry-selected 2 current direct documents across International Rescue Committee, IOM, and Oxfam in Nigeria; both selected rows were IRC documents.
+- `source_document_intake_irc_iom_direct_20260531T` selected 2 IRC documents, downloaded 2, completed 2 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- The IRC PDF used local `pdftotext`; the IRC ZIP package extracted `P53_Request_for_Proposal_RFP.pdf`, then parsed it through local `pdftotext`. Docling was not invoked.
+- `source_document_intake_irc_iom_remainder_probe_20260531T` selected 0 rows after the live run.
+- Current IRC source-document counts after this run: 6 discovered and 2 downloaded source-document rows, 2 RFP documents, and 31 persisted requirements. IOM remains at 13 RFP documents and 40 requirements; Oxfam in Nigeria has no downloaded RFP document yet.
+- Current live totals after this run: 6,082 opportunities, 1,757 RFP documents, and 12,329 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_irc_iom_direct_20260531T ... npm run source-docs:intake` completed with 2 downloads, 2 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_irc_iom_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 retryable rows after the run.
+- Live DB checks confirmed global totals plus IRC/IOM/Oxfam source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Refresh IRC, IOM, and Oxfam discovery before expecting more current direct-document rows.
+- Continue broad African and Global South discovery expansion; direct queues are now thin, so the next material gains likely come from source refresh, detail-page support, and noise filtering for BOAD/TradeMark Africa.
+
 ### 2026-05-31 - Norwegian Refugee Council Direct Document Intake
 
 Status: live-proved, persisted, local-extraction only, and current retryable direct-document queue drained with one stale 404 recorded.
