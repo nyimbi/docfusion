@@ -86,8 +86,28 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.un.org/Depts/ptd/sites/www.un.org.Depts.ptd/files/files/attachment/page/pdf/pm.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "Job-Application-Form-ECOWAS.docx",
+			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/Job-Application-Form-ECOWAS.docx",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Job-Profile-Driver-ECOWAS-Cabo-Verde.pdf",
+			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/Job-Profile-Driver-ECOWAS-Cabo-Verde.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Profil-du-poste-de-chauffeur-CEDEAO-Cabo-Verde.pdf",
+			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/Profil-du-poste-de-chauffeur-CEDEAO-Cabo-Verde.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Perfil-do-cargo-de-Motorista-CEDEAO-Cabo-Verde.pdf",
+			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/02/Perfil-do-cargo-de-Motorista-CEDEAO-Cabo-Verde.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
+		})).toBe(true);
+		expect(isLikelySolicitationSource({
+			documentName: "ToR-Recruitment-Data-Management-Specialist-ReCCAWA.pdf",
+			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/05/ToR-Recruitment-Data-Management-Specialist-ReCCAWA.pdf",
 		})).toBe(true);
 	});
 
