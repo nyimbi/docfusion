@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - High Intent Search QA Guard
+
+Status: live-proved, search-health measured, anti-bot import guard added, bad live row quarantined, and no parser load incurred.
+
+Purpose: test whether high-intent Africa/Global South search queries can add net-new RFP opportunities, then close the quality gap exposed by an anti-bot interstitial imported from search results.
+
+Live proof:
+- `aggressive_rfp_acquisition_high_intent_africa_refresh_20260531T` ran the `high_intent_search` campaign with downloads disabled, `limitPerQuery=2`, `searchPages=1`, `sourceScrapeLimit=0`, `scrapeLimit=2`, and `browserFallbackLimit=2`.
+- The refresh processed 2 records, imported 1 new opportunity, updated 1 existing opportunity, failed 0 records, created 0 source-document rows, and recorded 64 warnings.
+- The warnings again showed degraded search fanout: direct Google fallback returned 429, `search.lindela.io` reported Brave/DuckDuckGo/Google/Startpage/Wikipedia degradation across queries, and public SearXNG fallback instances frequently returned 403/418/429.
+- The new imported opportunity was an anti-bot interstitial titled `Just a moment...`, not a tender/RFP.
+- The discovery import filter now rejects anti-bot search results before import and shares the same bot-protection pattern used for scraped content.
+- `context.reverso.net` and `reverso.net` are now blocked as low-value discovery hosts after the bad row came from a translation page.
+- The bad live opportunity `f35bc539-b707-4d63-9399-9706cdf63719` was quarantined by marking it `decision_status='rejected'`, `is_reviewed=true`, and tagging it `acquisition-qa`, `anti-bot-interstitial`, and `not-rfp`.
+- Current live totals after quarantine: 6,130 total opportunities, 6,129 non-rejected opportunities, 1,782 RFP documents, and 12,447 persisted RFP requirements.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_high_intent_africa_refresh_20260531T ... npm run rfp:acquire` completed with 1 import, 1 update, 0 failures, and 64 warnings.
+- `npm run test -- --run __tests__/actions/discovery-opportunity-import.test.ts` passed 82 tests, including the new anti-bot interstitial search-result regression.
+- Live DB checks confirmed the bad row was rejected and global/non-rejected opportunity totals were updated.
+
+Remaining after this slice:
+- Do not scale broad high-intent search volume until search fanout health improves; the current path spends time on degraded engines and can still produce low-quality anti-bot results without stricter source/query targeting.
+- Prefer configured African/Global South sources and direct document queues while SearXNG/Google/DuckDuckGo access remains degraded.
+- Continue expanding the low-value host blocklist only when live search evidence shows recurring non-procurement imports.
+
 ### 2026-05-31 - Donor NGO Search Refresh And TradeMark Africa Intake
 
 Status: live-proved, persisted, search-health measured, non-solicitation filtering improved, local-extraction only, and current TradeMark Africa direct queue drained.

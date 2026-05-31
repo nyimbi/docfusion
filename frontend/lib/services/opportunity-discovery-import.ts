@@ -363,12 +363,14 @@ const LOW_VALUE_DISCOVERY_HOSTS = new Set([
 	"britannica.com",
 	"cambridge.org",
 	"collinsdictionary.com",
+	"context.reverso.net",
 	"dictionary.cambridge.org",
 	"dictionary.com",
 	"linguee.com",
 	"merriam-webster.com",
 	"thefreedictionary.com",
 	"thesaurus.com",
+	"reverso.net",
 	"wikimedia.org",
 	"wikipedia.org",
 	"wordreference.com",
@@ -377,6 +379,7 @@ const LOW_VALUE_DISCOVERY_HOSTS = new Set([
 
 const DEFAULT_STEALTH_SCRAPER_URL = "http://84.247.181.100:3003";
 const MIN_USEFUL_SCRAPE_MARKDOWN_LENGTH = 120;
+const BOT_PROTECTION_CONTENT_PATTERN = /(?:radware captcha page|captcha\.perfdrive\.com|h-captcha|please solve this captcha|made us think that you are a bot|access denied|too many requests|just a moment\.?)/i;
 const DEFAULT_AFDB_DETAIL_LIMIT = 5;
 const DEFAULT_COMESA_DETAIL_LIMIT = 5;
 const DEFAULT_UNDP_DETAIL_LIMIT = 5;
@@ -672,10 +675,16 @@ function isKnownProcurementPortalUrl(url: string): boolean {
 
 function isLikelyOpportunity(result: SearxngResult, query?: string): boolean {
 	if (isLowValueDiscoveryUrl(result.url)) return false;
+	if (isBotProtectionSearchResult(result)) return false;
 	const haystack = `${result.title} ${result.content} ${result.url}`.toLowerCase();
 	if (OPPORTUNITY_KEYWORDS.some((keyword) => haystack.includes(keyword))) return true;
 	if (!query || !isHighIntentDiscoveryQuery(query)) return false;
 	return isDocumentUrl(result.url) || isKnownProcurementPortalUrl(result.url);
+}
+
+function isBotProtectionSearchResult(result: Pick<SearxngResult, "title" | "content" | "url">): boolean {
+	const haystack = `${result.title}\n${result.content}\n${result.url}`;
+	return BOT_PROTECTION_CONTENT_PATTERN.test(haystack);
 }
 
 function describeUnresponsiveEngine(engine: SearxngUnresponsiveEngine): string {
@@ -3052,7 +3061,7 @@ function isUsefulBrowserFallback(scrape: DiscoveryCandidate["scrape"]): boolean 
 
 function isBotProtectionContent(scrape: Pick<NonNullable<DiscoveryCandidate["scrape"]>, "title" | "description" | "markdown">): boolean {
 	const content = `${scrape.title ?? ""}\n${scrape.description ?? ""}\n${scrape.markdown ?? ""}`;
-	return /radware captcha page|captcha\.perfdrive\.com|h-captcha|please solve this captcha|made us think that you are a bot|access denied|too many requests/i.test(content);
+	return BOT_PROTECTION_CONTENT_PATTERN.test(content);
 }
 
 function collectDiscoveryWarnings(candidates: DiscoveryCandidate[]): DiscoveryRunWarning[] {

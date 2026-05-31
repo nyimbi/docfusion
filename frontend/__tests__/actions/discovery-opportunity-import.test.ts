@@ -675,6 +675,14 @@ describe("discoverAndImportOpportunities", () => {
 					score: 10,
 					category: "general",
 				},
+				{
+					title: "tender - English-French translation",
+					url: "https://context.reverso.net/translation/english-french/tender",
+					content: "Translation examples for tender, procurement, and proposal deadline.",
+					engine: "bing",
+					score: 9,
+					category: "general",
+				},
 			],
 		});
 
@@ -687,6 +695,33 @@ describe("discoverAndImportOpportunities", () => {
 		expect(result.sourceDocumentsCreated).toBe(0);
 		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
 		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(result.warnings).toEqual(expect.arrayContaining([
+			expect.objectContaining({ type: "search_no_candidates" }),
+		]));
+	});
+
+	it("rejects anti-bot interstitial search hits before import", async () => {
+		searchSearxngMock.mockResolvedValue({
+			results: [
+				{
+					title: "Just a moment...",
+					url: "https://blocked.example/request-for-proposals",
+					content: "Checking your browser before accessing request for proposals with a submission deadline.",
+					engine: "google",
+					score: 12,
+					category: "general",
+				},
+			],
+		});
+
+		const result = await discoverAndImportOpportunities({
+			query: "\"request for proposals\" \"submission deadline\"",
+			scrapeTopResults: false,
+		});
+
+		expect(result.results).toMatchObject({ total: 0, imported: 0, failed: 0 });
+		expect(createOpportunityMock).not.toHaveBeenCalled();
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
 		expect(result.warnings).toEqual(expect.arrayContaining([
 			expect.objectContaining({ type: "search_no_candidates" }),
 		]));
