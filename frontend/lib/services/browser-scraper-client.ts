@@ -36,6 +36,14 @@ export async function scrapeWithBrowserService(
 	const signal = options.signal ? combineAbortSignals([options.signal, timeoutSignal]) : timeoutSignal;
 	const endpoints: BrowserScrapeEndpoint[] = [
 		{
+			path: "/scrape",
+			body: {
+				url,
+				formats: options.formats ?? ["markdown", "html"],
+				timeout: options.timeout,
+			},
+		},
+		{
 			path: "/v1/scrape",
 			body: {
 				url,
@@ -45,14 +53,6 @@ export async function scrapeWithBrowserService(
 					blockMedia: options.blockMedia,
 					formats: options.formats,
 				},
-			},
-		},
-		{
-			path: "/scrape",
-			body: {
-				url,
-				formats: options.formats ?? ["markdown", "html"],
-				timeout: options.timeout,
 			},
 		},
 	];

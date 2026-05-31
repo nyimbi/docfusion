@@ -16,6 +16,32 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - African Union Source Repair And Browser Fallback Alignment
+
+Status: code repaired, live-proved against the African Union source, and DB counts refreshed.
+
+Purpose: keep the acquisition lane focused on African and Global South tender coverage by removing wasted browser fallback calls against the wrong deployed endpoint and preserving African Union source identity plus all parser-provided bid attachments during discovery import.
+
+Live proof:
+- The Playwright browser service at `http://84.247.181.100:3003` returned a successful scrape from `/scrape` for `https://au.int/en/bids`; the legacy `/v1/scrape` endpoint returned `404`, matching the production failure/noise pattern seen in earlier fallback warnings.
+- `live_discovery_import_african_union_source_repair_20260601T` ran against `https://au.int/en/bids` with downloads disabled and completed in 7.4 seconds.
+- The live AU proof processed 5 records, imported 0, updated 5, skipped 0, failed 0, and reported healthy source status with 0 warnings.
+- African Union source preservation is now explicit: the import path keeps parser output as `source="african_union"` instead of collapsing it to generic `source-scrape`, while still using `sourcePlatform="African Union"`.
+- African Union `metadata.africanUnion.documentLinks` are now eligible discovery document links, so secondary bid attachments such as technical specifications are retained in `metadata.discovery.documentLinks` instead of only keeping the first bid PDF.
+- A bounded `africa_national` campaign run was started to exercise live collection and document handoff; it was intentionally terminated after an excessive slow tail, but before termination it had already downloaded Africa tender documents and demonstrated the lightweight-first extraction path: multiple PDFs used `local_pdftotext`, one weak PDF escalated to Docling only after `pdftotext` failed, and one DOCX used local DOCX parsing.
+- Current live totals after the run/proof: 6,279 total opportunities, 6,278 non-rejected opportunities, 1,959 RFP documents, and 13,803 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/services/browser-scraper-client.test.ts` passed: 2 tests.
+- `npm run test -- --run __tests__/scrapers/african-union-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed: 85 tests.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_discovery_import_african_union_source_repair_20260601T LIVE_DISCOVERY_IMPORT_SOURCE_URLS=https://au.int/en/bids LIVE_DISCOVERY_IMPORT_DOWNLOAD_DOCUMENTS=0 npx tsx scripts/run-live-discovery-import.ts` passed with 5 updated AU records and healthy source status.
+- Live DB checks confirmed the updated global counts and showed African Union opportunities now mostly stored under the specific `african_union` source.
+
+Remaining after this slice:
+- The slow `africa_national` campaign tail needs a separate timeout/bounding improvement before using it as a regular proof run.
+- Search fanout remains degraded externally; configured Africa/Global South source parsers continue to be the reliable acquisition path.
+- One legacy African Union row remains as `source-scrape`; it should be migrated or naturally refreshed if it still maps to a live AU source record.
+
 ### 2026-05-31 - Configured Global South Intake And Development Refresh
 
 Status: live-proved, persisted, lightweight-extraction only for intake, and refreshed development/regional queue confirmed empty.

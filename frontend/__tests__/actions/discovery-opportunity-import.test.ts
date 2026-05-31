@@ -2033,17 +2033,13 @@ describe("discoverAndImportOpportunities", () => {
 
 		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:3003/v1/scrape",
+			"http://84.247.181.100:3003/scrape",
 			expect.objectContaining({
 				method: "POST",
 				body: JSON.stringify({
 					url: "https://blocked.example.com/tender/records-platform",
-					options: {
-						timeout: 15000,
-						humanScroll: true,
-						blockMedia: true,
-						formats: ["markdown", "html", "links"],
-					},
+					formats: ["markdown", "html", "links"],
+					timeout: 15000,
 				}),
 			})
 		);
@@ -3146,6 +3142,7 @@ describe("discoverAndImportOpportunities", () => {
 					<div class="field field-name-field-file field-type-file field-label-hidden">
 						<div class="field-items"><div class="field-item even">
 							<span class="file"><a href="https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf" type="application/pdf">Bid Document</a></span>
+							<span class="file"><a href="https://au.int/sites/default/files/bids/46431-TECHNICAL_SPECIFICATIONS.pdf" type="application/pdf">Technical Specifications</a></span>
 						</div></div>
 					</div>
 				`,
@@ -3175,7 +3172,7 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Supply, Delivery, Installation and Training of an Enterprise AI/GPU-Enables High-Performance Computing Server",
-			source: "source-scrape",
+			source: "african_union",
 			sourceId: "african-union-supply-delivery-installat-7a4372edda",
 			sourcePlatform: "African Union",
 			sourceFile: "source:https://au.int/en/bids",
@@ -3189,11 +3186,22 @@ describe("discoverAndImportOpportunities", () => {
 					engine: "source_scrape",
 					sourceUrl: "https://au.int/en/bids",
 					scrapeMethod: "source_api",
+					documentLinks: expect.arrayContaining([
+						expect.objectContaining({
+							url: "https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf",
+						}),
+						expect.objectContaining({
+							label: "Technical Specifications",
+							url: "https://au.int/sites/default/files/bids/46431-TECHNICAL_SPECIFICATIONS.pdf",
+						}),
+					]),
 				}),
 				africanUnion: expect.objectContaining({
 					bidNumber: "ET-AUC-545691-GO-RFB",
 					documentLinks: [expect.objectContaining({
 						url: "https://au.int/sites/default/files/bids/46431-BIDDING_DOCUMENT_22_May_2026.pdf",
+					}), expect.objectContaining({
+						url: "https://au.int/sites/default/files/bids/46431-TECHNICAL_SPECIFICATIONS.pdf",
 					})],
 				}),
 			}),
@@ -3552,17 +3560,13 @@ describe("discoverAndImportOpportunities", () => {
 			failed: 0,
 		});
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:3003/v1/scrape",
+			"http://84.247.181.100:3003/scrape",
 			expect.objectContaining({
 				method: "POST",
 				body: JSON.stringify({
 					url: "https://buyer.example/tenders",
-					options: {
-						timeout: 15000,
-						humanScroll: true,
-						blockMedia: true,
-						formats: ["markdown", "html", "links"],
-					},
+					formats: ["markdown", "html", "links"],
+					timeout: 15000,
 				}),
 			})
 		);
@@ -4644,7 +4648,7 @@ describe("discoverAndImportOpportunities", () => {
 			failed: 0,
 		});
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:3003/v1/scrape",
+			"http://84.247.181.100:3003/scrape",
 			expect.objectContaining({ method: "POST" })
 		);
 		expect(scrapeWithCloakBrowserMock).toHaveBeenCalledWith(
