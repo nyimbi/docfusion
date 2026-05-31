@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Benin Public Procurement Direct PDF Drain
+
+Status: live-proved, persisted, scan-heavy, and current direct-document queue drained.
+
+Purpose: expand West African national procurement coverage by converting current Benin public procurement PDF notices into parsed RFP documents and requirements.
+
+Live proof:
+- `source_document_intake_benin_direct_probe_20260531T` dry-selected 23 current Benin direct PDF notices from `bi.marches-publics.bj`.
+- `source_document_intake_benin_direct_20260531T` selected 23 Benin documents, downloaded 23, completed 23 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- The Benin queue was scan-heavy: local `pdftotext` was attempted first and many PDFs then used Docling fallback. Docling showed intermittent socket/refused/timeout errors, but the bounded run still completed every parser job successfully.
+- `source_document_intake_benin_direct_remainder_probe_20260531T` selected 0 rows after the live drain.
+- Current Benin source-document counts after this drain: 192 discovered, 40 downloaded, and 1 failed source-document row, 40 RFP documents, and 193 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,735 RFP documents, and 12,084 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_benin_direct_20260531T ... npm run source-docs:intake` completed with 23 downloads, 23 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_benin_direct_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows after the current direct-document drain.
+- Live DB checks confirmed global totals plus Benin discovered/downloaded/failed source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Avoid immediate larger Benin PDF retries until Docling stability is healthier; the current direct-document queue is drained, but the remaining 192 discovered rows are non-selected or not current direct documents.
+- Continue African and Global South acquisition via lighter detail-page/HTML queues where possible, especially Rwanda UMUCYO, then revisit BOAD/TradeMark Africa/ECOWAS with noise filtering.
+
 ### 2026-05-31 - Togo DNCCP Direct Document Drain
 
 Status: live-proved, persisted, scan fallback verified, and current direct-document queue drained.
