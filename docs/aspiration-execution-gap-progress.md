@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Africa Regional Source-Document Intake Pass
+
+Status: live intake completed, lightweight extraction confirmed, one new RFP document parsed, and blockers isolated.
+
+Purpose: keep the acquisition effort focused on African and Global South tenders by draining a bounded set of current regional-source documents after the DGMarket marketplace lane was repaired. This pass targeted African/regional platforms with known discovered or failed source-document backlog rather than spending parser work on broad search noise.
+
+Live proof:
+- `source_document_intake_africa_regional_probe_20260601T` dry-selected 10 current candidates from African Development Bank, African Union, DNCCP Togo, and TradeMark/Africa SME sources.
+- `source_document_intake_africa_regional_live_20260601T` ran the selected batch with `SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS=ECREEE,African Development Bank,African Union,DNCCP Togo,ECOWAS,TradeMark Africa,BOAD,SADC`, `limit=10`, and `maxPerHost=3`.
+- The run selected 10 documents, downloaded 3, failed 7, skipped 0, completed 1 parse job, had 2 duplicate parses, 0 zero-requirement parses, 0 `not_queued` parses, and 0 timeouts.
+- The 3 downloaded documents were African Union PDFs and all used lightweight `local_pdftotext`; Docling was not invoked.
+- The parser extracted 3 requirements from `46287-Amendment_1.pdf`.
+- The 7 failures are now source-specific repair evidence: 3 African Development Bank pages still returned HTTP 403 after search/scrape recovery, 3 DNCCP Togo DOCX files timed out, and 1 TradeMark/Africa SME PDF returned HTTP 403 after recovery.
+- Current live totals after this pass are 6,281 total opportunities, 5,448 non-expired opportunities, 1,967 RFP documents, and 13,831 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_regional_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 10 selected and 10 skipped by dry-run design.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_regional_live_20260601T ... npm run source-docs:intake` passed with 3 downloads, 1 completed parse, 2 duplicate parses, and 3 extracted requirements.
+- Live DB checks confirmed totals and source-document status for African Development Bank, African Union, DNCCP Togo, and TradeMark Africa.
+
+Remaining after this slice:
+- African Development Bank document pages need a protected-host/browser recovery repair similar to DGMarket, because direct fetches are still returning 403.
+- DNCCP Togo document URLs need timeout or mirror handling before large DOCX backlog retries.
+- African Union source-document intake is healthy for direct PDFs and should continue in bounded batches.
+
 ### 2026-06-01 - DGMarket Legacy Source Identity Backfill
 
 Status: utility added, dry-run/apply/idempotency proved, live intake completed, and parsed requirements persisted.
