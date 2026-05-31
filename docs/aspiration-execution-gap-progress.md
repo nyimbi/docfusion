@@ -16,6 +16,28 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Mali DGMP Direct Intake Batch 4
+
+Status: live-proved, persisted, and high-throughput.
+
+Purpose: keep prioritizing African national tender/RFP coverage by draining another clean DGMP Mali AAO direct-document batch while it remains the most reliable high-yield backlog.
+
+Live proof:
+- `source_document_intake_mali_direct_batch4_probe_20260531T` dry-selected 40 DGMP Mali direct documents, all `AAO` solicitation files, mostly DOCX with three PDFs.
+- `source_document_intake_mali_direct_batch4_20260531T` selected 40 Mali documents, downloaded 40, completed 40 parse jobs, failed 0, timed out 0, had 0 duplicates, had 0 zero-requirement parses, and had 0 `not_queued` parses.
+- Most documents used local DOCX parsing; one scanned PDF used Docling after `pdftotext` could not extract usable text.
+- Two scanned PDFs hit Docling socket/connection failures after `pdftotext` could not extract usable text, but both still completed parser jobs and extracted 4 requirements each.
+- Current Mali source-document counts after this drain: 9 discovered and 154 downloaded source-document rows, 145 RFP documents, and 1,085 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,561 RFP documents, and 11,159 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_mali_direct_batch4_20260531T ... npm run source-docs:intake` completed with 40 downloads, 40 completed parses, and 0 failures/timeouts/duplicates.
+- Live DB checks confirmed global totals plus Mali downloaded/discovered document status, RFP document, completed-job, and requirement counts.
+
+Remaining after this slice:
+- Mali has only 9 discovered direct-document rows left; drain that small remainder if the probe remains clean, then shift to the next African/Global South national or regional queue.
+- Investigate the Docling service instability on `84.247.181.100:3600`, but keep lightweight local extraction first because it carried almost the entire Mali batch.
+
 ### 2026-05-31 - Mali DGMP Direct Intake Batch 3
 
 Status: live-proved, persisted, and Africa-priority.
