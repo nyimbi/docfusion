@@ -16,6 +16,31 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Togo DNCCP Direct Document Drain
+
+Status: live-proved, persisted, scan fallback verified, and current direct-document queue drained.
+
+Purpose: expand West African national procurement coverage and prove the lightweight-first extraction policy on a scan-heavy direct-document queue.
+
+Live proof:
+- `source_document_intake_ecreee_remaining_direct_probe_20260531T` first confirmed ECREEE had no remaining current direct-document rows selected by the intake filters.
+- `source_document_intake_togo_direct_probe_20260531T` dry-selected 19 current DNCCP Togo direct documents, including scanned PDFs, normal PDFs, and DOCX notices.
+- `source_document_intake_togo_direct_20260531T` selected 19 DNCCP Togo documents, downloaded 19, completed 19 parse jobs, failed 0, timed out 0, had 0 zero-requirement parses, 0 duplicate parses, and 0 `not_queued` parses.
+- Extraction followed the lightweight-first path: text PDFs used local `pdftotext`, DOCX files used local DOCX parsing, and scan-heavy PDFs used Docling only after local extraction could not produce usable text.
+- `source_document_intake_togo_direct_remainder_probe_20260531T` selected 0 rows after the live drain.
+- Current DNCCP Togo source-document counts after this drain: 11 discovered, 59 downloaded, and 4 failed source-document rows, 58 RFP documents, and 450 persisted requirements.
+- Current live totals after this drain: 6,082 opportunities, 1,712 RFP documents, and 11,955 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_togo_direct_20260531T ... npm run source-docs:intake` completed with 19 downloads, 19 completed parses, and 0 failures/timeouts/zero-requirement parses.
+- The live run verified all three extraction paths in one queue: local `pdftotext`, local DOCX parsing, and Docling fallback for scanned PDFs after local extraction failed.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_togo_direct_remainder_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows after the current direct-document drain.
+- Live DB checks confirmed global totals plus DNCCP Togo discovered/downloaded/failed source-document status, RFP document, and requirement counts.
+
+Remaining after this slice:
+- Refresh DNCCP Togo discovery later for newly published opportunities; the current direct-document intake queue is drained.
+- Continue prioritizing African and Global South coverage, especially Rwanda UMUCYO detail extraction, Ghana GHANEPS, Zambia ZPPA, Benin, BOAD, ECOWAS, and TradeMark Africa.
+
 ### 2026-05-31 - Tanzania NeST Current Queue Drain
 
 Status: live-proved, persisted, and current queue drained.
