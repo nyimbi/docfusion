@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Africa And Global South Detail Queue Exhausted
+
+Status: live-proved, persisted, selected detail queue drained to zero, and ready to shift to source-specific backlog repair.
+
+Purpose: finish the cleanly converting detail-page backlog after the first detail batch showed that local HTML extraction was high-yield across African and Global South sources.
+
+Live proof:
+- `source_document_intake_detail_backlog_remainder_live_20260531T` selected 26 remaining detail candidates, downloaded 26, completed 26 parse jobs, failed 0, had 0 duplicates, 0 zero-requirement parses, and 0 parse timeouts.
+- `source_document_intake_detail_backlog_final_live_20260531T` selected 12 final Islamic Development Bank detail candidates, downloaded 12, completed 12 parse jobs, failed 0, had 0 duplicates, 0 zero-requirement parses, and 0 parse timeouts.
+- `source_document_intake_detail_backlog_exhausted_probe_20260531T` selected 0 rows afterward, confirming the currently selectable detail queue is exhausted for ECREEE, Rwanda UMUCYO, World Bank, Islamic Development Bank, UN Procurement, UNICEF Supply Division, and TradeMark Africa.
+- These second and final detail drains added 38 RFP documents and 271 persisted requirements after the first detail batch.
+- The full detail conversion lane added 78 RFP documents and 537 persisted requirements, moving live totals from 1,852 RFP documents and 13,102 requirements to 1,930 RFP documents and 13,639 requirements.
+- Combined with the earlier Africa/Global South direct-document drain, today's focused Africa/Global South intake added 144 RFP documents and 1,167 persisted requirements.
+- Current live totals after this run: 6,265 total opportunities, 6,264 non-rejected opportunities, 1,930 RFP documents, and 13,639 persisted RFP requirements.
+- Current selected-source counts after this drain: ECREEE 63 downloaded/39 discovered rows with 62 RFP documents, Islamic Development Bank 36 downloaded/88 discovered rows with 36 RFP documents, World Bank 73 downloaded/3 discovered rows with 73 RFP documents, TradeMark Africa 9 downloaded/6 discovered rows with 9 RFP documents, Rwanda UMUCYO 52 downloaded/48 discovered rows with 52 RFP documents, UN Procurement 12 downloaded/44 discovered rows with 12 RFP documents, and UNICEF Supply Division 9 downloaded/12 discovered/19 failed rows with 10 RFP documents.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_detail_backlog_remainder_live_20260531T ... npm run source-docs:intake` completed with 26 selected, 26 downloaded, 26 completed parse jobs, and 0 failures.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_detail_backlog_final_live_20260531T ... npm run source-docs:intake` completed with 12 selected, 12 downloaded, 12 completed parse jobs, and 0 failures.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_detail_backlog_exhausted_probe_20260531T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` selected 0 rows.
+- Live DB checks confirmed global totals and per-source source-document/RFP-document counts.
+
+Remaining after this slice:
+- Do not repeat the same detail-drain command for this source set until new acquisition refreshes create new rows; the selected queue is empty.
+- Next material work should target source-specific backlog repair for Rwanda UMUCYO, UN Procurement, UNICEF Supply Division, and remaining discovered rows that are not selected by current intake rules.
+- GPN/general-notice rows provided corpus growth, but EOIs/SPNs/PQNs should be prioritized if we later add scoring or filters.
+
 ### 2026-05-31 - Africa And Global South Detail Backlog Conversion
 
 Status: live-proved, persisted, detail-page conversion validated across IsDB/ECREEE/TradeMark Africa/World Bank, and ready for follow-on drain.
