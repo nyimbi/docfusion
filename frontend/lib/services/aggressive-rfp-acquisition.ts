@@ -95,6 +95,7 @@ const SOURCE_URLS: Record<string, string> = {
 	tetraTechEuropeTenders: "https://intdev.tetratecheurope.com/work-with-us/tender-opportunities/",
 	tetraTechAustraliaPartner: "https://intdev.tetratech.com.au/partner-with-us/",
 	idbProcurementNotices: "https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+	idbProcurementDataset: "https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards",
 	idbCorporateProcurement: "https://www.iadb.org/en/how-we-can-work-together/procurement/corporate-procurement/corporate-procurement-opportunities",
 	pacificCommunityProcurement: "https://www.spc.int/procurement",
 };
@@ -220,6 +221,7 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 		label: "Regional and non-Africa RFP search fanout",
 		sourceUrls: [
 			SOURCE_URLS.idbProcurementNotices,
+			SOURCE_URLS.idbProcurementDataset,
 			SOURCE_URLS.idbCorporateProcurement,
 			SOURCE_URLS.pacificCommunityProcurement,
 			SOURCE_URLS.tetraTechEuropeTenders,
@@ -235,6 +237,7 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 			"\"call for proposals\" \"digital transformation\" deadline global",
 			"\"terms of reference\" \"consultancy\" \"deadline\" \"international\"",
 			"site:iadb.org procurement \"request for proposals\"",
+			"site:data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards procurement notices",
 			"site:spc.int/procurement \"request for proposal\"",
 			"site:intdev.tetratech.com.au/partner-with-us tender \"Closing Date and Time\"",
 			"site:intdev.tetratecheurope.com/work-with-us/tender-opportunities tender deadline",

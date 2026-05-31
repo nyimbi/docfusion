@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-05-31 - Add IDB Procurement Datastore Acquisition
+
+Status: implemented, focused-tested, typechecked, and live-proved.
+
+Purpose: expand regional development-bank RFP acquisition with the Inter-American Development Bank's official open-data procurement-notices datastore, avoiding the Cloudflare-blocked public procurement page while still collecting active notice titles, deadlines, sectors, countries, and direct document URLs.
+
+Changes in this slice:
+- Added an IDB parser that reads the official CKAN datastore API for project procurement notices, filters out contract-award rows, requires non-expired deadlines, and preserves `idbdocs.iadb.org/wsdocs/getdocument.aspx` document URLs as source documents.
+- Routed IDB project-procurement notice pages and the IDB open-data dataset page through the source-API parser instead of Firecrawl/browser scraping.
+- Registered the IDB open-data dataset URL in default scheduled discovery and the aggressive global/regional acquisition campaign.
+- Added a targeted IDB open-data query so Google/DuckDuckGo/Bing/Brave/SearXNG fanout can rediscover the official dataset when direct configured-source collection is unavailable.
+- Labeled imported records as `Inter-American Development Bank` and added IDB source tags/metadata for downstream intake.
+
+Live run:
+- `live_discovery_import_idb_procurement_25_20260531T` ran the IDB project-procurement notice source with source-API parsing enabled, search-result scraping disabled, downloads disabled, and queued parse mode.
+- Source health was healthy: 25 candidates, 24 created, 1 updated, 0 failed, and 0 warnings.
+- The run created 24 source-document rows and reused 1 existing source-document row for IDB document URLs. Downloads were intentionally disabled for this proof to verify acquisition volume without spending parse compute.
+
+Verification:
+- Focused parser/import/source-registry regression passed: `npx --cache /private/tmp/docfusion-npm-cache vitest run __tests__/scrapers/idb-parser.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/actions/discovery-opportunity-import.test.ts` with 82 tests.
+- Typecheck passed: `npx --cache /private/tmp/docfusion-npm-cache tsc --noEmit --pretty false`.
+- Live discovery proof artifact: `.omx/logs/platform-completion/live-discovery-import-live_discovery_import_idb_procurement_25_20260531T/live-discovery-import.json`.
+
+Remaining after this slice:
+- Run selected source-document intake for the highest-value IDB notices so the newly acquired IDB document URLs are downloaded and parsed before response generation.
+- Corporate/BEO procurement opportunities on the separate IDB corporate procurement page still need a dedicated source if we want that stream in addition to sovereign project procurement notices.
+
 ### 2026-05-31 - Add IRC Bid Opportunity Acquisition
 
 Status: implemented, focused-tested, typechecked, and live-proved.

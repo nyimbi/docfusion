@@ -977,20 +977,42 @@ describe("discoverAndImportOpportunities", () => {
 		}));
 	});
 
-	it("does not misroute IDB procurement pages through the ADB source parser", async () => {
+	it("routes IDB procurement pages through the official datastore parser", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 4, 31));
 		searchSearxngMock.mockResolvedValue({ results: [] });
-		firecrawlScrapeMock.mockResolvedValue({
+		fetchMock.mockResolvedValue(new Response(JSON.stringify({
 			success: true,
-			data: {
-				markdown: [
-					"[Request for Proposals: Digital Citizen Services](https://www.iadb.org/en/procurement/digital-citizen-services-rfp)",
-					"",
-					"Submission deadline: 15 June 2026",
-				].join("\n"),
-				links: ["https://www.iadb.org/en/procurement/digital-citizen-services-rfp"],
-				metadata: { title: "IDB Procurement Notices" },
+			result: {
+				records: [
+					{
+						noticeid: "37854",
+						type: "SPECIFIC",
+						countryname: "BOLIVIA",
+						projectnumber: "BO-L1198",
+						proyecturl: "https://www.iadb.org/en/project/BO-L1198",
+						loannumber: "4612/BL-BO-1",
+						noticetitle: "DISENO E IMPLEMENTACION DEL SISTEMA INTEGRADO DE GESTION CLINICA",
+						ezshareid: "EZIDB0000120-1657487614-11094",
+						documenturl: "https://idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=EZIDB0000120-1657487614-11094",
+						projectname: "Programa de Mejora en la Accesibilidad a los Servicios de Salud Materna y Neonatal en Bolivia",
+						publicationdate: "2026-05-28 08:00:00.000000000",
+						deadline: "2026-08-14",
+						sectorenglnm: "HEALTH",
+						category_nm: "Non-Consulting Services",
+						prcrmnt_mthd_engl_nm: "International Competitive Bidding",
+						process_id: "BO-L1198-P00285",
+						process_desc: "Implementation services for the clinical management system",
+					},
+					{
+						noticeid: "37853",
+						type: "AWARD",
+						noticetitle: "Contract award should not import",
+						deadline: "2026-08-14",
+					},
+				],
 			},
-		});
+		}), { status: 200, headers: { "content-type": "application/json" } }));
 		selectResultsQueue.push([]);
 
 		const result = await discoverAndImportOpportunities({
@@ -999,19 +1021,23 @@ describe("discoverAndImportOpportunities", () => {
 		});
 
 		expect(result.results).toMatchObject({ total: 1, imported: 1, failed: 0 });
-		expect(fetchMock).not.toHaveBeenCalled();
-		expect(firecrawlScrapeMock).toHaveBeenCalledWith(
-			"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+		expect(firecrawlScrapeMock).not.toHaveBeenCalled();
+		expect(fetchMock).toHaveBeenCalledWith(
+			expect.stringContaining("https://data.iadb.org/api/3/action/datastore_search"),
 			expect.any(Object)
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
-			title: "Request for Proposals: Digital Citizen Services",
-			source: "source-scrape",
-			sourcePlatform: "Configured Source Scrape",
-			portalUrl: "https://www.iadb.org/en/procurement/digital-citizen-services-rfp",
+			title: "DISENO E IMPLEMENTACION DEL SISTEMA INTEGRADO DE GESTION CLINICA",
+			source: "idb",
+			sourceId: "idb-37854",
+			sourcePlatform: "Inter-American Development Bank",
+			portalUrl: "https://www.iadb.org/en/project/BO-L1198",
+			documentUrl: "https://idbdocs.iadb.org/wsdocs/getdocument.aspx?docnum=EZIDB0000120-1657487614-11094",
 			sourceFile: "source:https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
-			opportunityType: "rfp",
+			opportunityType: "tender",
+			tags: expect.arrayContaining(["external-discovery", "source-scrape", "idb", "iadb", "development-bank", "source-documents"]),
 		}));
+		expect(result.sourceDocumentsCreated).toBe(1);
 	});
 
 	it("imports AIIB project procurement opportunities from the official data script", async () => {

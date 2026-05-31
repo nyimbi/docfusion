@@ -42,6 +42,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.enabel.be/grants/",
 				"https://winrock.org/contracts/",
 				"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+				"https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards",
 				"https://intdev.tetratech.com.au/partner-with-us/",
 			]));
 	});
@@ -142,12 +143,14 @@ describe("aggressive RFP acquisition campaigns", () => {
 
 		expect(regional.input.sourceUrls).toEqual(expect.arrayContaining([
 			"https://www.iadb.org/en/how-we-can-work-together/procurement/procurement-projects/procurement-notices",
+			"https://data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards",
 			"https://www.spc.int/procurement",
 			"https://intdev.tetratecheurope.com/work-with-us/tender-opportunities/",
 			"https://intdev.tetratech.com.au/partner-with-us/",
 		]));
 		expect(regional.input.queries).toEqual(expect.arrayContaining([
 			"site:iadb.org procurement \"request for proposals\"",
+			"site:data.iadb.org/dataset/project-procurement-bidding-notices-and-notification-of-contract-awards procurement notices",
 			"site:spc.int/procurement \"request for proposal\"",
 			"site:intdev.tetratech.com.au/partner-with-us tender \"Closing Date and Time\"",
 			"site:intdev.tetratecheurope.com/work-with-us/tender-opportunities tender deadline",
