@@ -146,6 +146,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://ecreee.org/wp-content/uploads/2026/02/Perfil-do-cargo-de-Motorista-CEDEAO-Cabo-Verde.pdf",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "E1685GXMPKRI Regret Letter - Regret letter for Supply, delivery and installation of canteen equipment at Kriel Power Station on a once-off basis..html",
+			sourceUrl: "https://www.etenders.gov.za/home/Download?blobName=5e9834a1-1686-4250-acb9-3086e2e69e13.pdf&downloadedFileName=Regret%20Letter%20Template%20for%20Unsuccessful%20Suppliers%20-%20Canteen%20Equipment.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Contract award notice - supply of laptops.pdf",
+			sourceUrl: "https://example.org/procurement/contract-award-notice-supply-laptops.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "30000022851_request-for-proposal_0.pdf",
 			sourceUrl: "https://www.iom.int/sites/g/files/tmzbdl2616/files/procurement/30000022851_request-for-proposal_0.pdf",
 		})).toBe(true);

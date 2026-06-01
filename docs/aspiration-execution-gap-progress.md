@@ -16,6 +16,30 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - South Africa eTenders Filtered Intake
+
+Status: selector repaired, focused tests passed, and filtered South Africa eTenders intake completed.
+
+Purpose: keep African source-document intake broad without wasting parser capacity on non-solicitation artifacts. The Africa national refresh created 4 South Africa eTenders source-document rows, but the dry probe showed one was a regret/unsuccessful-supplier letter. The intake selector now excludes regret, unsuccessful supplier, award notice, contract award, and tender-cancellation artifacts before live parsing.
+
+Live proof:
+- `source_document_intake_south_africa_filtered_probe_20260601T` dry-selected 3 South Africa eTenders documents after the selector repair, down from the previous 4-row dry probe that included the regret-letter artifact.
+- `source_document_intake_south_africa_filtered_live_20260601T` selected 3 documents, downloaded 3, failed 0, completed 3 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
+- Two selected files used lightweight `local_pdftotext`; one PDF attempted Docling only after `pdftotext` could not extract usable text. The Docling call failed remotely, but the pipeline still completed parsing and extracted requirements.
+- The parser extracted 40 requirements across the 3 South Africa eTenders documents.
+- Current live totals after this pass are 6,327 total opportunities, 5,493 non-expired opportunities, 2,016 RFP documents, and 14,040 persisted RFP requirements.
+- South Africa eTenders source-document status is now 182 downloaded, 3 failed, and 1 discovered; the remaining discovered row is the regret-letter artifact intentionally filtered out of routine intake.
+
+Verification:
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed: 17 tests.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_south_africa_filtered_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 3 selected and 3 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_south_africa_filtered_live_20260601T ... npm run source-docs:intake` passed with 3 downloads, 3 completed parses, and 40 extracted requirements.
+- Live DB checks confirmed updated RFP document, requirement, and South Africa eTenders source-document totals.
+
+Remaining after this slice:
+- Zambia ZPPA was the only failed source in the Africa national refresh and remains the next Africa-source repair candidate.
+- The South Africa eTenders regret-letter row remains discovered by design; routine intake should continue to exclude it.
+
 ### 2026-06-01 - Africa National Refresh And NeST Tanzania Intake
 
 Status: source-backed Africa national refresh completed, new Tanzania/South Africa opportunities imported, and a first NeST Tanzania intake batch parsed.
