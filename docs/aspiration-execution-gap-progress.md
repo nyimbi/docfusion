@@ -16,6 +16,33 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Africa And Global South Refresh Plus IRC/AFDB Intake
+
+Status: source refresh completed, fresh documents parsed, and live totals increased.
+
+Purpose: expand African and Global South RFP acquisition with source-backed portals plus search fanout instead of spending parser capacity on stale procurement plans, result notices, and duplicate guides. The run used the SearXNG search client with Google, DuckDuckGo, Bing, and Brave routing; when `search.lindela.io` degraded, the client attempted searx.space fallback instances and direct search fallback.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_global_south_refresh_20260601T` completed 17 campaign chunks across Africa national, development bank, donor/NGO, global regional, and Global South marketplace campaigns.
+- The refresh processed 669 records, imported 15 new opportunities, updated 654 existing opportunities, created 14 new source-document rows, downloaded 0 during refresh by design, and recorded 359 search/source warnings.
+- New source documents from the refresh included 10 International Rescue Committee documents, 3 DGMarket tender pages, and 1 African Development Bank Kenya REOI PDF.
+- The search fanout surfaced repeated SearXNG degradation and public fallback rate limits, but recovered some result sets through direct DuckDuckGo HTML fallback.
+- `source_document_intake_africa_global_south_refresh_probe_20260601T` dry-selected 11 fresh IRC/AFDB documents for parsing; DGMarket HTML pages remained protected from routine intake.
+- `source_document_intake_africa_global_south_refresh_live_20260601T` selected 11 documents, downloaded 11, failed 0, completed 10 parse jobs, had 1 `not_queued` Microsoft Forms HTML source, 0 zero-requirement parses, 0 duplicate parses, and 0 timeouts.
+- Successful extraction used local lightweight paths only: `local_pdftotext`, `local_docx_parse`, `local_doc_binary_text`, ZIP inner-document extraction, and AFDB 403 recovery to `local_html_text`; Docling was not required.
+- The intake added 10 RFP documents and 95 requirements: 9 IRC documents with 90 requirements and 1 AFDB document with 5 requirements.
+- Current live totals after this pass are 6,342 opportunities, 5,506 non-expired/unknown-deadline opportunities, 2,026 RFP documents, and 14,135 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_refresh_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 11 selected and 11 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_global_south_refresh_live_20260601T ... npm run source-docs:intake` passed with 11 downloads, 10 completed parses, and 95 extracted requirements.
+- Live DB checks confirmed updated global totals plus IRC, AFDB, and DGMarket source-document states.
+
+Remaining after this slice:
+- DGMarket still has protected discovered HTML pages and failed rows; keep it out of routine intake until protected-host/browser recovery is improved.
+- AFDB direct PDFs can still return 403; the current recovery path worked for this REOI through HTML text, but broader AFDB protected-host handling remains a high-value repair.
+- Search fanout is recovering, but `search.lindela.io` and public searx.space fallbacks are rate-limited/degraded often enough that source-backed acquisition should stay the primary collection lane.
+
 ### 2026-06-01 - Zambia ZPPA Maintenance Detection
 
 Status: diagnosed, parser repaired, and targeted tests passed.
