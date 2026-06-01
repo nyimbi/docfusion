@@ -16,6 +16,37 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - CloakBrowser Local Launch Recovery For AFDB
+
+Status: local CloakBrowser launch path implemented, tested, and used in a bounded African Development Bank protected retry.
+
+Purpose: turn the documented protected-browser gap into an executable recovery path for African and Global South tender collection. AFDB direct PDFs were still returning HTTP 403 after SearXNG/direct-search/Firecrawl/browser fallback on some rows; the intake code can now use a local CloakBrowser launch when no private CDP endpoint is configured.
+
+What changed:
+- Added `CLOAKBROWSER_LOCAL_LAUNCH=1` support to the CloakBrowser scraper client while preserving the existing private CDP endpoint path.
+- Added optional CloakBrowser runtime packages to the frontend so protected recovery can launch in-process when explicitly enabled.
+- Updated configured-source discovery to consider CloakBrowser available when either a CDP endpoint or local launch is configured.
+- Documented `CLOAKBROWSER_LOCAL_LAUNCH`, `CLOAKBROWSER_CACHE_DIR`, and `CLOAKBROWSER_EXTRA_ARGS` in the environment template and opportunity-discovery runbook.
+
+Live proof:
+- Installed the CloakBrowser Chromium binary into `/private/tmp/docfusion-cloakbrowser-cache` for this proof run.
+- Local CloakBrowser launch smoke succeeded outside sandbox restrictions against `https://example.com` with title `Example Domain`, HTTP 200, and 129 characters of extracted page text.
+- `source_document_intake_afdb_cloakbrowser_local_retry_20260601T` selected 6 uncovered AFDB failed rows, downloaded/recovered 4, failed 2, completed 1 parse job, extracted 4 requirements, and had 3 low-text `not_queued` HTML recoveries.
+- The completed parse added one Rwanda AFDB RFP document for `spn_bridep.pdf` with 4 extracted requirements.
+- Current live totals after this pass are 6,342 opportunities, 2,036 RFP documents, and 14,173 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/services/cloakbrowser-scraper-client.test.ts __tests__/scripts/run-source-document-intake.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts` passed with 29 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `CLOAKBROWSER_LOCAL_LAUNCH=1 ... npx tsx -e ... scrapeWithCloakBrowser("https://example.com")` passed outside sandbox restrictions.
+- `CLOAKBROWSER_LOCAL_LAUNCH=1 ... SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_afdb_cloakbrowser_local_retry_20260601T ... npm run source-docs:intake` completed with 4/6 recovered/downloaded and 1 completed parse.
+- Live DB checks confirmed updated global totals and AFDB source-document status of 30 downloaded and 17 failed current rows.
+
+Remaining after this slice:
+- Local CloakBrowser launch needs a persistent writable `CLOAKBROWSER_CACHE_DIR` on app hosts; the macOS sandbox cannot launch the browser without elevated execution.
+- Some AFDB direct PDF rows still recover only low-text HTML or remain hard 403 failures, so future retries should stay bounded and focused on rows without existing RFP documents.
+- DGMarket and UNICEF protected queues still need targeted CloakBrowser recovery runs after the AFDB path has proven stable.
+
 ### 2026-06-01 - CloakBrowser Recovery Configuration Gap
 
 Status: live gap confirmed and operator configuration documented.

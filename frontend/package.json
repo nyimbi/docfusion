@@ -159,5 +159,11 @@
     "fast-uri": "3.1.2",
     "protobufjs": "7.5.9",
     "ws": "8.20.1"
+  },
+  "optionalDependencies": {
+    "cloakbrowser": "^0.3.31",
+    "mmdb-lib": "^3.0.2",
+    "puppeteer-core": "^24.43.1",
+    "socks-proxy-agent": "^10.0.0"
   }
 }

@@ -14,7 +14,7 @@ import {
 } from "@/lib/scrapers/parsers/world-bank";
 import type { OpportunityData } from "@/lib/scrapers/deduplicator";
 import { scrapeWithBrowserService } from "@/lib/services/browser-scraper-client";
-import { getCloakBrowserEndpoint, scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
+import { isCloakBrowserScraperConfigured, scrapeWithCloakBrowser } from "@/lib/services/cloakbrowser-scraper-client";
 import { fetchKenyaPpipOpportunities, isKenyaPpipUrl } from "@/lib/services/kenya-ppip-client";
 import { fetchUngmOpportunities, isUngmUrl } from "@/lib/services/ungm-client";
 import { downloadDocument, type DownloadParseMode, type DownloadParseStatus } from "@/lib/services/rfp-document-service";
@@ -2537,7 +2537,7 @@ async function maybeParseConfiguredSourceWithCloakBrowserFallback(
 	fallbackReason: string,
 	previousFailureMessage?: string
 ): Promise<Omit<ConfiguredSourceParseResult, "parser"> | null> {
-	if (!getCloakBrowserEndpoint()) return null;
+	if (!isCloakBrowserScraperConfigured()) return null;
 
 	const cloakResult = await scrapeWithCloakBrowser(sourceUrl, {
 		timeout: 60000,

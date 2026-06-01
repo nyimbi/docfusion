@@ -27,15 +27,23 @@ export function getCloakBrowserEndpoint(): string | undefined {
 	return endpoint?.trim() || undefined;
 }
 
+export function isLocalCloakBrowserLaunchEnabled(): boolean {
+	return process.env.CLOAKBROWSER_LOCAL_LAUNCH === "1";
+}
+
+export function isCloakBrowserScraperConfigured(): boolean {
+	return Boolean(getCloakBrowserEndpoint()) || isLocalCloakBrowserLaunchEnabled();
+}
+
 export async function scrapeWithCloakBrowser(
 	url: string,
 	options: CloakBrowserScrapeOptions = {}
 ): Promise<CloakBrowserScrapeResult> {
 	const endpoint = getCloakBrowserEndpoint();
-	if (!endpoint) {
+	if (!endpoint && !isLocalCloakBrowserLaunchEnabled()) {
 		return {
 			success: false,
-			error: "CloakBrowser endpoint is not configured",
+			error: "CloakBrowser endpoint is not configured and local launch is disabled",
 		};
 	}
 
@@ -43,7 +51,9 @@ export async function scrapeWithCloakBrowser(
 	let context: BrowserContext | undefined;
 	try {
 		const timeout = options.timeout ?? 60000;
-		browser = await chromium.connectOverCDP(endpoint, { timeout });
+		browser = endpoint
+			? await chromium.connectOverCDP(endpoint, { timeout })
+			: await launchLocalCloakBrowser(timeout);
 		context = browser.contexts()[0] ?? await browser.newContext();
 		if (options.blockMedia) {
 			await context.route("**/*", async (route) => {
@@ -99,4 +109,39 @@ export async function scrapeWithCloakBrowser(
 		await context?.unroute("**/*").catch(() => undefined);
 		await browser?.close().catch(() => undefined);
 	}
+}
+
+async function launchLocalCloakBrowser(timeout: number): Promise<Browser> {
+	try {
+		const { launch } = await import("cloakbrowser");
+		return await launch({
+			headless: true,
+			humanize: true,
+			args: localCloakBrowserArgs(),
+			launchOptions: { timeout },
+		});
+	} catch (error) {
+		throw new Error(
+			`CloakBrowser local launch failed: ${error instanceof Error ? error.message : String(error)}`
+		);
+	}
+}
+
+function localCloakBrowserArgs(): string[] {
+	const args = parseExtraArgs(process.env.CLOAKBROWSER_EXTRA_ARGS);
+	if (
+		process.env.CLOAKBROWSER_NO_SANDBOX === "1"
+		|| (process.platform === "linux" && process.getuid?.() === 0)
+	) {
+		args.push("--no-sandbox", "--disable-setuid-sandbox");
+	}
+	return [...new Set(args)];
+}
+
+function parseExtraArgs(raw: string | undefined): string[] {
+	if (!raw?.trim()) return [];
+	return raw
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
 }
