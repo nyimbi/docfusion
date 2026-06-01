@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - GTAI/KfW Source-Document Intake
+
+Status: targeted intake completed, all selected GTAI/KfW detail pages parsed, and requirements persisted.
+
+Purpose: follow the GTAI/KfW source-identity repair with response-readiness work on Global South development-bank tenders. With the rows now targetable as `GTAI/KfW`, source-document intake can convert KfW/GTAI tender details into persisted RFP documents and extracted requirements.
+
+Live proof:
+- `source_document_intake_gtai_kfw_probe_20260601T` dry-selected 2 current GTAI/KfW detail pages and skipped both by dry-run design.
+- `source_document_intake_gtai_kfw_live_20260601T` selected 2 documents, downloaded 2, failed 0, skipped 0, completed 2 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
+- Both detail pages used lightweight `local_html_text`; Docling was not invoked.
+- The parser extracted 6 requirements across the Bangladesh medium-voltage substations consultant tender and the Niger climate-resilient agriculture consultant tender.
+- Current live totals after this pass are 6,283 total opportunities, 5,449 non-expired opportunities, 1,973 RFP documents, and 13,852 persisted RFP requirements.
+- GTAI/KfW source-document status is now 4 downloaded and 0 remaining discovered rows.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_gtai_kfw_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 2 selected and 2 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_gtai_kfw_live_20260601T ... npm run source-docs:intake` passed with 2 downloads, 2 completed parses, and 6 extracted requirements.
+- Live DB checks confirmed updated RFP document and requirement totals plus GTAI/KfW source-document status.
+
+Remaining after this slice:
+- GTAI/KfW has no remaining discovered source documents; future KfW/GTAI coverage depends on continued source refreshes.
+- Larger material queues remain in DGMarket, UN Procurement, Enabel, IOM, and regional African sources where source-specific blockers or prioritization need follow-up.
+
 ### 2026-06-01 - Donor NGO Source Refresh And GTAI/KfW Identity Repair
 
 Status: source refresh completed, identity repair implemented, tests passed, backfill applied, and live source refresh proved.
