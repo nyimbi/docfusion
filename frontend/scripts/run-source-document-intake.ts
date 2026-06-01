@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, asc, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import * as schema from "@/lib/db/schema";
-import { opportunityDocuments, rfpParsingJobs } from "@/lib/db/schema";
+import { opportunityDocuments, rfpDocuments, rfpParsingJobs } from "@/lib/db/schema";
 import { forceLocalEnv } from "./env-utils";
 import {
 	appendEvidenceRecords,
@@ -85,6 +85,7 @@ type SourceDocumentIntakeProof = {
 		retryProtectedHosts: boolean;
 		sourcePlatforms: string[];
 		directDocumentsOnly: boolean;
+		skipOpportunitiesWithRfp: boolean;
 	};
 	selected: Array<{
 		id: string;
@@ -138,6 +139,7 @@ async function main() {
 			retryProtectedHosts: process.env.SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS === "1",
 			sourcePlatforms: parseCsvList(process.env.SOURCE_DOCUMENT_INTAKE_SOURCE_PLATFORMS),
 			directDocumentsOnly: process.env.SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY === "1",
+			skipOpportunitiesWithRfp: process.env.SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP === "1",
 		},
 		selected: [],
 		results: [],
@@ -249,6 +251,13 @@ async function selectDiscoveredDocuments(
 	}
 	if (config.directDocumentsOnly) {
 		conditions.push(directDocumentCondition);
+	}
+	if (config.skipOpportunitiesWithRfp) {
+		conditions.push(sql`NOT EXISTS (
+			SELECT 1
+			FROM ${rfpDocuments}
+			WHERE ${rfpDocuments.opportunityId} = ${opportunityDocuments.opportunityId}
+		)`);
 	}
 
 	const directDocumentRank = sql<number>`case
@@ -584,6 +593,7 @@ async function writeArtifacts(
 			`parse_zero_requirements:${proof.summary.parseZeroRequirements}`,
 			`parse_failed:${proof.summary.parseFailed}`,
 			`parse_timed_out:${proof.summary.parseTimedOut}`,
+			`skip_existing_rfp:${proof.config.skipOpportunitiesWithRfp ? "yes" : "no"}`,
 		].join(" ");
 
 	await appendEvidenceRecords(

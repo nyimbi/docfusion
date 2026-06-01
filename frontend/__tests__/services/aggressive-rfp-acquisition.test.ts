@@ -150,11 +150,11 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"africa_national__sources_7",
 		]);
 		expect(runs[0].campaign.label).toBe("African national procurement portals (sources 1/7)");
-		expect(runs.every((run) => run.input.sourceUrls.length <= 4)).toBe(true);
-		expect(runs.flatMap((run) => run.input.sourceUrls)).toEqual(
+		expect(runs.every((run) => (run.input.sourceUrls ?? []).length <= 4)).toBe(true);
+		expect(runs.flatMap((run) => run.input.sourceUrls ?? [])).toEqual(
 			DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.find((campaign) => campaign.id === "africa_national")?.sourceUrls
 		);
-		expect(runs.every((run) => run.input.queries.length === 0)).toBe(true);
+		expect(runs.every((run) => (run.input.queries ?? []).length === 0)).toBe(true);
 		expect(runs.every((run) => run.input.scrapeTopResults === false)).toBe(true);
 		expect(runs.every((run) => run.input.scrapeLimit === 0)).toBe(true);
 	});

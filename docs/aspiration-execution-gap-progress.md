@@ -16,6 +16,34 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - AFDB Uncovered Retry Selector
+
+Status: selector improved, targeted tests passed, and uncovered AFDB rows retried.
+
+Purpose: keep AFDB failed-row recovery focused on net-new RFP coverage. The failed queue contained a mix of uncovered African opportunities and direct-PDF duplicates for opportunities already recovered through AFDB HTML pages; retrying both wastes crawl/search capacity and inflates duplicate parse risk.
+
+What changed:
+- Added opt-in source-document intake flag `SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP=1`.
+- When enabled, intake excludes source-document candidates whose opportunity already has an RFP document.
+- The flag is recorded in source-document intake proof notes as `skip_existing_rfp`.
+
+Live proof:
+- `source_document_intake_afdb_uncovered_retry_probe_20260601T` dry-selected 8 failed AFDB rows, all for opportunities without existing RFP documents.
+- `source_document_intake_afdb_uncovered_retry_live_20260601T` selected 8, downloaded 2, failed 6, completed 2 parse jobs, and had 0 zero-requirement parses, 0 duplicates, 0 `not_queued`, and 0 timeouts.
+- The two recovered rows added Burundi and Ethiopia AFDB RFP documents with 13 requirements.
+- Direct AFDB/MFW4A PDF rows still frequently failed with HTTP 403 when search fallback could not locate a recoverable HTML or alternate source.
+- Current live totals after this pass are 6,342 opportunities, 5,506 non-expired/unknown-deadline opportunities, 2,035 RFP documents, and 14,169 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts` passed with 17 tests.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_afdb_uncovered_retry_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP=1 SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 8 selected and 8 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_afdb_uncovered_retry_live_20260601T ... SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP=1 npm run source-docs:intake` completed with 2 successful downloads/parses and 6 explicit 403 failures.
+- Live DB checks confirmed updated global totals plus 1 Burundi and 1 Ethiopia AFDB RFP document from this run.
+
+Remaining after this slice:
+- Configure or integrate a stronger protected-browser path, potentially CloakBrowser, because AFDB direct PDFs still hard-fail after SearXNG/direct-search/Firecrawl/browser fallbacks on some rows.
+- Continue AFDB retries with the new skip flag so remaining runs target only uncovered opportunities.
+
 ### 2026-06-01 - AFDB 403 Recovery Drain
 
 Status: failed AFDB source-document rows retried, recovered, and parsed.
