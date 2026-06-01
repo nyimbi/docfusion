@@ -16,6 +16,26 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - CloakBrowser Recovery Configuration Gap
+
+Status: live gap confirmed and operator configuration documented.
+
+Purpose: make the protected-browser recovery gap explicit after AFDB failed-row retry showed Firecrawl timeouts, browser-service failures, and `CloakBrowser endpoint is not configured` in the recovery ladder.
+
+What changed:
+- Added CloakBrowser CDP endpoint variables to `frontend/.env.example`.
+- Updated the opportunity-discovery runbook to document `CLOAKBROWSER_CDP_URL`, `CLOAKBROWSER_WS_ENDPOINT`, and `CLOAKBROWSER_REMOTE_DEBUGGING_URL`.
+- Documented `SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP=1` for targeted failed-row recovery runs that should avoid duplicate document variants.
+
+Verification:
+- Live AFDB retry `source_document_intake_afdb_uncovered_retry_live_20260601T` exercised the recovery ladder and logged Firecrawl/browser/CloakBrowser behavior.
+- Remote inspection of `84.247.181.100` confirmed the host is reachable, but no Docker binary was reported for a quick CloakBrowser container launch.
+- `npm run test -- --run __tests__/scripts/run-source-document-intake.test.ts __tests__/services/aggressive-rfp-acquisition.test.ts` passed with 26 tests.
+- `npx tsc --noEmit --pretty false` passed.
+
+Remaining after this slice:
+- A real CloakBrowser service still needs to be installed or exposed as a private CDP endpoint before the existing code path can improve AFDB/DGMarket/UNICEF protected recovery.
+
 ### 2026-06-01 - AFDB Uncovered Retry Selector
 
 Status: selector improved, targeted tests passed, and uncovered AFDB rows retried.

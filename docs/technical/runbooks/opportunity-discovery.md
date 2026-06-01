@@ -20,6 +20,11 @@ DISCOVERY_IMPORT_USER_ID="app-user-id-that-owns-discovery-presets"
 SEARXNG_URL="https://search.lindela.io"
 FIRECRAWL_URL="http://84.247.181.100:3002"
 STEALTH_SCRAPER_URL="http://84.247.181.100:3003"
+# Optional last-resort protected-browser CDP endpoint.
+# Use one of the following only when a private CloakBrowser service is running:
+# CLOAKBROWSER_CDP_URL="ws://127.0.0.1:9222/devtools/browser/<id>"
+# CLOAKBROWSER_WS_ENDPOINT="ws://127.0.0.1:9222/devtools/browser/<id>"
+# CLOAKBROWSER_REMOTE_DEBUGGING_URL="ws://127.0.0.1:9222/devtools/browser/<id>"
 ```
 
 `DISCOVERY_IMPORT_USER_ID` is the assignee for API-key and scheduled discovery runs. Scheduled preset runs only load presets owned by this user, so create or save live discovery presets while signed in as that account, or set the variable to the operator account that owns the presets.
@@ -28,7 +33,7 @@ When `SEARXNG_URL` is unavailable or reports engine degradation, the frontend im
 
 Configured source scraping follows pagination links before applying each source's candidate cap. `CONFIGURED_SOURCE_MAX_PAGES` controls the maximum pages per source and defaults to 3, capped at 5. Keep it low for scheduled runs because every extra source page can add Firecrawl/browser work before source-document intake begins.
 
-Source-document recovery uses progressively heavier acquisition paths when a direct public document URL fails: SearXNG candidate discovery, Firecrawl, the browser scraper, CloakBrowser when configured, and finally a public reader fallback for public landing pages that block server-side fetches. The reader fallback is controlled by `SOURCE_DOCUMENT_READER_FALLBACK_PREFIX`, defaulting to the current `r.jina.ai` reader prefix, and can be disabled with `SOURCE_DOCUMENT_READER_FALLBACKS=0`. Reader-recovered pages are stored as HTML source surrogates with `reader_landing_page_html` provenance so operators can distinguish them from direct PDF downloads. Direct source downloads keep public-host and DNS pinning checks even when a known procurement host has an incomplete TLS chain; `tenders.go.ke` and `nrf.ac.za` are allowed narrowly by default, and additional hosts can be added with comma-separated `SOURCE_DOCUMENT_INVALID_TLS_HOSTS` values only after live failure evidence.
+Source-document recovery uses progressively heavier acquisition paths when a direct public document URL fails: SearXNG candidate discovery, Firecrawl, the browser scraper, CloakBrowser when configured, and finally a public reader fallback for public landing pages that block server-side fetches. CloakBrowser is disabled unless one of `CLOAKBROWSER_CDP_URL`, `CLOAKBROWSER_WS_ENDPOINT`, or `CLOAKBROWSER_REMOTE_DEBUGGING_URL` is set to a live CDP WebSocket endpoint; keep that endpoint private because it can control a real browser session. The reader fallback is controlled by `SOURCE_DOCUMENT_READER_FALLBACK_PREFIX`, defaulting to the current `r.jina.ai` reader prefix, and can be disabled with `SOURCE_DOCUMENT_READER_FALLBACKS=0`. Reader-recovered pages are stored as HTML source surrogates with `reader_landing_page_html` provenance so operators can distinguish them from direct PDF downloads. Direct source downloads keep public-host and DNS pinning checks even when a known procurement host has an incomplete TLS chain; `tenders.go.ke` and `nrf.ac.za` are allowed narrowly by default, and additional hosts can be added with comma-separated `SOURCE_DOCUMENT_INVALID_TLS_HOSTS` values only after live failure evidence.
 
 ## Manual Live Discovery
 
@@ -43,6 +48,8 @@ If the request body omits both `query`/`queries` and `sourceUrls`, the API runs 
 Set `SOURCE_DOCUMENT_INTAKE_DIRECT_DOCUMENTS_ONLY=1` for a high-throughput drain of direct PDF/DOC/DOCX/XLS/ZIP rows and trusted national endpoints. This is useful after broad discovery when generic HTML detail pages from the same source platform would otherwise outrank direct documents and consume the batch. The trusted endpoint set includes Ghana GHANEPS and Zambia ZPPA notice downloads, Rwanda UMUCYO per-tender detail pages, and NeST Tanzania OCDS release API URLs. NeST releases are fetched as JSON and stored as parser-ready HTML surrogates with local HTML text extraction, so they should stay in direct-only national-source drains rather than browser/Docling recovery batches.
 
 Retry mode is still enabled by default for rows under `SOURCE_DOCUMENT_INTAKE_MAX_ATTEMPTS`, but known protected hosts that already returned 403 are suppressed from normal retries. Set `SOURCE_DOCUMENT_INTAKE_RETRY_PROTECTED_HOSTS=1` only for a targeted protected-portal recovery run; routine intake should leave it unset so recoverable AFDB/EBRD/archive failures can be retried without DGMarket crowding out the batch.
+
+Set `SOURCE_DOCUMENT_INTAKE_SKIP_OPPORTUNITIES_WITH_RFP=1` for targeted failed-row recovery when a source has multiple document rows per opportunity. This keeps batches focused on opportunities that do not already have an RFP document, which is especially useful for AFDB protected rows where the HTML detail page may already have been recovered while a direct PDF variant still fails with 403.
 
 For API-key manual execution:
 
