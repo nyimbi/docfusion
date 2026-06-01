@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - AFDB 403 Recovery Drain
+
+Status: failed AFDB source-document rows retried, recovered, and parsed.
+
+Purpose: convert African Development Bank failed 403 rows into usable RFP/EOI documents after the prior IRC/AFDB refresh proved that direct AFDB PDF fetches can sometimes recover through HTML/source search fallback.
+
+Live proof:
+- `source_document_intake_afdb_failed_recovery_probe_20260601T` dry-selected 8 failed AFDB source-document rows across Kenya, Ghana, Multinational, DRC, Côte d’Ivoire, Guinea, and Mali.
+- `source_document_intake_afdb_failed_recovery_live_20260601T` selected 8, downloaded 8, failed 0, completed 7 parse jobs, had 1 `not_queued` low-text/duplicate Kenya HTML case, 0 zero-requirement parses, 0 duplicate parses, and 0 timeouts.
+- Successful rows recovered from 403 through search/scrape fallback and local `local_html_text`, not Docling.
+- The retry added 7 AFDB RFP documents and 21 requirements: Ghana 2 documents/5 requirements, DRC 1/8, Guinea 1/4, Multinational 1/2, Côte d’Ivoire 1/1, and Mali 1/1.
+- AFDB source-document status improved to 24 downloaded and 23 failed rows.
+- Current live totals after this pass are 6,342 opportunities, 5,506 non-expired/unknown-deadline opportunities, 2,033 RFP documents, and 14,156 persisted RFP requirements.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_afdb_failed_recovery_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 8 selected and 8 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_afdb_failed_recovery_live_20260601T ... npm run source-docs:intake` passed with 8 downloads, 7 completed parses, and 21 extracted requirements.
+- Live DB checks confirmed updated global totals, AFDB document status, and country-level AFDB RFP/requirement additions.
+
+Remaining after this slice:
+- AFDB still has 23 failed source-document rows; the failed queue is now demonstrably recoverable in bounded batches, but the direct 403 behavior should still be fixed with a protected-host/browser strategy.
+- The Kenya duplicate/low-text HTML case should be filtered or de-duplicated more explicitly before larger AFDB retry batches.
+
 ### 2026-06-01 - Africa And Global South Refresh Plus IRC/AFDB Intake
 
 Status: source refresh completed, fresh documents parsed, and live totals increased.
