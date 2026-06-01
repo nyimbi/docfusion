@@ -16,6 +16,27 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Zambia ZPPA Maintenance Detection
+
+Status: diagnosed, parser repaired, and targeted tests passed.
+
+Purpose: keep African national source coverage reliable by making Zambia ZPPA outages visible. The current ZPPA e-GP endpoint returned HTTP 200 with a maintenance page, which previously looked like an empty current-tender list and hid the source outage from recovery tracking.
+
+What changed:
+- Added ZPPA maintenance-page detection for fetched HTML, provided HTML, and provided markdown in the Zambia ZPPA parser.
+- Updated HTML cleanup to strip `style` blocks before generating source-outage text.
+- Added a parser regression proving e-GP maintenance pages return zero opportunities with an explicit outage error instead of a silent empty result.
+
+Verification:
+- `npm run test -- --run __tests__/scrapers/zppa-zambia-parser.test.ts __tests__/scripts/run-source-document-intake.test.ts` passed with 20 tests.
+- Live parser probe against `https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6` returned 0 opportunities and `ZPPA current tenders unavailable: ... temporary unavailable due to maintenance ...`.
+- Earlier focused intake probe `source_document_intake_zambia_zppa_probe_20260601T` selected 0 rows because the remaining 20 discovered ZPPA source documents were expired, not because the intake selector was broken.
+- Bounded Africa national source probe `aggressive_rfp_acquisition_zppa_probe_20260601T` isolated ZPPA as the only relevant source warning and reported `Zambia ZPPA Current Tenders source API returned no opportunities`.
+
+Remaining after this slice:
+- ZPPA cannot currently replenish until the e-GP portal returns from maintenance or an alternate current-tender feed is found.
+- Keep capacity on productive African and Global South sources while ZPPA is down, especially source-backed national and regional portals with direct documents.
+
 ### 2026-06-01 - South Africa eTenders Filtered Intake
 
 Status: selector repaired, focused tests passed, and filtered South Africa eTenders intake completed.

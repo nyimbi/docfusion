@@ -17,7 +17,10 @@ function decodeEntities(value: string): string {
 }
 
 function stripHtml(value: string): string {
-	return cleanText(decodeEntities(value.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ")));
+	return cleanText(decodeEntities(value
+		.replace(/<script[\s\S]*?<\/script>/gi, " ")
+		.replace(/<style[\s\S]*?<\/style>/gi, " ")
+		.replace(/<[^>]+>/g, " ")));
 }
 
 function tableRows(html: string): string[] {
@@ -62,6 +65,12 @@ function parseZppaDate(value: string): Date | undefined {
 	const normalized = cleaned.replace(/\bCAT\b/i, "GMT+0200");
 	const parsed = Date.parse(normalized);
 	return Number.isNaN(parsed) ? undefined : new Date(parsed);
+}
+
+function zppaMaintenanceMessage(value: string): string | undefined {
+	const text = stripHtml(value);
+	if (!/\b(?:temporary unavailable|temporarily unavailable|maintenance)\b/i.test(text)) return undefined;
+	return text || "ZPPA e-GP portal is temporarily unavailable";
 }
 
 function inferOpportunityType(title: string, procedure: string): OpportunityData["opportunityType"] {
@@ -164,7 +173,12 @@ async function fetchZppaPage(sourceUrl: string, page: number): Promise<string> {
 	if (!response.ok) {
 		throw new Error(`ZPPA current tenders fetch failed: ${response.status} ${response.statusText}`);
 	}
-	return response.text();
+	const html = await response.text();
+	const maintenanceMessage = zppaMaintenanceMessage(html);
+	if (maintenanceMessage) {
+		throw new Error(`ZPPA current tenders unavailable: ${maintenanceMessage}`);
+	}
+	return html;
 }
 
 async function fetchZppaCurrentTenders(sourceUrl: string): Promise<OpportunityData[]> {
@@ -190,7 +204,15 @@ export const zppaZambiaParser: TenderParser = {
 	async parse(input: ParseInput): Promise<ParseResult> {
 		try {
 			if (input.html || input.markdown) {
-				return { opportunities: parseZppaCurrentTendersHtml(input.html || input.markdown || "") };
+				const content = input.html || input.markdown || "";
+				const maintenanceMessage = zppaMaintenanceMessage(content);
+				if (maintenanceMessage) {
+					return {
+						opportunities: [],
+						error: `ZPPA current tenders unavailable: ${maintenanceMessage}`,
+					};
+				}
+				return { opportunities: parseZppaCurrentTendersHtml(content) };
 			}
 			return { opportunities: await fetchZppaCurrentTenders(input.url || ZPPA_CURRENT_TENDERS_URL) };
 		} catch (error) {

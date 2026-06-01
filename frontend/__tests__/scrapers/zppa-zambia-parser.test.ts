@@ -74,4 +74,20 @@ describe("ZPPA Zambia parser", () => {
 		expect(zppaZambiaParser.getPageUrl("https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6", 2))
 			.toContain("d-3680175-p=2");
 	});
+
+	it("reports e-GP maintenance pages as source outages instead of empty tender lists", async () => {
+		const result = await zppaZambiaParser.parse({
+			html: `
+				<html>
+					<body>
+						<p>The e-Procurement System (EPPS) is temporary unavailable due to maintenance.</p>
+					</body>
+				</html>
+			`,
+			url: "https://eprocure.zppa.org.zm/epps/quickSearchAction.do?searchSelect=6",
+		});
+
+		expect(result.opportunities).toEqual([]);
+		expect(result.error).toContain("temporary unavailable due to maintenance");
+	});
 });
