@@ -16,6 +16,35 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Africa National Refresh And NeST Tanzania Intake
+
+Status: source-backed Africa national refresh completed, new Tanzania/South Africa opportunities imported, and a first NeST Tanzania intake batch parsed.
+
+Purpose: aggressively expand African tender coverage through source-backed national procurement portals rather than relying on degraded public search fanout. This pass refreshed the `africa_national` campaign with downloads disabled, then converted the largest fresh source-document queue into parsed RFP documents.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_national_refresh_20260601T` ran the `africa_national` campaign in 6 source chunks with downloads disabled.
+- The refresh completed 6 chunks, failed 0, processed 621 records, imported 44 new African opportunities, updated 577, created 44 source-document rows, and recorded 1 warning.
+- Healthy source-backed portals included Kenya PPIP, South Africa eTenders, NeST Tanzania, Uganda PPDA, Rwanda Umucyo, Ghana ePS, Malawi MANEPS, Nigeria NOCOPO, Namibia CPBN, Eswatini ESPPRA, African Union, AUDA-NEPAD, Africa CDC, COMESA, SADC, ECOWAS, ECREEE, Sierra Leone MoF, Niger public procurement, Benin public procurement, Mali DGMP, DNCCP Togo, and GIZ Ghana/South Africa.
+- The 44 new opportunities came from NeST Tanzania (40) and South Africa eTenders (4), creating 40 NeST Tanzania discovered source-document rows and 4 South Africa eTenders discovered source-document rows.
+- `source_document_intake_nest_tanzania_probe_20260601T` dry-selected 10 fresh NeST Tanzania API-backed release documents.
+- `source_document_intake_nest_tanzania_live_20260601T` selected 10, downloaded 10, failed 0, completed 10 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
+- All 10 NeST Tanzania releases used lightweight `local_html_text`; Docling was not invoked.
+- The parser extracted 46 requirements across the 10 Tanzania tender releases.
+- Current live totals after this pass are 6,327 total opportunities, 5,493 non-expired opportunities, 1,983 RFP documents, and 13,898 persisted RFP requirements.
+- NeST Tanzania source-document status is now 30 discovered and 240 downloaded.
+
+Verification:
+- `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_africa_national_refresh_20260601T ... AGGRESSIVE_RFP_ACQUISITION_DOWNLOAD_DOCUMENTS=0 npm run rfp:acquire` passed with 44 imports and 44 source-document rows created.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 10 selected and 10 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_live_20260601T ... npm run source-docs:intake` passed with 10 downloads, 10 completed parses, and 46 extracted requirements.
+- Live DB checks confirmed updated opportunity, RFP document, requirement, and NeST Tanzania source-document totals.
+
+Remaining after this slice:
+- NeST Tanzania still has 30 discovered rows and should be drained in further bounded batches.
+- South Africa eTenders has 4 newly discovered rows, but the dry probe included one regret-letter document and one ZIP; intake should be targeted or filtered before a large parse pass.
+- Zambia ZPPA was the only failed source in the refresh and should be inspected separately.
+
 ### 2026-06-01 - GTAI/KfW Source-Document Intake
 
 Status: targeted intake completed, all selected GTAI/KfW detail pages parsed, and requirements persisted.
