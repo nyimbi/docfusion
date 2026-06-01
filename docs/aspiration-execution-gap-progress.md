@@ -30,20 +30,22 @@ Live proof:
 - `source_document_intake_nest_tanzania_probe_20260601T` dry-selected 10 fresh NeST Tanzania API-backed release documents.
 - `source_document_intake_nest_tanzania_live_20260601T` selected 10, downloaded 10, failed 0, completed 10 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
 - `source_document_intake_nest_tanzania_batch2_live_20260601T` selected another 10 NeST Tanzania releases, downloaded 10, failed 0, completed 10 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
-- All 20 NeST Tanzania releases used lightweight `local_html_text`; Docling was not invoked.
-- The parser extracted 90 requirements across the 20 Tanzania tender releases.
-- Current live totals after this pass are 6,327 total opportunities, 5,493 non-expired opportunities, 1,993 RFP documents, and 13,942 persisted RFP requirements.
-- NeST Tanzania source-document status is now 20 discovered and 250 downloaded.
+- `source_document_intake_nest_tanzania_batch3_live_20260601T` selected another 10 NeST Tanzania releases, downloaded 10, failed 0, completed 10 parse jobs, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued` parses, and 0 timeouts.
+- All 30 NeST Tanzania releases used lightweight `local_html_text`; Docling was not invoked.
+- The parser extracted 117 requirements across the 30 Tanzania tender releases.
+- Current live totals after this pass are 6,327 total opportunities, 5,493 non-expired opportunities, 2,003 RFP documents, and 13,969 persisted RFP requirements.
+- NeST Tanzania source-document status is now 10 discovered and 260 downloaded.
 
 Verification:
 - `AGGRESSIVE_RFP_ACQUISITION_RUN_ID=aggressive_rfp_acquisition_africa_national_refresh_20260601T ... AGGRESSIVE_RFP_ACQUISITION_DOWNLOAD_DOCUMENTS=0 npm run rfp:acquire` passed with 44 imports and 44 source-document rows created.
 - `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 10 selected and 10 dry-run skips.
 - `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_live_20260601T ... npm run source-docs:intake` passed with 10 downloads, 10 completed parses, and 46 extracted requirements.
 - `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_batch2_live_20260601T ... npm run source-docs:intake` passed with 10 downloads, 10 completed parses, and 44 extracted requirements.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_nest_tanzania_batch3_live_20260601T ... npm run source-docs:intake` passed with 10 downloads, 10 completed parses, and 27 extracted requirements.
 - Live DB checks confirmed updated opportunity, RFP document, requirement, and NeST Tanzania source-document totals.
 
 Remaining after this slice:
-- NeST Tanzania still has 20 discovered rows and should be drained in further bounded batches.
+- NeST Tanzania still has 10 discovered rows and should be drained in one further bounded batch.
 - South Africa eTenders has 4 newly discovered rows, but the dry probe included one regret-letter document and one ZIP; intake should be targeted or filtered before a large parse pass.
 - Zambia ZPPA was the only failed source in the refresh and should be inspected separately.
 
