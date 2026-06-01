@@ -16,6 +16,29 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - African Union Clean Discovered Drain
+
+Status: dry-run/live intake completed, all selected documents parsed, and African Union direct-PDF lane further drained.
+
+Purpose: continue the Africa-focused acquisition push on sources with current discovered documents and no known protected-host blocker. After AFDB and DNCCP Togo proved to need source-specific repairs, this pass targeted clean discovered African/regional candidates and avoided retrying known failed rows.
+
+Live proof:
+- `source_document_intake_africa_clean_discovered_probe_20260601T` dry-selected 4 current African Union bid amendment PDFs from the clean discovered backlog with `SOURCE_DOCUMENT_INTAKE_RETRY_FAILED=0`.
+- `source_document_intake_africa_clean_discovered_live_20260601T` selected the same 4 documents, downloaded 4, failed 0, completed 4 parse jobs, had 0 duplicate parses, 0 zero-requirement parses, 0 `not_queued` parses, and 0 timeouts.
+- All 4 PDFs used lightweight `local_pdftotext`; Docling was not invoked.
+- The parser extracted 15 requirements across `46285-Amendment_1.pdf`, `46286-Amendment_3.pdf`, `46286-Amendment_2.pdf`, and `46286-Amendment_1.pdf`.
+- Current live totals after this pass are 6,281 total opportunities, 5,448 non-expired opportunities, 1,971 RFP documents, and 13,846 persisted RFP requirements.
+- African Union source-document status is now 4 discovered and 21 downloaded.
+
+Verification:
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_clean_discovered_probe_20260601T ... SOURCE_DOCUMENT_INTAKE_RETRY_FAILED=0 SOURCE_DOCUMENT_INTAKE_DRY_RUN=1 npm run source-docs:intake` passed with 4 selected and 4 dry-run skips.
+- `SOURCE_DOCUMENT_INTAKE_RUN_ID=source_document_intake_africa_clean_discovered_live_20260601T ... SOURCE_DOCUMENT_INTAKE_RETRY_FAILED=0 npm run source-docs:intake` passed with 4 downloads, 4 completed parses, and 15 extracted requirements.
+- Live DB checks confirmed updated RFP document and requirement totals plus African Union source-document status.
+
+Remaining after this slice:
+- The remaining African Union discovered rows should be checked for expiry/currentness before another drain.
+- AFDB and DNCCP Togo remain the next material Africa source repairs; retries without source-specific handling waste time on 403s/timeouts.
+
 ### 2026-06-01 - Africa Regional Source-Document Intake Pass
 
 Status: live intake completed, lightweight extraction confirmed, one new RFP document parsed, and blockers isolated.
