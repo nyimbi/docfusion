@@ -16,6 +16,37 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-01 - Donor NGO Source Refresh And GTAI/KfW Identity Repair
+
+Status: source refresh completed, identity repair implemented, tests passed, backfill applied, and live source refresh proved.
+
+Purpose: keep Global South opportunity acquisition broad beyond government portals by refreshing donor/NGO implementer sources and preserving source identity for KfW/GTAI tenders. The donor/NGO campaign imported two new Global South tenders from GTAI/KfW, but they initially landed under generic configured-source identity; the importer and a backfill utility now keep those rows targetable as `gtai_kfw` / `GTAI/KfW`.
+
+Live proof:
+- `aggressive_rfp_acquisition_donor_ngo_global_south_20260601T` ran the `donor_ngo_search` campaign in 5 source chunks with downloads disabled.
+- The run completed 5 chunks, failed 0, processed 34 records, imported 2 opportunities, updated 32, created 2 source-document rows, and attempted 0 downloads by design.
+- Healthy source-backed portals included Mercy Corps, CRS, Save the Children, Plan International, IRC, FCDO/FCDO Services, GTAI/KfW, RTI, Abt Global, FHI 360, NRC, Oxfam Nigeria, TradeMark Africa, Palladium, Jhpiego, DT Global, Enabel, and Winrock.
+- Public search fanout remained degraded: the proof recorded 242 warnings, mostly SearXNG engine degradation and search no-candidate results, while configured source scraping continued to produce usable records.
+- The two newly imported opportunities were GTAI/KfW Global South tenders for Bangladesh medium-voltage substations and Niger climate-resilient agriculture.
+- `gtai_kfw_source_identity_backfill_probe_20260601T` found 4 legacy GTAI/KfW opportunities under generic source identity.
+- `gtai_kfw_source_identity_backfill_live_20260601T` reclassified all 4 rows to `source="gtai_kfw"` / `sourcePlatform="GTAI/KfW"` and added `gtai`, `kfw`, `development-bank`, `global-south`, and `source-documents` tags.
+- `gtai_kfw_source_identity_backfill_idempotency_20260601T` confirmed 0 remaining legacy GTAI/KfW rows.
+- `live_discovery_import_gtai_kfw_identity_20260601T` refreshed the GTAI/KfW source with the repaired importer and updated 2 rows with healthy source status and no warnings.
+- Current live totals after this work are 6,283 total opportunities, 5,449 non-expired opportunities, 1,971 RFP documents, and 13,846 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/actions/discovery-opportunity-import.test.ts` passed: 83 tests.
+- `GTAI_KFW_SOURCE_IDENTITY_BACKFILL_RUN_ID=gtai_kfw_source_identity_backfill_probe_20260601T npx tsx scripts/backfill-gtai-kfw-source-identity.ts` passed with 4 candidates and 0 updates.
+- `GTAI_KFW_SOURCE_IDENTITY_BACKFILL_RUN_ID=gtai_kfw_source_identity_backfill_live_20260601T GTAI_KFW_SOURCE_IDENTITY_BACKFILL_APPLY=1 npx tsx scripts/backfill-gtai-kfw-source-identity.ts` passed with 4 updates.
+- `GTAI_KFW_SOURCE_IDENTITY_BACKFILL_RUN_ID=gtai_kfw_source_identity_backfill_idempotency_20260601T npx tsx scripts/backfill-gtai-kfw-source-identity.ts` passed with 0 remaining candidates.
+- `LIVE_DISCOVERY_IMPORT_RUN_ID=live_discovery_import_gtai_kfw_identity_20260601T ... npx tsx scripts/run-live-discovery-import.ts` passed with 2 GTAI/KfW updates and healthy source status.
+- Live DB checks confirmed `gtai_kfw` / `GTAI/KfW` count is 4 and global totals increased to 6,283 opportunities.
+
+Remaining after this slice:
+- The donor/NGO source-backed lane is productive, but broad SearXNG fanout is still unreliable and should not be relied on as the primary collection path until search service fanout improves.
+- GTAI/KfW detail pages are now source-targetable; follow-on source-document intake can decide which detail pages expose parseable proposal-grade text.
+- Generic `source-scrape` rows should continue to be audited for parser-backed sources that deserve source-specific identity.
+
 ### 2026-06-01 - African Union Clean Discovered Drain
 
 Status: dry-run/live intake completed, all selected documents parsed, and African Union direct-PDF lane further drained.

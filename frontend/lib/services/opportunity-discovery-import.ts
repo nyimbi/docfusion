@@ -248,6 +248,7 @@ const SOURCE_SCRAPE_IMPORT_SOURCES = new Set([
 	"iom",
 	"irc",
 	"giz",
+	"gtai_kfw",
 	"mercy_corps",
 	"plan_international",
 	"save_children",
@@ -1151,6 +1152,7 @@ function sourcePlatformName(opportunity: OpportunityData | undefined, discoveryM
 	if (opportunity?.source === "iom") return "IOM";
 	if (opportunity?.source === "irc") return "International Rescue Committee";
 	if (opportunity?.source === "giz") return "GIZ";
+	if (opportunity?.source === "gtai_kfw") return "GTAI/KfW";
 	if (opportunity?.source === "mercy_corps") return "Mercy Corps";
 	if (opportunity?.source === "plan_international") return "Plan International";
 	if (opportunity?.source === "save_children") return "Save the Children International";
@@ -1226,6 +1228,7 @@ function sourceTags(opportunity: OpportunityData | undefined, discoveryMethod: D
 		...(opportunity?.source === "iom" ? ["iom", "un-procurement"] : []),
 		...(opportunity?.source === "irc" ? ["irc", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "giz" ? ["giz", "bilateral-donor"] : []),
+		...(opportunity?.source === "gtai_kfw" ? ["gtai", "kfw", "development-bank", "global-south", "source-documents"] : []),
 		...(opportunity?.source === "mercy_corps" ? ["mercy-corps", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "plan_international" ? ["plan-international", "ngo", "source-documents"] : []),
 		...(opportunity?.source === "save_children" ? ["save-the-children", "ngo", "source-documents"] : []),

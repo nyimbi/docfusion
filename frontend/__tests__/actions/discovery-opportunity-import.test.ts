@@ -3675,11 +3675,11 @@ describe("discoverAndImportOpportunities", () => {
 		);
 		expect(createOpportunityMock).toHaveBeenCalledWith(expect.objectContaining({
 			title: "Consulting Services for the Feasibility Study and Environmental and Social Instruments",
-			source: "source-scrape",
-			sourcePlatform: "Configured Source Scrape",
+			source: "gtai_kfw",
+			sourcePlatform: "GTAI/KfW",
 			sourceFile: "source:https://www.gtai.de/en/meta/search/kfw-tenders/795748!search",
 			rfpLink: "https://www.gtai.de/en/trade/rwanda/tenders/consulting-services-for-the-feasibility-study-and-environmental-and-social-instruments-sustainable-public-spaces--2000742",
-			tags: ["external-discovery", "source-scrape", "gtai", "kfw", "development-bank"],
+			tags: ["external-discovery", "source-scrape", "gtai", "kfw", "development-bank", "global-south", "source-documents"],
 			metadata: expect.objectContaining({
 				discovery: expect.objectContaining({
 					engine: "source_scrape",
