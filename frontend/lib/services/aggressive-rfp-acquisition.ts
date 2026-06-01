@@ -27,6 +27,17 @@ export type AggressiveRfpAcquisitionRunInput = {
 	input: DiscoveryImportInput;
 };
 
+export const DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS = [
+	"africa_national",
+	"development_banks",
+	"donor_ngo_search",
+	"global_regional_search",
+	"global_south_marketplaces",
+	"un_multilateral",
+	"high_intent_search",
+	"africa_global_south_document_search",
+] as const;
+
 const SOURCE_URLS: Record<string, string> = {
 	kenyaPpip: "https://tenders.go.ke/tenders",
 	ungm: "https://www.ungm.org/Public/Notice",
@@ -225,6 +236,26 @@ export const DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS: AggressiveRfpAcquisit
 		],
 	},
 	{
+		id: "africa_global_south_document_search",
+		label: "Africa and Global South direct RFP document search",
+		queries: [
+			"filetype:pdf \"request for proposals\" \"submission deadline\" Africa",
+			"filetype:pdf \"request for proposal\" \"closing date\" Africa",
+			"filetype:pdf \"terms of reference\" consultancy deadline Africa",
+			"filetype:pdf \"expression of interest\" \"consulting services\" Africa deadline",
+			"filetype:docx \"request for proposals\" procurement Africa",
+			"filetype:pdf \"invitation for bids\" \"World Bank\" Africa",
+			"filetype:pdf \"request for expressions of interest\" \"African Development Bank\"",
+			"filetype:pdf \"request for proposals\" \"Latin America\" deadline",
+			"filetype:pdf \"request for proposals\" Caribbean deadline",
+			"filetype:pdf \"expression of interest\" \"consulting services\" Asia deadline",
+			"filetype:pdf \"request for proposals\" \"Middle East\" procurement deadline",
+			"filetype:pdf \"request for proposal\" Pacific \"closing date\"",
+			"filetype:pdf \"terms of reference\" \"digital transformation\" \"deadline\"",
+			"filetype:pdf \"tender document\" \"closing date\" \"ICT\" Africa",
+		],
+	},
+	{
 		id: "global_public_sector",
 		label: "Global public-sector procurement portals",
 		sourceUrls: [
@@ -379,8 +410,17 @@ export function selectAggressiveRfpAcquisitionCampaigns(
 	campaigns = DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS
 ): AggressiveRfpAcquisitionCampaign[] {
 	if (!campaignIds?.length) return campaigns;
-	const requested = new Set(campaignIds.map((id) => id.trim()).filter(Boolean));
-	return campaigns.filter((campaign) => requested.has(campaign.id));
+	const byId = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+	const selected: AggressiveRfpAcquisitionCampaign[] = [];
+	const seen = new Set<string>();
+	for (const id of campaignIds.map((value) => value.trim()).filter(Boolean)) {
+		if (seen.has(id)) continue;
+		const campaign = byId.get(id);
+		if (!campaign) continue;
+		selected.push(campaign);
+		seen.add(id);
+	}
+	return selected;
 }
 
 export function buildAggressiveRfpAcquisitionInputs(

@@ -1944,7 +1944,7 @@ async function scrapeAndParseConfiguredSource(
 ): Promise<ConfiguredSourceParseResult> {
 	const parser = parserForSourceUrl(sourceUrl);
 	if (isSourceApiParser(parser)) {
-		const parseResult = await parser.parse({ url: sourceUrl });
+		const parseResult = await parser.parse({ url: sourceUrl, sourceLimit: limitPerSource });
 		return {
 			parser,
 			parseResult,

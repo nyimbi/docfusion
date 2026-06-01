@@ -16,6 +16,7 @@ const isKenyaPpipUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes(
 const fetchUngmOpportunitiesMock = vi.hoisted(() => vi.fn());
 const isUngmUrlMock = vi.hoisted(() => vi.fn((url: string) => url.includes("ungm.org")));
 const getCloakBrowserEndpointMock = vi.hoisted(() => vi.fn());
+const isCloakBrowserScraperConfiguredMock = vi.hoisted(() => vi.fn());
 const scrapeWithCloakBrowserMock = vi.hoisted(() => vi.fn());
 const fetchPublicHttpUrlMock = vi.hoisted(() => vi.fn());
 const selectResultsQueue = vi.hoisted(() => [] as unknown[][]);
@@ -53,6 +54,7 @@ vi.mock("@/lib/services/ungm-client", () => ({
 
 vi.mock("@/lib/services/cloakbrowser-scraper-client", () => ({
 	getCloakBrowserEndpoint: getCloakBrowserEndpointMock,
+	isCloakBrowserScraperConfigured: isCloakBrowserScraperConfiguredMock,
 	scrapeWithCloakBrowser: scrapeWithCloakBrowserMock,
 }));
 
@@ -148,6 +150,7 @@ beforeEach(() => {
 	});
 	isUngmUrlMock.mockImplementation((url: string) => url.includes("ungm.org"));
 	getCloakBrowserEndpointMock.mockReturnValue(undefined);
+	isCloakBrowserScraperConfiguredMock.mockReturnValue(false);
 	scrapeWithCloakBrowserMock.mockResolvedValue({
 		success: false,
 		error: "CloakBrowser endpoint is not configured",
@@ -4703,6 +4706,7 @@ describe("discoverAndImportOpportunities", () => {
 			error: "Cloudflare challenge",
 		});
 		getCloakBrowserEndpointMock.mockReturnValue("ws://127.0.0.1:9222/devtools/browser/test");
+		isCloakBrowserScraperConfiguredMock.mockReturnValue(true);
 		scrapeWithCloakBrowserMock.mockResolvedValue({
 			success: true,
 			data: {
@@ -5689,6 +5693,7 @@ describe("discoverAndImportOpportunities", () => {
 		expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringContaining("https://search.worldbank.org/api/v2/procnotices?"), expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));
+		expect(fetchMock.mock.calls[0]?.[0]).toContain("rows=5");
 		expect(fetchMock).toHaveBeenNthCalledWith(2, "https://search.worldbank.org/api/procnotices?format=json&apilang=en&id=OP00428547", expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));

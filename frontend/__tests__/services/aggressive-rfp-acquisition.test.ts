@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS,
 	DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS,
 	buildAggressiveRfpAcquisitionInputs,
 	selectAggressiveRfpAcquisitionCampaigns,
@@ -15,6 +16,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"africa_national",
 			"high_intent_search",
 			"document_search",
+			"africa_global_south_document_search",
 			"global_public_sector",
 			"global_regional_search",
 			"global_south_marketplaces",
@@ -226,6 +228,46 @@ describe("aggressive RFP acquisition campaigns", () => {
 	it("selects requested campaigns by id", () => {
 		expect(selectAggressiveRfpAcquisitionCampaigns(["development_banks", "document_search"]).map((campaign) => campaign.id))
 			.toEqual(["development_banks", "document_search"]);
+	});
+
+	it("keeps requested Africa and Global South campaign order for focused runs", () => {
+		expect(selectAggressiveRfpAcquisitionCampaigns([...DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS]).map((campaign) => campaign.id))
+			.toEqual([
+				"africa_national",
+				"development_banks",
+				"donor_ngo_search",
+				"global_regional_search",
+				"global_south_marketplaces",
+				"un_multilateral",
+				"high_intent_search",
+				"africa_global_south_document_search",
+			]);
+	});
+
+	it("builds targeted Africa and Global South direct document searches", () => {
+		const [run] = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["africa_global_south_document_search"],
+			limitPerQuery: 5,
+			searchPages: 2,
+			sourceScrapeLimit: 0,
+			scrapeLimit: 3,
+			browserFallbackLimit: 2,
+			downloadLimit: 6,
+			downloadParseMode: "queued",
+		});
+
+		expect(run.campaign.id).toBe("africa_global_south_document_search");
+		expect(run.input.sourceUrls).toEqual([]);
+		expect(run.input.queries).toEqual(expect.arrayContaining([
+			"filetype:pdf \"request for proposals\" \"submission deadline\" Africa",
+			"filetype:pdf \"request for expressions of interest\" \"African Development Bank\"",
+			"filetype:pdf \"request for proposals\" \"Latin America\" deadline",
+			"filetype:pdf \"request for proposal\" Pacific \"closing date\"",
+		]));
+		expect(run.input.searchEngineFanout).toBe(true);
+		expect(run.input.engines).toEqual(["google", "duckduckgo", "bing", "brave"]);
+		expect(run.input.scrapeTopResults).toBe(true);
+		expect(run.input.downloadDiscoveredDocuments).toBe(true);
 	});
 
 	it("builds DGMarket as a source-backed Global South marketplace campaign", () => {

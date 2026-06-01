@@ -257,9 +257,10 @@ Feedback Survey
 
 		const result = await worldBankParser.parse({
 			url: "https://projects.worldbank.org/en/projects-operations/procurement",
+			sourceLimit: 75,
 		});
 
-		expect(fetchMock).toHaveBeenCalledWith(worldBankNoticeListApiUrl(50, 0), expect.objectContaining({
+		expect(fetchMock).toHaveBeenCalledWith(worldBankNoticeListApiUrl(75, 0), expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));
 		expect(result.opportunities).toHaveLength(1);
@@ -298,12 +299,13 @@ Feedback Survey
 
 		const result = await worldBankParser.parse({
 			url: "https://projects.worldbank.org/en/projects-operations/procurement",
+			sourceLimit: 125,
 		});
 
-		expect(fetchMock).toHaveBeenNthCalledWith(1, worldBankNoticeListApiUrl(50, 0), expect.objectContaining({
+		expect(fetchMock).toHaveBeenNthCalledWith(1, worldBankNoticeListApiUrl(125, 0), expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));
-		expect(fetchMock).toHaveBeenNthCalledWith(2, worldBankNoticeListFallbackApiUrl(50, 0), expect.objectContaining({
+		expect(fetchMock).toHaveBeenNthCalledWith(2, worldBankNoticeListFallbackApiUrl(125, 0), expect.objectContaining({
 			headers: { Accept: "application/json" },
 		}));
 		expect(result.opportunities).toHaveLength(1);

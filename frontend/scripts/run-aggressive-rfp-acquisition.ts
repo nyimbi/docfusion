@@ -11,6 +11,7 @@ import {
 import { forceLocalEnv } from "./env-utils";
 import {
 	buildAggressiveRfpAcquisitionInputs,
+	DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS,
 	type AggressiveRfpAcquisitionOptions,
 } from "@/lib/services/aggressive-rfp-acquisition";
 import type { DiscoveryImportResult } from "@/lib/services/opportunity-discovery-import";
@@ -144,7 +145,9 @@ function discoveryImportParseMode(): AggressiveRfpAcquisitionOptions["downloadPa
 }
 
 function parseCsvList(raw: string | undefined): string[] | undefined {
-	const values = raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+	if (raw === undefined || !raw.trim()) return [...DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS];
+	if (raw.trim().toLowerCase() === "all") return undefined;
+	const values = raw.split(",").map((value) => value.trim()).filter(Boolean);
 	return values.length ? values : undefined;
 }
 

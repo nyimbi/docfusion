@@ -27,6 +27,8 @@ export interface WorldBankNoticeDetail {
 const WORLD_BANK_BASE_URL = "https://projects.worldbank.org";
 const WORLD_BANK_NOTICE_API_BASE_URL = "https://search.worldbank.org/api/procnotices";
 const WORLD_BANK_NOTICE_LIST_API_BASE_URL = "https://search.worldbank.org/api/v2/procnotices";
+const DEFAULT_WORLD_BANK_NOTICE_LIST_ROWS = 50;
+const MAX_WORLD_BANK_NOTICE_LIST_ROWS = 500;
 const PROCUREMENT_DETAIL_PATTERN = /projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/(OP\d+)/i;
 const PROJECT_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/project-detail\/[^)]+)\)/i;
 const DESCRIPTION_LINK_PATTERN = /\[([^\]]+)]\((https?:\/\/projects\.worldbank\.org\/en\/projects-operations\/procurement-detail\/[^)]+)\)/i;
@@ -411,6 +413,11 @@ export async function fetchWorldBankNoticeList(rows = 20, offset = 0): Promise<O
 	}
 }
 
+function boundedWorldBankSourceLimit(value: number | undefined): number {
+	if (!Number.isFinite(value)) return DEFAULT_WORLD_BANK_NOTICE_LIST_ROWS;
+	return Math.min(MAX_WORLD_BANK_NOTICE_LIST_ROWS, Math.max(1, Math.trunc(value ?? DEFAULT_WORLD_BANK_NOTICE_LIST_ROWS)));
+}
+
 export function parseWorldBankNoticeDetailMarkdown(markdown: string | undefined): WorldBankNoticeDetail {
 	if (!markdown) return {};
 	const contactEmail = markdown.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
@@ -438,7 +445,7 @@ export const worldBankParser: TenderParser = {
 		if (!content.markdown?.trim() && !content.html?.trim()) {
 			try {
 				return {
-					opportunities: await fetchWorldBankNoticeList(50),
+					opportunities: await fetchWorldBankNoticeList(boundedWorldBankSourceLimit(content.sourceLimit)),
 				};
 			} catch (error) {
 				return {

@@ -47,6 +47,8 @@ export interface ParseInput {
 	links?: string[];
 	/** Original URL */
 	url: string;
+	/** Maximum source records requested by the caller for source API parsers */
+	sourceLimit?: number;
 }
 
 export interface ParseResult {
