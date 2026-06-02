@@ -62,6 +62,14 @@ describe("source document intake selection helpers", () => {
 			sourceUrl: "https://www.aiib.org/en/projects/details/2026/_download/Pakistan/P000913_Publication_of_Procurement_Plan.xlsx",
 		})).toBe(false);
 		expect(isLikelySolicitationSource({
+			documentName: "Purchase_for_Impact_Report_2024_EN.pdf",
+			sourceUrl: "https://content.unops.org/publications/Purchase_for_Impact_Report_2024_EN.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
+			documentName: "Guide to Doing Business with the MDBs 2020 -9.18.2020.pdf",
+			sourceUrl: "https://trade.gov/sites/default/files/2020-09/Guide%20to%20Doing%20Business%20with%20the%20MDBs%202020%20-9.18.2020.pdf",
+		})).toBe(false);
+		expect(isLikelySolicitationSource({
 			documentName: "APPROVED-2026-PP-WORKS-VF.pdf",
 			sourceUrl: "https://www.ecowas.int/wp-content/uploads/2026/02/APPROVED-2026-PP-WORKS-VF.pdf",
 		})).toBe(false);

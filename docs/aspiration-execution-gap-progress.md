@@ -16,6 +16,43 @@ Close the aspiration execution gap and rapidly reach a fully functional platform
 
 ## Progress Log
 
+### 2026-06-02 - Africa And Global South Default Focus Plus Live Intake
+
+Status: default aggressive acquisition focus changed, tested, pushed, and exercised with a live Africa/Global South refresh plus source-document intake.
+
+Purpose: align unattended RFP acquisition with the highest-value sourcing priority: African and Global South tenders/RFPs. Unqualified aggressive acquisition now spends capacity on African national portals, development banks, donor/NGO implementers, regional Global South sources, marketplaces, multilateral sources, high-intent Africa queries, and a new Africa/Global South direct-document search campaign instead of defaulting to high-income public-sector sweeps.
+
+What changed:
+- Added `DEFAULT_AFRICA_GLOBAL_SOUTH_RFP_CAMPAIGN_IDS` and made `npm run rfp:acquire` use that campaign set when `AGGRESSIVE_RFP_ACQUISITION_GROUPS` is unset.
+- Added `AGGRESSIVE_RFP_ACQUISITION_GROUPS=all` as the explicit full-global campaign escape hatch.
+- Added an Africa and Global South direct RFP document search campaign with PDF/DOCX queries for Africa, AfDB, World Bank, Latin America, Caribbean, Asia, Middle East, Pacific, ICT, and digital transformation opportunities.
+- Changed requested campaign selection to preserve caller order, so focused acquisition runs can prioritize Africa-first execution.
+- Passed the configured source scrape limit into source API parsers and made the World Bank procurement parser request the caller's bounded row count instead of always fetching 50 rows.
+- After the live intake exposed two low-value artifacts, widened source-document intake filtering for `impact report` and `guide to doing business` documents so future drains avoid that parser-capacity leak.
+- Updated the opportunity-discovery runbook with the new default focus and `all` override.
+
+Live proof:
+- `aggressive_rfp_acquisition_africa_global_south_focus_20260601T` completed 17 campaign chunks, failed 0, processed 1,831 records, imported 247 opportunities, updated 1,584, created 229 source-document rows, and attempted 0 downloads by design.
+- Productive source-document creation came from Africa national chunks, development banks, donor/NGO sources, global regional sources, DGMarket, UN/multilateral sources, and direct regional sources.
+- Search fanout remained heavily degraded on `search.lindela.io` and public SearXNG fallbacks, with 883 warnings. Direct DuckDuckGo fallback recovered some result sets, but configured source scraping produced the bulk of usable records.
+- `source_document_intake_africa_global_south_focus_probe_20260602T` dry-selected 42 current documents from NRC, UNGM, FHI 360, ADB, UN Procurement, IOM, Enabel, IDB, GIZ, Plan International, Save the Children, and related configured-source rows.
+- `source_document_intake_africa_global_south_focus_live_20260602T` selected 42, downloaded 42, failed 0, completed 42 parses, had 0 zero-requirement parses, 0 duplicate parses, 0 `not_queued`, and 0 timeouts.
+- The intake extracted 306 requirements across the 42 documents.
+- Extraction stayed lightweight-first: local HTML text, local DOCX parsing, ZIP inner-document extraction, and local `pdftotext`; Docling was not required.
+- One IOM direct PDF returned HTTP 403 and recovered through search/scrape fallback to a local HTML surrogate.
+- Current live totals after this pass are 6,595 opportunities, 3,880 non-expired/unknown-deadline opportunities, 2,084 RFP documents, and 14,523 persisted RFP requirements.
+
+Verification:
+- `npm run test -- --run __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/scrapers/world-bank-parser.test.ts __tests__/actions/discovery-opportunity-import.test.ts` passed with 100 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- `git diff --cached --check` passed before committing the code slice.
+- Live acquisition and source-document intake proof artifacts were written under `.omx/logs/platform-completion/`.
+
+Remaining after this slice:
+- SearXNG fanout is still degraded enough that source-backed acquisition should remain the primary collection lane while search infrastructure is repaired or expanded.
+- Generic document selection still needs ongoing monitoring for new low-value report/guide variants, but the two patterns observed in this run are now covered by regression tests.
+- The direct Africa/Global South document-search campaign returned poor candidate quality under current search degradation; it should stay secondary to source-backed portals until search quality improves.
+
 ### 2026-06-01 - CloakBrowser Local Launch Recovery For AFDB
 
 Status: local CloakBrowser launch path implemented, tested, and used in a bounded African Development Bank protected retry.
