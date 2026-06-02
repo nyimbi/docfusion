@@ -189,6 +189,13 @@ class DefaultDiscoveryService:
 			logger.warning("SearXNG discovery failed: %s", exc)
 			opportunities = []
 
+		if not opportunities:
+			logger.info("SearXNG returned 0 results; falling back to direct API crawl")
+			try:
+				opportunities = await self._discover_with_direct_apis(limit)
+			except Exception as exc:
+				logger.warning("Direct API fallback failed: %s", exc)
+
 		if self._should_enrich_with_firecrawl(filters):
 			enrich_limit = self._coerce_limit(
 				filters.get("enrich_limit"),
@@ -482,6 +489,75 @@ class DefaultDiscoveryService:
 			return float(value)
 		except (TypeError, ValueError):
 			return float("inf")
+
+	async def _discover_with_direct_apis(self, limit: int = 20) -> list[dict[str, Any]]:
+		"""Query confirmed JSON APIs (grants.gov, World Bank) when SearXNG is unavailable."""
+		import httpx
+		from ..core.utils import uuid7str
+
+		_HEADERS = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/121.0 Safari/537.36",
+			"Accept": "application/json,*/*",
+		}
+
+		opportunities: list[dict[str, Any]] = []
+
+		async with httpx.AsyncClient(timeout=15, verify=False, follow_redirects=True) as client:
+			# ── grants.gov ────────────────────────────────────────────────
+			try:
+				r = await client.post(
+					"https://apply07.grants.gov/grantsws/rest/opportunities/search/",
+					json={"keyword": "", "oppStatuses": "posted", "rows": min(limit, 25), "startRecordNum": 0},
+					headers=_HEADERS,
+				)
+				if r.status_code == 200:
+					for item in (r.json().get("oppHits") or [])[:limit]:
+						opportunities.append({
+							"id": uuid7str(),
+							"title": str(item.get("title", "?"))[:120],
+							"url": f"https://www.grants.gov/search-results-detail/{item.get('id', '')}",
+							"source": "grants.gov",
+							"organization": str(item.get("agency", "")),
+							"deadline": str(item.get("closeDate", "")),
+							"reference": str(item.get("number", "")),
+							"type": "grant",
+						})
+			except Exception as exc:
+				logger.debug("grants.gov API failed: %s", exc)
+
+			# ── World Bank active Africa projects ─────────────────────────
+			try:
+				r = await client.get(
+					"https://search.worldbank.org/api/v2/projects",
+					params={
+						"fl": "id,project_name,boardapprovaldate,countryname,sector_exact,status",
+						"fq": 'regionname_exact:("Africa") AND status:("Active")',
+						"rows": min(limit, 25),
+						"format": "json",
+					},
+					headers=_HEADERS,
+				)
+				if r.status_code == 200:
+					data = r.json()
+					projects = data.get("projects") or {}
+					if isinstance(projects, dict):
+						projects = list(projects.values())
+					for item in projects[:limit]:
+						opportunities.append({
+							"id": uuid7str(),
+							"title": str(item.get("project_name", "?"))[:120],
+							"url": f"https://projects.worldbank.org/en/projects-operations/project-detail/{item.get('id', '')}",
+							"source": "World Bank",
+							"organization": str(item.get("countryname", "")),
+							"deadline": str(item.get("boardapprovaldate", "")),
+							"reference": str(item.get("id", "")),
+							"type": "project",
+						})
+			except Exception as exc:
+				logger.debug("World Bank API failed: %s", exc)
+
+		logger.info("Direct API crawl: %d opportunities found", len(opportunities))
+		return opportunities[:limit]
 
 	def _merge_searxng_results(self, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
 		seen: set[str] = set()
