@@ -750,33 +750,41 @@ class SecretsManager:
 		return os.environ.get("LATEX_CACHE_DIR", "/tmp/docfusion-latex-cache")
 
 	# ========================================================================
-	# Linode Object Storage (S3-compatible blob store)
+	# Linode E3 Object Storage — env var names match frontend LINODE_E3_*
 	# ========================================================================
 
 	@staticmethod
-	def get_linode_access_key() -> str:
-		"""Linode object-storage access key (LINODE_ACCESS_KEY)."""
-		return os.environ.get("LINODE_ACCESS_KEY", "")
+	def get_linode_e3_access_key_id() -> str:
+		"""Linode E3 access key ID (LINODE_E3_ACCESS_KEY_ID)."""
+		return os.environ.get("LINODE_E3_ACCESS_KEY_ID", "")
 
 	@staticmethod
-	def get_linode_secret_key() -> str:
-		"""Linode object-storage secret key (LINODE_SECRET_KEY)."""
-		return os.environ.get("LINODE_SECRET_KEY", "")
+	def get_linode_e3_secret_access_key() -> str:
+		"""Linode E3 secret access key (LINODE_E3_SECRET_ACCESS_KEY)."""
+		return os.environ.get("LINODE_E3_SECRET_ACCESS_KEY", "")
 
 	@staticmethod
-	def get_linode_s3_endpoint() -> str:
-		"""Linode S3-compatible endpoint URL (LINODE_S3_ENDPOINT)."""
-		return os.environ.get("LINODE_S3_ENDPOINT", "https://gb-lon-1.linodeobjects.com")
+	def get_linode_e3_endpoint() -> str:
+		"""Linode E3 endpoint URL (LINODE_E3_ENDPOINT)."""
+		return os.environ.get("LINODE_E3_ENDPOINT", "https://gb-lon-1.linodeobjects.com")
 
 	@staticmethod
-	def get_linode_bucket() -> str:
-		"""Linode bucket name for RFP file storage (LINODE_BUCKET_NAME)."""
-		return os.environ.get("LINODE_BUCKET_NAME", "docfusion-rfp")
+	def get_linode_e3_region() -> str:
+		"""Linode E3 region (LINODE_E3_REGION)."""
+		return os.environ.get("LINODE_E3_REGION", "gb-lon-1")
 
 	@staticmethod
-	def is_linode_configured() -> bool:
-		"""Return True when both Linode credentials are present."""
-		return bool(SecretsManager.get_linode_access_key() and SecretsManager.get_linode_secret_key())
+	def get_linode_e3_bucket() -> str:
+		"""Linode E3 bucket name (LINODE_E3_BUCKET)."""
+		return os.environ.get("LINODE_E3_BUCKET", "docfusion-rfp")
+
+	@staticmethod
+	def is_linode_e3_configured() -> bool:
+		"""Return True when Linode E3 credentials are present."""
+		return bool(
+			SecretsManager.get_linode_e3_access_key_id()
+			and SecretsManager.get_linode_e3_secret_access_key()
+		)
 
 	# ========================================================================
 	# Utility Methods
