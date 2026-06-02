@@ -13849,6 +13849,30 @@ Remaining after this slice:
 - Persist qualification workflows in the DB-backed runtime once PostgreSQL connectivity is restored.
 - DB-backed persisted import-response proof still depends on restoring PostgreSQL connectivity to `88.80.188.224:5432`.
 
+### 2026-06-02 - Global South National Tender Expansion
+
+Status: implemented and verified.
+
+Purpose: expand African and Global South tender/RFP acquisition beyond the existing Africa, donor, UN, and development-bank campaigns by adding more national procurement portals and recognizing non-English tender language in generic source scraping.
+
+Changes in this slice:
+- Added `global_south_national` as an Africa/Global South default acquisition campaign with source-backed national procurement portals for India, the Philippines, Chile, Ecuador, Colombia, Paraguay, Uruguay, Argentina, Peru, Bangladesh, Pakistan, and Vietnam.
+- Expanded African national sources with Cote d'Ivoire, Cameroon, Morocco, and Senegal procurement/ARMP portals.
+- Added UN Partner Portal and UN Development Business to the UN/multilateral source-backed campaign.
+- Extended direct document/search queries for Spanish, French, and Portuguese RFP/tender language.
+- Taught the generic parser to normalize accents and recognize Spanish, French, and Portuguese tender/deadline terms, so Global South portals are less likely to be marked empty only because they do not use English `RFP`/`tender` labels.
+
+Verification:
+- `npm run test -- --run __tests__/services/aggressive-rfp-acquisition.test.ts __tests__/services/default-discovery-sources.test.ts __tests__/scrapers/generic-parser.test.ts` passed with 19 tests.
+- `npx tsc --noEmit --pretty false` passed.
+- Live bounded acquisition run `aggressive_rfp_acquisition_global_south_national_expansion_20260602T` passed: 3 campaign chunks completed, 0 failed, 36 records imported, 9 source-document rows created, 0 downloads attempted by design, and 62 warnings captured.
+- Source-health evidence from the live run showed 10 of 12 new Global South national sources healthy; Ecuador SERCOP and Vietnam timed out or failed scraper fallback and remain targeted follow-up sources.
+- `psql` against `db.lindela.io:5432/docfusion` after the run counted 6,631 opportunities, including 2,158 RFP opportunities; records created during the run were 33 `Configured Source Scrape` and 3 `SearXNG`.
+
+Remaining after this slice:
+- Add source-specific parsers or direct API paths for the two newly observed weak sources: Ecuador SERCOP and Vietnam public procurement.
+- Run a follow-up document-download/intake pass for the 9 source-document rows created by the new Global South national campaign.
+
 ### 2026-05-28 - Source Document Intake Resilience and System Queueing
 
 Status: implemented and verified.

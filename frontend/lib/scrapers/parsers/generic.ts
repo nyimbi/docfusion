@@ -31,6 +31,22 @@ const TENDER_KEYWORDS = [
 	"request for quotation",
 	"expression of interest",
 	"notice of intent",
+	"licitacion",
+	"contratacion",
+	"convocatoria",
+	"concurso",
+	"pliego",
+	"llamado",
+	"expresion de interes",
+	"appel d'offres",
+	"avis d'appel",
+	"manifestation d'interet",
+	"consultation",
+	"licitacao",
+	"edital",
+	"pregao",
+	"concorrencia",
+	"chamada publica",
 ];
 
 const CONTEXT_TENDER_KEYWORDS = [
@@ -43,6 +59,18 @@ const CONTEXT_TENDER_KEYWORDS = [
 	"request for proposal",
 	"request for proposals",
 	"tender link",
+	"fecha limite",
+	"fecha de cierre",
+	"fecha de apertura",
+	"presentacion de ofertas",
+	"apertura de ofertas",
+	"date limite",
+	"depot des offres",
+	"remise des offres",
+	"cloture",
+	"prazo",
+	"data limite",
+	"data de encerramento",
 ];
 
 const EXCLUDE_KEYWORDS = [
@@ -63,6 +91,9 @@ const EXCLUDE_KEYWORDS = [
 	"electronic public procurement",
 	"contract award",
 	"awarded tender",
+	"attribution de marche",
+	"resultado de licitacion",
+	"contrato adjudicado",
 	"extension to deadline",
 	"notice of extension",
 	"addendum to tender",
@@ -81,16 +112,23 @@ const AFRICAN_COUNTRIES = [
 // Helper Functions
 // ============================================================================
 
+function normalizeForMatching(text: string): string {
+	return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function shouldExclude(text: string): boolean {
-	const lower = text.toLowerCase();
+	const lower = normalizeForMatching(text);
 	return EXCLUDE_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
 function isTenderLike(title: string, context: string): boolean {
-	const titleLower = title.toLowerCase();
-	const contextLower = context.toLowerCase();
+	const titleLower = normalizeForMatching(title);
+	const contextLower = normalizeForMatching(context);
 	if (TENDER_KEYWORDS.some((kw) => titleLower.includes(kw))) return true;
-	if (/\b(procurement|proposal|proposals)\b/i.test(title) && CONTEXT_TENDER_KEYWORDS.some((kw) => contextLower.includes(kw))) {
+	if (
+		/\b(procurement|proposal|proposals|consultancy|consultoria|consultation|oferta|ofertas|marche|mercado|servicios|services)\b/i.test(titleLower)
+		&& CONTEXT_TENDER_KEYWORDS.some((kw) => contextLower.includes(kw))
+	) {
 		return true;
 	}
 	return CONTEXT_TENDER_KEYWORDS.some((kw) => contextLower.includes(kw))
@@ -112,19 +150,19 @@ function parseMetadataBlock(block: string): {
 		description?: string;
 	} = {};
 
-	const orgMatch = block.match(/(?:organization|agency|buyer|client):\s*([^\n]+)/i);
+	const orgMatch = block.match(/(?:organization|agency|buyer|client|entidad contratante|comprador|procuring entity|autorite contractante):\s*([^\n]+)/i);
 	if (orgMatch) result.organization = cleanText(orgMatch[1].replace(/[*_]/g, ""));
 
-	const deadlineMatch = block.match(/(?:deadline|closing|due|submission)(?:\s*date)?:\s*([^\n]+)/i);
+	const deadlineMatch = block.match(/(?:deadline|closing|due|submission|fecha limite|fecha de cierre|fecha de apertura|date limite|cloture|prazo|data limite)(?:\s*date)?:\s*([^\n]+)/i);
 	if (deadlineMatch) result.deadline = parseDate(deadlineMatch[1].replace(/[*_]/g, ""));
 
-	const countryMatch = block.match(/(?:country|location|region):\s*([^\n]+)/i);
+	const countryMatch = block.match(/(?:country|location|region|pais|ubicacion|lieu|pays):\s*([^\n]+)/i);
 	if (countryMatch) result.country = cleanText(countryMatch[1].replace(/[*_]/g, ""));
 
 	const budgetMatch = block.match(/(?:budget|value|amount):\s*([^\n]+)/i);
 	if (budgetMatch) result.budget = parseBudget(budgetMatch[1].replace(/[*_]/g, ""));
 
-	const descMatch = block.match(/(?:description|summary|details):\s*([^\n]+)/i);
+	const descMatch = block.match(/(?:description|summary|details|objeto|object|objet|descricao):\s*([^\n]+)/i);
 	if (descMatch) result.description = cleanText(descMatch[1].replace(/[*_]/g, ""));
 
 	return result;
@@ -144,7 +182,7 @@ function extractContextMetadata(context: string): {
 	} = {};
 
 	const orgPatterns = [
-		/(?:organization|agency|buyer|client|procuring entity):\s*([^\n]+)/i,
+		/(?:organization|agency|buyer|client|procuring entity|entidad contratante|comprador|autorite contractante):\s*([^\n]+)/i,
 		/(?:issued by|from|by)\s+([A-Z][A-Za-z\s&]+(?:Ltd|Inc|Corp|Organization|Agency|Ministry|Department)?)/i,
 	];
 	for (const p of orgPatterns) {
@@ -157,6 +195,7 @@ function extractContextMetadata(context: string): {
 
 	const deadlinePatterns = [
 		/(?:deadline|closing|due|submission)(?:\s*date)?:\s*([^\n]+)/i,
+		/(?:fecha limite|fecha de cierre|fecha de apertura|date limite|cloture|prazo|data limite):\s*([^\n]+)/i,
 		/(?:closes?|due)\s+(?:on\s+)?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
 		/(\d{1,2}(?:st|nd|rd|th)?\s+\w+,?\s+\d{4})/i,
 	];

@@ -14,6 +14,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"un_multilateral",
 			"development_banks",
 			"africa_national",
+			"global_south_national",
 			"high_intent_search",
 			"document_search",
 			"africa_global_south_document_search",
@@ -42,6 +43,24 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"https://www.dgmp.gouv.ml/?q=node/71",
 				"https://www.dgmp.gouv.ml/?q=node/66",
 				"https://dnccp.gouv.tg/dnccp/wp-json/wp/v2/posts?categories=45%2C104%2C105%2C106&per_page=100&_fields=id%2Cdate%2Clink%2Ctitle%2Ccontent%2Cexcerpt%2Ccategories",
+				"https://www.marchespublics.ci/",
+				"https://www.armp.cm/",
+				"https://www.marchespublics.gov.ma/",
+				"https://www.armp.sn/",
+				"https://www.unpartnerportal.org/landing/opportunities",
+				"https://devbusiness.un.org/",
+				"https://eprocure.gov.in/eprocure/app",
+				"https://notices.philgeps.gov.ph/",
+				"https://www.mercadopublico.cl/Home",
+				"https://www.compraspublicas.gob.ec/ProcesoContratacion/compras/",
+				"https://www.colombiacompra.gov.co/secop/secop-ii",
+				"https://www.contrataciones.gov.py/",
+				"https://www.gub.uy/agencia-compras-contrataciones-estado",
+				"https://www.argentina.gob.ar/jefatura/ejecutiva/oficina-nacional-de-contrataciones",
+				"https://prod2.seace.gob.pe/seacebus-uiwd-pub/buscadorPublico/buscadorPublico.xhtml",
+				"https://www.eprocure.gov.bd/",
+				"https://www.ppra.org.pk/",
+				"https://muasamcong.mpi.gov.vn/",
 				"https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search?limit=100&stages=tender",
 				"https://www.find-tender.service.gov.uk/api/1.0/ocdsReleasePackages?limit=100&stages=tender",
 				"https://micro.grants.gov/rest/opportunities/search?rows=100&oppStatuses=forecasted%7Cposted",
@@ -122,6 +141,10 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"https://www.dgmp.gouv.ml/?q=node/71",
 			"https://www.dgmp.gouv.ml/?q=node/66",
 			"https://dnccp.gouv.tg/dnccp/wp-json/wp/v2/posts?categories=45%2C104%2C105%2C106&per_page=100&_fields=id%2Cdate%2Clink%2Ctitle%2Ccontent%2Cexcerpt%2Ccategories",
+			"https://www.marchespublics.ci/",
+			"https://www.armp.cm/",
+			"https://www.marchespublics.gov.ma/",
+			"https://www.armp.sn/",
 		]));
 		expect(run.input.scrapeTopResults).toBe(false);
 		expect(run.input.scrapeLimit).toBe(0);
@@ -141,7 +164,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 			sourceChunkSize: 4,
 		});
 
-		expect(runs).toHaveLength(7);
+		expect(runs).toHaveLength(8);
 		expect(runs.map((run) => run.campaign.id)).toEqual([
 			"africa_national__sources_1",
 			"africa_national__sources_2",
@@ -150,8 +173,9 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"africa_national__sources_5",
 			"africa_national__sources_6",
 			"africa_national__sources_7",
+			"africa_national__sources_8",
 		]);
-		expect(runs[0].campaign.label).toBe("African national procurement portals (sources 1/7)");
+		expect(runs[0].campaign.label).toBe("African national procurement portals (sources 1/8)");
 		expect(runs.every((run) => (run.input.sourceUrls ?? []).length <= 4)).toBe(true);
 		expect(runs.flatMap((run) => run.input.sourceUrls ?? [])).toEqual(
 			DEFAULT_AGGRESSIVE_RFP_ACQUISITION_CAMPAIGNS.find((campaign) => campaign.id === "africa_national")?.sourceUrls
@@ -238,6 +262,7 @@ describe("aggressive RFP acquisition campaigns", () => {
 				"donor_ngo_search",
 				"global_regional_search",
 				"global_south_marketplaces",
+				"global_south_national",
 				"un_multilateral",
 				"high_intent_search",
 				"africa_global_south_document_search",
@@ -262,6 +287,8 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"filetype:pdf \"request for proposals\" \"submission deadline\" Africa",
 			"filetype:pdf \"request for expressions of interest\" \"African Development Bank\"",
 			"filetype:pdf \"request for proposals\" \"Latin America\" deadline",
+			"filetype:pdf licitacion \"fecha limite\" consultoria",
+			"filetype:pdf \"appel d'offres\" \"date limite\" Afrique",
 			"filetype:pdf \"request for proposal\" Pacific \"closing date\"",
 		]));
 		expect(run.input.searchEngineFanout).toBe(true);
@@ -288,6 +315,38 @@ describe("aggressive RFP acquisition campaigns", () => {
 			"site:dgmarket.com/tender Africa \"Deadline\" \"request for proposals\"",
 			"site:dgmarket.com/tender \"consulting services\" \"World Bank\" Africa",
 			"site:dgmarket.com/tender \"AfDB\" OR \"African Development Bank\" tender",
+		]));
+		expect(run.input.scrapeTopResults).toBe(true);
+		expect(run.input.downloadDiscoveredDocuments).toBe(true);
+	});
+
+	it("builds source-backed Global South national portal campaigns", () => {
+		const [run] = buildAggressiveRfpAcquisitionInputs({
+			campaignIds: ["global_south_national"],
+			limitPerQuery: 3,
+			searchPages: 1,
+			sourceScrapeLimit: 10,
+			scrapeLimit: 2,
+			browserFallbackLimit: 1,
+			downloadLimit: 4,
+			downloadParseMode: "queued",
+		});
+
+		expect(run.campaign.id).toBe("global_south_national");
+		expect(run.input.sourceUrls).toEqual(expect.arrayContaining([
+			"https://eprocure.gov.in/eprocure/app",
+			"https://notices.philgeps.gov.ph/",
+			"https://www.mercadopublico.cl/Home",
+			"https://www.compraspublicas.gob.ec/ProcesoContratacion/compras/",
+			"https://www.colombiacompra.gov.co/secop/secop-ii",
+			"https://www.ppra.org.pk/",
+			"https://muasamcong.mpi.gov.vn/",
+		]));
+		expect(run.input.queries).toEqual(expect.arrayContaining([
+			"site:eprocure.gov.in/eprocure/app tender \"Bid Submission End Date\"",
+			"site:mercadopublico.cl licitacion \"Fecha de Cierre\"",
+			"site:colombiacompra.gov.co/secop \"licitacion\" \"fecha de cierre\"",
+			"site:ppra.org.pk tender \"Closing Date\"",
 		]));
 		expect(run.input.scrapeTopResults).toBe(true);
 		expect(run.input.downloadDiscoveredDocuments).toBe(true);

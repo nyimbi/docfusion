@@ -95,4 +95,36 @@ describe("generic tender parser", () => {
 
 		expect(result.opportunities).toEqual([]);
 	});
+
+	it("recognizes Spanish, French, and Portuguese Global South tender language", async () => {
+		const result = await genericParser.parse({
+			url: "https://global-south.example/procurement",
+			markdown: `
+				<a href="/procesos/123">Licitación publica para plataforma de datos</a>
+				<p>Entidad contratante: Ministerio de Salud. Fecha límite: 20/06/2026.</p>
+
+				<a href="/marches/456">Avis d'appel d'offres pour services de conseil</a>
+				<p>Date limite: 21 Juin 2026. Pays: Senegal.</p>
+
+				<a href="/compras/789">Pregão eletrônico para sistema de monitoramento</a>
+				<p>Data limite: 22/06/2026.</p>
+			`,
+			links: [],
+		});
+
+		expect(result.opportunities).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				title: "Licitación publica para plataforma de datos",
+				portalUrl: "https://global-south.example/procesos/123",
+			}),
+			expect.objectContaining({
+				title: "Avis d'appel d'offres pour services de conseil",
+				portalUrl: "https://global-south.example/marches/456",
+			}),
+			expect.objectContaining({
+				title: "Pregão eletrônico para sistema de monitoramento",
+				portalUrl: "https://global-south.example/compras/789",
+			}),
+		]));
+	});
 });
