@@ -32,13 +32,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.utils import uuid7str
+from ..storage.blob_store import BlobStore, LocalBlobStore
 from .requirement_extractor import (
 	RequirementCategory,
 	RequirementModality,
@@ -48,28 +48,7 @@ from .rfp_analyzer import RFPAnalyzer
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Storage helpers — shared with rfp_endpoints.py.
-#
-# The local-disk fallback is identical to the one in the FastAPI module;
-# it lives here because the Temporal activity has to rehydrate bytes by
-# the same key the upload handler wrote. Keeping the helpers in a single
-# place stops the two paths from drifting apart.
-# ---------------------------------------------------------------------------
-_LOCAL_STORAGE_ROOT = Path("./storage/rfp")
-
-
-def _local_storage_path(storage_key: str) -> Path:
-	"""Resolve a storage_key to a local filesystem path under ./storage/rfp.
-
-	Mirrors :func:`docfusion.api.endpoints.rfp_endpoints._local_storage_path`
-	on purpose — the worker has no FastAPI module loaded.
-	"""
-	relative = (
-		storage_key[len("orgs/") :] if storage_key.startswith("orgs/") else storage_key
-	)
-	return _LOCAL_STORAGE_ROOT / relative
+_default_blob_store = LocalBlobStore()
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +269,7 @@ async def execute_parse_pipeline(
 	session: AsyncSession,
 	rfp_id: str,
 	organization_id: str,
+	blob_store: BlobStore | None = None,
 ) -> ParsePipelineResult:
 	"""Run the full parse pipeline against ``(rfp_id, organization_id)``.
 
@@ -319,9 +299,10 @@ async def execute_parse_pipeline(
 
 	storage_path = row["storage_path"]
 	file_type = (row["file_type"] or "").lower()
-	local_path = _local_storage_path(storage_path)
+	store = blob_store if blob_store is not None else _default_blob_store
+	contents = await store.retrieve(storage_path)
 
-	if not local_path.exists():
+	if contents is None:
 		# Bytes vanished between upload and parse. Mark failed so the
 		# UI can surface the state and re-prompt for upload.
 		await mark_parse_failed(
@@ -331,8 +312,6 @@ async def execute_parse_pipeline(
 			"stored bytes missing",
 		)
 		raise RfpStagedBytesMissingError(rfp_id=rfp_id, organization_id=organization_id)
-
-	contents = local_path.read_bytes()
 
 	# Hop the row out of pending|queued before doing the heavy work so
 	# concurrent pollers can see ``processing``.

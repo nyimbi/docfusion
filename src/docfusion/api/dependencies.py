@@ -47,6 +47,7 @@ from typing import NoReturn, Optional
 from ..infrastructure.searxng_client import SearXNGClient
 from ..infrastructure.firecrawl_client import FirecrawlClient
 from ..infrastructure.litellm_client import LiteLLMClient
+from ..storage.blob_store import BlobStore, LocalBlobStore
 
 # Secrets management
 from ..config.secrets import SecretsManager
@@ -170,6 +171,7 @@ class ServiceContainer:
 		self.document_engine: Optional[SecureDocumentEngine] = None
 		self.collaboration_integrator = None
 		self.intelligence_service = None
+		self.blob_store: BlobStore = LocalBlobStore()
 
 		# Endpoint instances
 		self.document_endpoints: Optional[DocumentEndpoints] = None
@@ -470,6 +472,11 @@ async def get_litellm() -> LiteLLMClient:
 
 
 # Placeholder functions for core services (to be implemented)
+async def get_blob_store() -> BlobStore:
+	"""Get the blob store for raw RFP byte I/O (for dependency injection)."""
+	return ServiceContainer.get_instance().blob_store
+
+
 async def get_storage_service():
 	"""Get storage service (for dependency injection)."""
 	container = await get_container()

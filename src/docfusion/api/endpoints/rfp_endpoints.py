@@ -38,7 +38,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..dependencies import TenantContext, require_tenant
+from ..dependencies import TenantContext, get_blob_store, require_tenant
+from ...storage.blob_store import BlobStore
 from ...core.database.session import get_async_db_session
 from ...core.utils import uuid7str
 from ...rfp.compliance_matrix import (
@@ -63,33 +64,15 @@ router = APIRouter(prefix="/api/v1/rfp", tags=["rfp"])
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Local filesystem staging area for uploaded RFP bytes.
-#
-# W3b deliberately defers blob-storage wiring (S3 / SecureStorageService)
-# to W3c. The /parse handler needs the original bytes back, so /upload
-# stages them on local disk under a per-tenant prefix. The path layout
-# is the same key we will hand to SecureStorageService later, which means
-# swapping in the cloud client is a search-and-replace, not a redesign.
-# ---------------------------------------------------------------------------
-_LOCAL_STORAGE_ROOT = Path("./storage/rfp")
-
-
 def _safe_filename(filename: str | None) -> str:
 	"""Strip path components and reject obvious traversal attempts.
 
-	The local-disk fallback writes via ``Path(...).write_bytes(...)``; an
-	attacker-controlled ``../../etc/passwd`` would otherwise escape the
-	per-tenant directory. ``Path(name).name`` keeps only the final
-	component, matching the cloud-storage layout where slashes have
-	semantic meaning in the key.
+	``Path(name).name`` keeps only the final component, matching the
+	cloud-storage layout where slashes have semantic meaning in the key.
 	"""
 	if not filename:
 		return "rfp"
-	# Path(...).name drops everything before the last separator on either
-	# platform, so "../etc/passwd" -> "passwd" and "C:\\boot.ini" -> "boot.ini".
 	stripped = Path(filename).name
-	# Reject anything that is still a separator-only or empty after strip.
 	if not stripped or stripped in {".", ".."}:
 		return "rfp"
 	return stripped
@@ -100,19 +83,6 @@ def _storage_key(organization_id: str, rfp_id: str, filename: str) -> str:
 	assert organization_id, "organization_id required for storage key"
 	assert rfp_id, "rfp_id required for storage key"
 	return f"orgs/{organization_id}/rfp/{rfp_id}/{_safe_filename(filename)}"
-
-
-def _local_storage_path(storage_key: str) -> Path:
-	"""Resolve a storage_key to a local filesystem path under ./storage/rfp.
-
-	The caller is responsible for ensuring the parent directory exists
-	before writing. ``W3c`` will replace this with SecureStorageService.
-	"""
-	# Strip the "orgs/" prefix because _LOCAL_STORAGE_ROOT already starts at
-	# ``storage/rfp``; that keeps disk paths short and avoids a redundant
-	# "rfp/" component.
-	relative = storage_key[len("orgs/"):] if storage_key.startswith("orgs/") else storage_key
-	return _LOCAL_STORAGE_ROOT / relative
 
 
 def _file_type_from_filename(filename: str) -> str:
@@ -176,19 +146,16 @@ async def upload_rfp(
 	file: UploadFile = File(...),
 	ctx: TenantContext = Depends(require_tenant),
 	session: AsyncSession = Depends(get_async_db_session),
+	blob_store: BlobStore = Depends(get_blob_store),
 ) -> UploadResponse:
 	"""Upload an RFP document and persist a row in ``rfp_documents``.
 
-	W3b wiring:
 	  1. Read the upload into memory and SHA-256 it for content
 	     deduplication and integrity tracking.
 	  2. Generate a UUID7 ``rfp_id`` so callers can reference the
 	     document immediately.
-	  3. Stage the bytes on local disk under
-	     ``./storage/rfp/{org}/{rfp_id}/{filename}``. The storage key
-	     stored on the row matches the cloud-storage layout
-	     ``orgs/{org}/rfp/{rfp_id}/{filename}`` so W3c can move to
-	     SecureStorageService without changing the schema.
+	  3. Stage the bytes via ``blob_store`` under the canonical key
+	     ``orgs/{org}/rfp/{rfp_id}/{filename}``.
 	  4. INSERT the row into ``rfp_documents`` with
 	     ``parsing_status='pending'`` and ``organization_id`` set from
 	     the tenant context.
@@ -229,11 +196,7 @@ async def upload_rfp(
 			},
 		)
 
-	# Stage the bytes locally so /parse can rehydrate them. Production
-	# deployments swap this for SecureStorageService in W3c.
-	local_path = _local_storage_path(storage_path)
-	local_path.parent.mkdir(parents=True, exist_ok=True)
-	local_path.write_bytes(contents)
+	await blob_store.store(storage_path, contents)
 
 	now = datetime.now(timezone.utc)
 	await session.execute(
