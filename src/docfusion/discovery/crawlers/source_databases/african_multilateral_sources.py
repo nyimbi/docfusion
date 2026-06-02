@@ -279,3 +279,96 @@ def get_african_rec_sources() -> list[dict[str, Any]]:
 			"tags": ["financial-crime", "west-africa"],
 		},
 	]
+
+
+def get_african_sub_regional_sources() -> list[dict[str, Any]]:
+	"""Sub-regional customs/monetary unions, river basin authorities, and specialist bodies
+	from the Abuja Treaty framework not covered in get_african_rec_sources()."""
+	return [
+		# ── Sub-Regional Customs & Monetary Unions ────────────────────────────
+		{
+			"name": "SACU (Southern African Customs Union) Procurement",
+			"url": "https://www.sacu.int/",
+			"country": "ZA", "region": "Southern Africa",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 2, "language": "en",
+			"recommended_scraper": "universal",
+			"tags": ["sacu", "customs-union", "southern-africa"],
+		},
+		{
+			"name": "UEMOA/WAEMU (West African Economic and Monetary Union) Tenders",
+			"url": "https://www.uemoa.int/fr/appels-offres",
+			"country": "BF", "region": "West Africa",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 3, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["uemoa", "monetary-union", "west-africa"],
+		},
+		{
+			"name": "WAMZ (West African Monetary Zone) — WAMI Tenders",
+			"url": "https://www.wami-imao.org/",
+			"country": "GM", "region": "West Africa",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 1, "language": "en",
+			"recommended_scraper": "universal",
+			"tags": ["wamz", "monetary-zone", "west-africa"],
+		},
+		{
+			"name": "CEPGL (Economic Community of the Great Lakes Countries)",
+			"url": "https://www.cepgl.org/",
+			"country": "CD", "region": "Great Lakes",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 1, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["cepgl", "great-lakes", "central-africa"],
+		},
+		{
+			"name": "IOC/COI (Indian Ocean Commission) Procurement",
+			"url": "https://www.commissionoceanindien.org/",
+			"country": "MU", "region": "Indian Ocean",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 2, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["ioc", "indian-ocean", "island-nations"],
+		},
+		# ── River Basin & Water Authorities ────────────────────────────────────
+		{
+			"name": "OMVS (Senegal River Basin Development Authority) Tenders",
+			"url": "https://www.omvs.org/",
+			"country": "SN", "region": "West Africa",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 2, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["basin-organization", "water", "senegal-river"],
+		},
+		{
+			"name": "VBA/ABV (Volta Basin Authority) Procurement",
+			"url": "https://abv-volta.org/",
+			"country": "BF", "region": "West Africa",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 1, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["basin-organization", "water", "volta-basin"],
+		},
+		# ── Drought Control & Sahel Specialist Bodies ──────────────────────────
+		{
+			"name": "CILSS (Permanent Interstate Committee for Drought Control in the Sahel)",
+			"url": "https://www.cilss.int/",
+			"country": "BF", "region": "Sahel",
+			"source_type": "government_international", "geographic_scope": "regional",
+			"typical_opportunities_per_day": 2, "language": "fr",
+			"recommended_scraper": "universal",
+			"tags": ["drought", "food-security", "sahel"],
+		},
+		# ── African Economic Community (AEC) umbrella ─────────────────────────
+		{
+			"name": "AEC (African Economic Community) — via AU Procurement",
+			"url": "https://www.au.int/en/treaties/treaty-establishing-african-economic-community",
+			"country": "ET", "region": "Pan-African",
+			"source_type": "government_international", "geographic_scope": "continental",
+			"typical_opportunities_per_day": 1, "language": "en",
+			"recommended_scraper": "universal",
+			"notes": "AEC is implemented through the AU Commission; tenders via au.int",
+			"tags": ["aec", "au", "pan-african"],
+		},
+	]

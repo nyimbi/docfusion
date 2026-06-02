@@ -1602,8 +1602,9 @@ class GlobalSourceDB:
 
 	async def _load_african_multilateral_sources(self) -> None:
 		"""Load African RECs, development banks, basin commissions, and specialist bodies."""
-		from .african_multilateral_sources import get_african_rec_sources
-		for src in get_african_rec_sources():
+		from .african_multilateral_sources import get_african_rec_sources, get_african_sub_regional_sources
+		all_sources = get_african_rec_sources() + get_african_sub_regional_sources()
+		for src in all_sources:
 			try:
 				await self.add_source(ProcurementSource(
 					base_domain=urlparse(src["url"]).netloc, **src,
