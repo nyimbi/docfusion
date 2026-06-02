@@ -294,6 +294,10 @@ class GlobalSourceDB:
 			await self._load_foundation_sources()
 			await self._load_ngo_sources()
 			await self._load_marketplace_sources()
+			await self._load_pacific_caribbean_sources()
+			await self._load_african_multilateral_sources()
+			await self._load_grant_organization_sources()
+			await self._load_global_expansion_sources()
 			
 			total = await self.get_total_sources()
 			self.logger.info(f"Loaded {total} procurement sources")
@@ -1583,6 +1587,79 @@ class GlobalSourceDB:
 				))
 			except Exception:
 				self.logger.debug("Skipping NGO source %s", source_data.get("name"))
+
+	async def _load_pacific_caribbean_sources(self) -> None:
+		"""Load Pacific Islands and Caribbean national/regional procurement portals."""
+		from .pacific_caribbean_sources import get_pacific_sources, get_caribbean_sources
+		for fn in (get_pacific_sources, get_caribbean_sources):
+			for src in fn():
+				try:
+					await self.add_source(ProcurementSource(
+						base_domain=urlparse(src["url"]).netloc, **src,
+					))
+				except Exception:
+					self.logger.debug("Skipping Pacific/Caribbean source %s", src.get("name"))
+
+	async def _load_african_multilateral_sources(self) -> None:
+		"""Load African RECs, development banks, basin commissions, and specialist bodies."""
+		from .african_multilateral_sources import get_african_rec_sources
+		for src in get_african_rec_sources():
+			try:
+				await self.add_source(ProcurementSource(
+					base_domain=urlparse(src["url"]).netloc, **src,
+				))
+			except Exception:
+				self.logger.debug("Skipping African multilateral source %s", src.get("name"))
+
+	async def _load_grant_organization_sources(self) -> None:
+		"""Load grant-giving foundations, bilateral donors, and grant aggregators."""
+		from .grant_organizations_sources import (
+			get_us_foundations,
+			get_european_foundations,
+			get_middle_east_gulf_funds,
+			get_research_funders,
+			get_bilateral_donor_agencies,
+			get_grant_aggregators,
+		)
+		for fn in (
+			get_us_foundations,
+			get_european_foundations,
+			get_middle_east_gulf_funds,
+			get_research_funders,
+			get_bilateral_donor_agencies,
+			get_grant_aggregators,
+		):
+			for src in fn():
+				try:
+					await self.add_source(ProcurementSource(
+						base_domain=urlparse(src["url"]).netloc, **src,
+					))
+				except Exception:
+					self.logger.debug("Skipping grant source %s", src.get("name"))
+
+	async def _load_global_expansion_sources(self) -> None:
+		"""Load English-speaking world, Latin America, Middle East, Europe, and Asia portals."""
+		from .global_expansion_sources import (
+			get_english_speaking_world,
+			get_latin_america_sources,
+			get_middle_east_sources,
+			get_additional_european_sources,
+			get_additional_asia_sources,
+		)
+		for fn in (
+			get_english_speaking_world,
+			get_latin_america_sources,
+			get_middle_east_sources,
+			get_additional_european_sources,
+			get_additional_asia_sources,
+		):
+			for src in fn():
+				try:
+					await self.add_source(ProcurementSource(
+						base_domain=urlparse(src["url"]).netloc, **src,
+					))
+				except Exception:
+					self.logger.debug("Skipping expansion source %s", src.get("name"))
 
 	async def add_source(self, source: ProcurementSource) -> bool:
 		"""Add a new procurement source to the database"""
