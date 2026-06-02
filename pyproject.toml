@@ -98,6 +98,7 @@ dependencies = [
     "simpleeval>=1.0.7",
     "cachetools>=6.2.5",
     "temporalio>=1.5",                  # Temporal workflow/activity SDK (W3c async RFP parsing)
+    "boto3>=1.43.19",
 ]
 
 # Optional dependency groups

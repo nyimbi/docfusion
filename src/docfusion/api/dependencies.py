@@ -47,7 +47,7 @@ from typing import NoReturn, Optional
 from ..infrastructure.searxng_client import SearXNGClient
 from ..infrastructure.firecrawl_client import FirecrawlClient
 from ..infrastructure.litellm_client import LiteLLMClient
-from ..storage.blob_store import BlobStore, LocalBlobStore
+from ..storage.blob_store import BlobStore, LocalBlobStore, make_blob_store
 
 # Secrets management
 from ..config.secrets import SecretsManager
@@ -171,7 +171,7 @@ class ServiceContainer:
 		self.document_engine: Optional[SecureDocumentEngine] = None
 		self.collaboration_integrator = None
 		self.intelligence_service = None
-		self.blob_store: BlobStore = LocalBlobStore()
+		self.blob_store: BlobStore = make_blob_store()
 
 		# Endpoint instances
 		self.document_endpoints: Optional[DocumentEndpoints] = None

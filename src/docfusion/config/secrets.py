@@ -750,6 +750,35 @@ class SecretsManager:
 		return os.environ.get("LATEX_CACHE_DIR", "/tmp/docfusion-latex-cache")
 
 	# ========================================================================
+	# Linode Object Storage (S3-compatible blob store)
+	# ========================================================================
+
+	@staticmethod
+	def get_linode_access_key() -> str:
+		"""Linode object-storage access key (LINODE_ACCESS_KEY)."""
+		return os.environ.get("LINODE_ACCESS_KEY", "")
+
+	@staticmethod
+	def get_linode_secret_key() -> str:
+		"""Linode object-storage secret key (LINODE_SECRET_KEY)."""
+		return os.environ.get("LINODE_SECRET_KEY", "")
+
+	@staticmethod
+	def get_linode_s3_endpoint() -> str:
+		"""Linode S3-compatible endpoint URL (LINODE_S3_ENDPOINT)."""
+		return os.environ.get("LINODE_S3_ENDPOINT", "https://gb-lon-1.linodeobjects.com")
+
+	@staticmethod
+	def get_linode_bucket() -> str:
+		"""Linode bucket name for RFP file storage (LINODE_BUCKET_NAME)."""
+		return os.environ.get("LINODE_BUCKET_NAME", "docfusion-rfp")
+
+	@staticmethod
+	def is_linode_configured() -> bool:
+		"""Return True when both Linode credentials are present."""
+		return bool(SecretsManager.get_linode_access_key() and SecretsManager.get_linode_secret_key())
+
+	# ========================================================================
 	# Utility Methods
 	# ========================================================================
 
