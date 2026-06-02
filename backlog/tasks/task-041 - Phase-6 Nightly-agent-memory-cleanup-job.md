@@ -1,11 +1,14 @@
 ---
 id: task-041
-title: "Phase 6: Nightly agent memory cleanup job"
-status: To Do
-phase: 6
-gap_ids: [master-plan-risks]
-priority: Low
-dependencies: [task-017]
+title: 'Phase 6: Nightly agent memory cleanup job'
+status: Done
+assignee: []
+created_date: ''
+updated_date: '2026-06-02 08:29'
+labels: []
+dependencies:
+  - task-017
+priority: low
 ---
 
 # task-041 - Phase 6: Nightly agent memory cleanup job
@@ -39,13 +42,11 @@ from docfusion.storage.database import get_session_factory
 
 logger = logging.getLogger(__name__)
 
-
 async def main() -> int:
 	store = PersistentMemoryStore(get_session_factory())
 	removed = await store.cleanup_expired()
 	logger.info("Agent memory cleanup removed %d expired rows", removed)
 	return removed
-
 
 if __name__ == "__main__":
 	import logging as _log
@@ -98,7 +99,6 @@ import pytest
 from docfusion.agents.memory.cleanup import main as cleanup_main
 from docfusion.agents.memory.persistent_store import PersistentMemoryStore
 
-
 async def test_cleanup_removes_expired(db_session_factory):
 	store = PersistentMemoryStore(db_session_factory)
 	await store.put("agent-x", "short", {"k": "v"}, ttl_seconds=1)
@@ -134,3 +134,9 @@ git commit -m "feat(agents): nightly memory cleanup job [master-plan-risks]"
 - If systemd isn't the scheduling mechanism in your deployment (maybe Kubernetes CronJob), adapt the concept: one cron-like resource running the same entry point nightly.
 - Do NOT run cleanup inside the FastAPI process. It would lock rows during an API request.
 - `get_session_factory()` may not exist by that exact name — find the equivalent in `src/docfusion/storage/` or `src/docfusion/database.py`.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented cleanup_job.py fix (PersistentMemoryStore.create(dsn) pattern), systemd timer/service files in deployment/systemd/, and deployment/README.md installation docs. Test passes.
+<!-- SECTION:NOTES:END -->

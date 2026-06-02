@@ -9,9 +9,10 @@ relationship graphs for proposal analysis and visualization.
 
 import logging
 import re
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # spaCy integration for NER
 try:
@@ -105,13 +106,14 @@ class StakeholderRoleCategory(str, Enum):
 	EXTERNAL = "external"
 	UNKNOWN = "unknown"
 
-@dataclass
-class Stakeholder:
+class Stakeholder(BaseModel):
 	"""Represents an identified stakeholder from RFP documents"""
 
-	id: str = field(default_factory=uuid7str)
+	model_config = ConfigDict(extra="forbid", validate_by_name=True, validate_by_alias=True)
+
+	id: str = Field(default_factory=uuid7str)
 	name: str = ""
-	roles: List[StakeholderRole] = field(default_factory=list)
+	roles: List[StakeholderRole] = Field(default_factory=list)
 	organization: Optional[str] = None
 	organization_unit: Optional[str] = None
 	email: Optional[str] = None
@@ -124,18 +126,16 @@ class Stakeholder:
 	source_text: Optional[str] = None
 	start_char: int = 0
 	end_char: int = 0
-	attributes: Dict[str, Any] = field(default_factory=dict)
-	relationships: List[str] = field(default_factory=list)  # IDs of related stakeholders
+	attributes: Dict[str, Any] = Field(default_factory=dict)
+	relationships: List[str] = Field(default_factory=list)
 	extraction_method: str = ""
-	ai_insights: Dict[str, Any] = field(default_factory=dict)
+	ai_insights: Dict[str, Any] = Field(default_factory=dict)
 
-	def __post_init__(self):
-		"""Initialize derived attributes"""
+	@model_validator(mode="after")
+	def _ensure_id(self) -> "Stakeholder":
 		if not self.id:
 			self.id = uuid7str()
-		# Ensure roles is a list
-		if self.roles is None:
-			self.roles = []
+		return self
 
 	@property
 	def primary_role(self) -> Optional[StakeholderRole]:
@@ -175,33 +175,31 @@ class Stakeholder:
 			"extraction_method": self.extraction_method,
 		}
 
-@dataclass
-class StakeholderRelationship:
+class StakeholderRelationship(BaseModel):
 	"""Represents a relationship between stakeholders"""
 
-	id: str
+	model_config = ConfigDict(extra="forbid", validate_by_name=True, validate_by_alias=True)
+
+	id: str = Field(default_factory=uuid7str)
 	source_id: str
 	target_id: str
 	relationship_type: str
 	confidence: float
 	evidence: Optional[str] = None
 	context: Optional[str] = None
-	attributes: Dict[str, Any] = field(default_factory=dict)
+	attributes: Dict[str, Any] = Field(default_factory=dict)
 
-	def __post_init__(self):
-		if not self.id:
-			self.id = uuid7str()
-
-@dataclass
-class StakeholderGraph:
+class StakeholderGraph(BaseModel):
 	"""Graph representation of stakeholder relationships"""
 
-	stakeholders: List[Stakeholder] = field(default_factory=list)
-	relationships: List[StakeholderRelationship] = field(default_factory=list)
-	adjacency: Dict[str, List[str]] = field(default_factory=dict)
-	clusters: List[Set[str]] = field(default_factory=list)
-	statistics: Dict[str, Any] = field(default_factory=dict)
-	visualization_data: Dict[str, Any] = field(default_factory=dict)
+	model_config = ConfigDict(extra="forbid", validate_by_name=True, validate_by_alias=True)
+
+	stakeholders: List[Stakeholder] = Field(default_factory=list)
+	relationships: List[StakeholderRelationship] = Field(default_factory=list)
+	adjacency: Dict[str, List[str]] = Field(default_factory=dict)
+	clusters: List[Set[str]] = Field(default_factory=list)
+	statistics: Dict[str, Any] = Field(default_factory=dict)
+	visualization_data: Dict[str, Any] = Field(default_factory=dict)
 
 	def add_stakeholder(self, stakeholder: Stakeholder) -> None:
 		"""Add a stakeholder to the graph"""
@@ -278,21 +276,22 @@ class StakeholderGraph:
 			},
 		}
 
-class StakeholderExtractionResult:
+class StakeholderExtractionResult(BaseModel):
 	"""Result of stakeholder extraction"""
 
-	def __init__(self):
-		self.success: bool = False
-		self.original_text: str = ""
-		self.stakeholders: List[Stakeholder] = []
-		self.stakeholder_graph: Optional[StakeholderGraph] = None
-		self.organizations: List[Dict[str, Any]] = []
-		self.statistics: Dict[str, Any] = {}
-		self.errors: List[str] = []
-		self.warnings: List[str] = []
-		self.processing_time: float = 0.0
-		self.methods_used: List[str] = []
-		self.ai_analysis: Dict[str, Any] = {}
+	model_config = ConfigDict(extra="forbid", validate_by_name=True, validate_by_alias=True)
+
+	success: bool = False
+	original_text: str = ""
+	stakeholders: List[Stakeholder] = Field(default_factory=list)
+	stakeholder_graph: Optional[StakeholderGraph] = None
+	organizations: List[Dict[str, Any]] = Field(default_factory=list)
+	statistics: Dict[str, Any] = Field(default_factory=dict)
+	errors: List[str] = Field(default_factory=list)
+	warnings: List[str] = Field(default_factory=list)
+	processing_time: float = 0.0
+	methods_used: List[str] = Field(default_factory=list)
+	ai_analysis: Dict[str, Any] = Field(default_factory=dict)
 
 # Role pattern definitions
 ROLE_PATTERNS: Dict[StakeholderRole, List[str]] = {

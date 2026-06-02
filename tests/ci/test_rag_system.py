@@ -10,16 +10,32 @@ and integration with the existing storage system.
 import pytest
 import asyncio
 import os
+import socket
 import tempfile
 from pathlib import Path
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# Skip all RAG tests if database connection is not available
 DATABASE_URL = os.getenv("DATABASE_URL")
-SKIP_RAG_TESTS = not os.getenv('OPENAI_API_KEY') or not DATABASE_URL
 
-pytestmark = pytest.mark.skipif(SKIP_RAG_TESTS, reason="RAG tests require database and OpenAI API key")
+
+def _db_reachable(url: str | None) -> bool:
+	if not url:
+		return False
+	try:
+		from urllib.parse import urlparse
+		parsed = urlparse(url)
+		host = parsed.hostname or "localhost"
+		port = parsed.port or 5432
+		with socket.create_connection((host, port), timeout=1):
+			return True
+	except OSError:
+		return False
+
+
+SKIP_RAG_TESTS = not _db_reachable(DATABASE_URL)
+
+pytestmark = pytest.mark.skipif(SKIP_RAG_TESTS, reason="RAG tests require a reachable database")
 
 from docfusion.storage.rag import (
 	RAGService, RAGConfiguration, RAGDocument, DocumentChunk,
@@ -58,12 +74,13 @@ def database_config():
 
 @pytest.fixture
 def embedding_config():
-	"""Embedding service configuration for testing"""
+	"""Embedding service configuration for testing (OpenAI provider so mocks apply)"""
 	return EmbeddingConfiguration(
-		openai_api_key=os.getenv('OPENAI_API_KEY'),
+		provider="openai",
+		openai_api_key=os.getenv('OPENAI_API_KEY') or "test-key",
 		chunk_size=500,
 		chunk_overlap=100,
-		max_concurrent_requests=5
+		max_concurrent_requests=5,
 	)
 
 

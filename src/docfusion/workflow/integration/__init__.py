@@ -9,14 +9,9 @@ and storage systems.
 from .workflow_document_bridge import WorkflowDocumentBridge, WorkflowDocumentConfiguration
 from .workflow_request_extensions import WorkflowEnabledDocumentRequest, WorkflowConfiguration
 
-# TODO: workflow_storage_adapter module does not exist yet
-# from .workflow_storage_adapter import WorkflowStorageAdapter, WorkflowMetadata
-
 __all__ = [
 	'WorkflowDocumentBridge',
 	'WorkflowDocumentConfiguration',
 	'WorkflowEnabledDocumentRequest',
 	'WorkflowConfiguration',
-	# 'WorkflowStorageAdapter',
-	# 'WorkflowMetadata'
 ]

@@ -277,6 +277,33 @@ sudo certbot certificates
 └── node_exporter.service   # Metrics exporter
 ```
 
+## Scheduled Jobs
+
+### Agent memory cleanup (nightly)
+
+Purges expired rows from the `agent_memories` table at 03:00 UTC.
+
+```bash
+# Install
+sudo cp deployment/systemd/docfusion-memory-cleanup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now docfusion-memory-cleanup.timer
+
+# Check status
+systemctl status docfusion-memory-cleanup.timer
+
+# View last run
+journalctl -u docfusion-memory-cleanup.service -n 50
+
+# Run manually
+sudo systemctl start docfusion-memory-cleanup.service
+```
+
+The service runs `python -m docfusion.agents.memory.cleanup_job` (entry point in
+`src/docfusion/agents/memory/cleanup_job.py`). It reads `DATABASE_URL` from the
+`EnvironmentFile` at `/home/azureuser/docfusion/.env` and logs the number of
+rows purged to the system journal.
+
 ## Support
 
 For issues or questions, consult:

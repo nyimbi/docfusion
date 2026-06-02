@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 async def run_cleanup(dsn: str | None = None) -> int:
 	"""Execute expired-memory cleanup and return count deleted."""
-	store = PersistentMemoryStore(connection_string=dsn)
-	await store.initialize()
+	if dsn is None:
+		from docfusion.config.secrets import SecretsManager
+		dsn = SecretsManager.get_database_url()
+	store = await PersistentMemoryStore.create(dsn)
 	try:
 		count = await store.cleanup_expired()
 		logger.info(
