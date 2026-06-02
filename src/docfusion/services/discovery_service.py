@@ -493,16 +493,37 @@ class DefaultDiscoveryService:
 	async def _discover_with_direct_apis(self, limit: int = 20) -> list[dict[str, Any]]:
 		"""Query confirmed JSON APIs (grants.gov, World Bank) when SearXNG is unavailable."""
 		import httpx
-		from ..core.utils import uuid7str
 
 		_HEADERS = {
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/121.0 Safari/537.36",
 			"Accept": "application/json,*/*",
 		}
 
+		def _stable_id(prefix: str, url: str) -> str:
+			return f"{prefix}-{hashlib.sha256(url.encode()).hexdigest()[:16]}"
+
+		def _normalize(title: str | None, source_url: str, source: str,
+					   org: str, deadline: str, ref: str, tags: list[str]) -> dict[str, Any]:
+			t = str(title or "").strip() or "Untitled opportunity"
+			desc = f"{t} — {org}" if org else t
+			return {
+				"id": _stable_id(source.lower().replace(" ", "-"), source_url),
+				"title": t,
+				"source_url": source_url,
+				"url": source_url,
+				"source": source,
+				"description": desc,
+				"requirements": desc,
+				"organization": org,
+				"deadline": deadline,
+				"reference": ref,
+				"tags": tags,
+			}
+
 		opportunities: list[dict[str, Any]] = []
 
-		async with httpx.AsyncClient(timeout=15, verify=False, follow_redirects=True) as client:
+		# verify=True (default) — both endpoints have valid public certs.
+		async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
 			# ── grants.gov ────────────────────────────────────────────────
 			try:
 				r = await client.post(
@@ -510,20 +531,21 @@ class DefaultDiscoveryService:
 					json={"keyword": "", "oppStatuses": "posted", "rows": min(limit, 25), "startRecordNum": 0},
 					headers=_HEADERS,
 				)
-				if r.status_code == 200:
-					for item in (r.json().get("oppHits") or [])[:limit]:
-						opportunities.append({
-							"id": uuid7str(),
-							"title": str(item.get("title", "?"))[:120],
-							"url": f"https://www.grants.gov/search-results-detail/{item.get('id', '')}",
-							"source": "grants.gov",
-							"organization": str(item.get("agency", "")),
-							"deadline": str(item.get("closeDate", "")),
-							"reference": str(item.get("number", "")),
-							"type": "grant",
-						})
+				r.raise_for_status()
+				for item in (r.json().get("oppHits") or [])[:limit]:
+					item_id = str(item.get("id", ""))
+					source_url = f"https://www.grants.gov/search-results-detail/{item_id}"
+					opportunities.append(_normalize(
+						title=item.get("title"),
+						source_url=source_url,
+						source="grants.gov",
+						org=str(item.get("agency", "")),
+						deadline=str(item.get("closeDate", "")),
+						ref=str(item.get("number", "")),
+						tags=["grant", "us-federal", "direct-api"],
+					))
 			except Exception as exc:
-				logger.debug("grants.gov API failed: %s", exc)
+				logger.warning("grants.gov API failed: %s", exc)
 
 			# ── World Bank active Africa projects ─────────────────────────
 			try:
@@ -537,24 +559,28 @@ class DefaultDiscoveryService:
 					},
 					headers=_HEADERS,
 				)
-				if r.status_code == 200:
-					data = r.json()
-					projects = data.get("projects") or {}
-					if isinstance(projects, dict):
-						projects = list(projects.values())
-					for item in projects[:limit]:
-						opportunities.append({
-							"id": uuid7str(),
-							"title": str(item.get("project_name", "?"))[:120],
-							"url": f"https://projects.worldbank.org/en/projects-operations/project-detail/{item.get('id', '')}",
-							"source": "World Bank",
-							"organization": str(item.get("countryname", "")),
-							"deadline": str(item.get("boardapprovaldate", "")),
-							"reference": str(item.get("id", "")),
-							"type": "project",
-						})
+				r.raise_for_status()
+				data = r.json()
+				projects = data.get("projects") if isinstance(data, dict) else None
+				if isinstance(projects, dict):
+					projects = list(projects.values())
+				for item in (projects or [])[:limit]:
+					proj_id = str(item.get("id", ""))
+					source_url = f"https://projects.worldbank.org/en/projects-operations/project-detail/{proj_id}"
+					title = str(item.get("project_name") or "").strip() or None
+					if not title:
+						continue
+					opportunities.append(_normalize(
+						title=title,
+						source_url=source_url,
+						source="World Bank",
+						org=str(item.get("countryname", "")),
+						deadline=str(item.get("boardapprovaldate", "")),
+						ref=proj_id,
+						tags=["project", "world-bank", "africa", "direct-api"],
+					))
 			except Exception as exc:
-				logger.debug("World Bank API failed: %s", exc)
+				logger.warning("World Bank API failed: %s", exc)
 
 		logger.info("Direct API crawl: %d opportunities found", len(opportunities))
 		return opportunities[:limit]

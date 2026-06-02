@@ -28,7 +28,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol, runtime_checkable
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +194,11 @@ class LinodeE3BlobStore:
 		self._bucket = bucket
 		self._endpoint = endpoint.rstrip("/")
 		self._region = region
+		# Derive the canonical Host header once from the endpoint URL.
+		# urlparse().netloc includes port if present; split("@")[-1] strips
+		# any userinfo (credentials in URL — not expected but safe to handle).
+		parsed = urlparse(self._endpoint)
+		self._host = parsed.netloc.split("@")[-1] or self._endpoint.split("//")[-1]
 
 	async def store(self, key: str, data: bytes) -> None:
 		"""PUT ``data`` to Linode E3 under ``key``."""
@@ -204,11 +209,10 @@ class LinodeE3BlobStore:
 		amz_date = _amz_date(now)
 		date_stamp = amz_date[:8]
 		payload_hash = _sha256_hex(data)
-		host = self._endpoint.split("//")[-1]
 		headers: dict[str, str] = {
 			"content-length": str(len(data)),
 			"content-type": "application/octet-stream",
-			"host": host,
+			"host": self._host,
 			"x-amz-content-sha256": payload_hash,
 			"x-amz-date": amz_date,
 		}
@@ -223,9 +227,11 @@ class LinodeE3BlobStore:
 			access_key_id=self._access_key_id,
 			secret_access_key=self._secret_access_key,
 		)
-		# aiohttp doesn't want pseudo-headers like 'host' in the request
+		# aiohttp derives Host from the URL; we sign with self._host but
+		# don't send it manually to avoid duplication.
 		send_headers = {k: v for k, v in headers.items() if k != "host"}
-		async with aiohttp.ClientSession() as session:
+		timeout = aiohttp.ClientTimeout(total=30, connect=5)
+		async with aiohttp.ClientSession(timeout=timeout) as session:
 			async with session.put(url, data=data, headers=send_headers) as resp:
 				if resp.status not in (200, 204):
 					body = await resp.text()
@@ -242,9 +248,8 @@ class LinodeE3BlobStore:
 		amz_date = _amz_date(now)
 		date_stamp = amz_date[:8]
 		payload_hash = _sha256_hex(b"")
-		host = self._endpoint.split("//")[-1]
 		headers: dict[str, str] = {
-			"host": host,
+			"host": self._host,
 			"x-amz-content-sha256": payload_hash,
 			"x-amz-date": amz_date,
 		}
@@ -260,7 +265,8 @@ class LinodeE3BlobStore:
 			secret_access_key=self._secret_access_key,
 		)
 		send_headers = {k: v for k, v in headers.items() if k != "host"}
-		async with aiohttp.ClientSession() as session:
+		timeout = aiohttp.ClientTimeout(total=30, connect=5)
+		async with aiohttp.ClientSession(timeout=timeout) as session:
 			async with session.get(url, headers=send_headers) as resp:
 				if resp.status == 404:
 					return None
@@ -292,6 +298,16 @@ def make_blob_store(
 	"""
 	resolved_key = access_key_id or os.environ.get("LINODE_E3_ACCESS_KEY_ID", "")
 	resolved_secret = secret_access_key or os.environ.get("LINODE_E3_SECRET_ACCESS_KEY", "")
+	if resolved_key and not resolved_secret:
+		raise ValueError(
+			"LINODE_E3_SECRET_ACCESS_KEY is not set but LINODE_E3_ACCESS_KEY_ID is. "
+			"Set both or neither — partial credentials will fall back to local storage silently."
+		)
+	if resolved_secret and not resolved_key:
+		raise ValueError(
+			"LINODE_E3_ACCESS_KEY_ID is not set but LINODE_E3_SECRET_ACCESS_KEY is. "
+			"Set both or neither — partial credentials will fall back to local storage silently."
+		)
 	if resolved_key and resolved_secret:
 		return LinodeE3BlobStore(
 			access_key_id=resolved_key,
