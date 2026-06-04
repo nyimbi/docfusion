@@ -296,6 +296,7 @@ class GlobalSourceDB:
 			await self._load_marketplace_sources()
 			await self._load_pacific_caribbean_sources()
 			await self._load_african_multilateral_sources()
+			await self._load_african_expanded_sources()
 			await self._load_grant_organization_sources()
 			await self._load_global_expansion_sources()
 			
@@ -1611,6 +1612,38 @@ class GlobalSourceDB:
 				))
 			except Exception:
 				self.logger.debug("Skipping African multilateral source %s", src.get("name"))
+
+	async def _load_african_expanded_sources(self) -> None:
+		"""Load sub-national, parastatal, health, infrastructure, and donor program sources."""
+		from .african_expanded_sources import (
+			get_nigeria_state_portals,
+			get_south_africa_sub_national,
+			get_kenya_county_portals,
+			get_african_parastatals,
+			get_african_health_institutions,
+			get_african_infrastructure_programs,
+			get_african_donor_programs,
+			get_african_financial_sector,
+			get_african_education_agriculture,
+		)
+		for fn in (
+			get_nigeria_state_portals,
+			get_south_africa_sub_national,
+			get_kenya_county_portals,
+			get_african_parastatals,
+			get_african_health_institutions,
+			get_african_infrastructure_programs,
+			get_african_donor_programs,
+			get_african_financial_sector,
+			get_african_education_agriculture,
+		):
+			for src in fn():
+				try:
+					await self.add_source(ProcurementSource(
+						base_domain=urlparse(src["url"]).netloc, **src,
+					))
+				except Exception:
+					self.logger.debug("Skipping African expanded source %s", src.get("name"))
 
 	async def _load_grant_organization_sources(self) -> None:
 		"""Load grant-giving foundations, bilateral donors, and grant aggregators."""
