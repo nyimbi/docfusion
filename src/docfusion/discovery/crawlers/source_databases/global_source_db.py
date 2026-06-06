@@ -1625,6 +1625,7 @@ class GlobalSourceDB:
 			get_african_donor_programs,
 			get_african_financial_sector,
 			get_african_education_agriculture,
+			get_country_sub_regional_portals,
 		)
 		for fn in (
 			get_nigeria_state_portals,
@@ -1636,6 +1637,7 @@ class GlobalSourceDB:
 			get_african_donor_programs,
 			get_african_financial_sector,
 			get_african_education_agriculture,
+			get_country_sub_regional_portals,
 		):
 			for src in fn():
 				try:
