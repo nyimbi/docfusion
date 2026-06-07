@@ -1,0 +1,11 @@
+[Unit]
+Description=DocuFusion daily opportunity digest email (08:00 UTC)
+# Run 2 hours after the crawl completes
+After=docfusion-daily-crawl.service
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

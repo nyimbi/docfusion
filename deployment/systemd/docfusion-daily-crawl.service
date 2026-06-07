@@ -1,0 +1,13 @@
+[Unit]
+Description=DocuFusion daily opportunity crawl
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/azureuser/docfusion
+EnvironmentFile=/home/azureuser/docfusion/.env
+ExecStart=/home/azureuser/docfusion/.venv/bin/python -m docfusion.workers.daily_crawl
+StandardOutput=journal
+StandardError=journal
+TimeoutSec=3600
