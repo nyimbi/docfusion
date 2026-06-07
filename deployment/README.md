@@ -301,7 +301,7 @@ sudo systemctl start docfusion-memory-cleanup.service
 
 The service runs `python -m docfusion.agents.memory.cleanup_job` (entry point in
 `src/docfusion/agents/memory/cleanup_job.py`). It reads `DATABASE_URL` from the
-`EnvironmentFile` at `/home/azureuser/docfusion/.env` and logs the number of
+`EnvironmentFile` at `/home/root/docfusion/.env` and logs the number of
 rows purged to the system journal.
 
 ## Support
