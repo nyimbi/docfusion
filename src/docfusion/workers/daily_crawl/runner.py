@@ -366,14 +366,14 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 
 RSS_FEEDS = [
-	# ReliefWeb reports JSON API (v2, confirmed working — v1 jobs is 410 Gone)
-	("reliefweb", "https://api.reliefweb.int/v2/reports?appname=docfusion&limit=20&preset=latest&profile=minimal"),
-	# USAID press releases / tenders RSS (confirmed working)
+	# USAID press releases RSS (confirmed working)
 	("usaid-rss", "https://www.usaid.gov/news-information/press-releases/rss.xml"),
-	# Global Fund procurement notices JSON
-	("globalfund", "https://api.theglobalfund.org/v3.3/procurement/procurements?top=20&select=procurementTitle,procurementId,currentStatusDate"),
-	# grants.gov RSS (separate from the API, different results)
-	("grants-rss", "https://www.grants.gov/web/grants/search-grants.html?oppStatuses=posted"),
+	# Global Fund procurement notices JSON API (confirmed working)
+	("globalfund", "https://api.theglobalfund.org/v3.3/procurement/procurements?top=20&select=procurementTitle,procurementId,currentStatusDate,procurementMethod"),
+	# UN Jobs / Procurement RSS (public feed, no auth)
+	("un-jobs", "https://unjobs.org/rss.xml"),
+	# Development Finance Institution tenders via OECD DAC
+	("oecd-dev", "https://www.oecd.org/dac/financing-sustainable-development/development-finance-data/rss.xml"),
 ]
 
 
