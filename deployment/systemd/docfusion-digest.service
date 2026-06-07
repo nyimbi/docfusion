@@ -4,10 +4,10 @@ After=network.target docfusion-daily-crawl.service
 
 [Service]
 Type=oneshot
-User=azureuser
-WorkingDirectory=/home/azureuser/docfusion
-EnvironmentFile=/home/azureuser/docfusion/.env
-ExecStart=/home/azureuser/docfusion/.venv/bin/python -m docfusion.workers.digest
+User=root
+WorkingDirectory=/root/docfusion
+EnvironmentFile=/root/docfusion/.env
+ExecStart=/root/docfusion/.venv/bin/python -m docfusion.workers.digest
 StandardOutput=journal
 StandardError=journal
 TimeoutSec=300
