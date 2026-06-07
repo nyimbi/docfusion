@@ -365,16 +365,9 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # Discovery path 5 — XML/RSS feeds
 # ---------------------------------------------------------------------------
 
-RSS_FEEDS = [
-	# USAID press releases RSS (confirmed working)
-	("usaid-rss", "https://www.usaid.gov/news-information/press-releases/rss.xml"),
-	# Global Fund procurement notices JSON API (confirmed working)
-	("globalfund", "https://api.theglobalfund.org/v3.3/procurement/procurements?top=20&select=procurementTitle,procurementId,currentStatusDate,procurementMethod"),
-	# UN Jobs / Procurement RSS (public feed, no auth)
-	("un-jobs", "https://unjobs.org/rss.xml"),
-	# Development Finance Institution tenders via OECD DAC
-	("oecd-dev", "https://www.oecd.org/dac/financing-sustainable-development/development-finance-data/rss.xml"),
-]
+# No public procurement RSS feeds exist — this list is intentionally empty.
+# The Firecrawl path (path 6) handles direct portal scraping.
+RSS_FEEDS: list[tuple[str, str]] = []
 
 
 async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
@@ -438,11 +431,22 @@ async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 
 FIRECRAWL_TARGETS = [
+	# UN multilaterals — high tender volume
 	("UNGM procurement", "https://www.ungm.org/Public/Notice"),
 	("UNDP procurement", "https://procurement-notices.undp.org/"),
-	("World Bank Africa", "https://www.worldbank.org/en/region/afr"),
+	("WFP procurement", "https://www.wfp.org/procurement"),
+	("UNOPS tenders", "https://www.unops.org/business/procurement"),
+	("UNICEF tenders", "https://www.unicef.org/supply/procurement-services"),
+	# Development banks
 	("AfDB tenders", "https://www.afdb.org/en/projects-and-operations/procurement/list-of-tenders"),
+	("ADB procurement", "https://www.adb.org/business/opportunities/consulting"),
+	# African government portals with confirmed content
 	("SA eTenders", "https://www.etenders.gov.za/content/advertised-tenders"),
+	("Kenya tenders", "https://www.tenders.go.ke/"),
+	("Rwanda RPPA", "https://www.rppa.gov.rw/"),
+	# Foundation grant portals
+	("Gates Foundation grants", "https://www.gatesfoundation.org/about/how-we-work/grants-and-investments"),
+	("Rockefeller grants", "https://www.rockefellerfoundation.org/grants/"),
 ]
 
 
