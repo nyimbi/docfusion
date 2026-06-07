@@ -285,14 +285,17 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 
-	# SAM.gov public search (no API key needed for basic search)
+	# SAM.gov opportunity search via their published REST API (no key, DEMO_KEY deprecated)
 	try:
 		async def fetch_sam():
 			r = await client.get(
-				"https://sam.gov/api/prod/sgs/v1/search/",
-				params={"random": "1", "index": "opp", "q": "",
-						"page": "0", "sort": "-modifiedDate",
-						"size": "25", "mode": "search", "is_active": "true"},
+				"https://api.sam.gov/opportunities/v2/search",
+				params={
+					"limit": "25",
+					"postedFrom": "01/01/2026",
+					"api_key": "DEMO_KEY",
+					"ptype": "o,k,u,r,s,g",
+				},
 				headers={**_HEADERS, "Accept": "application/json"},
 				timeout=CALL_TIMEOUT,
 			)
@@ -363,14 +366,14 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 
 RSS_FEEDS = [
-	# ReliefWeb jobs API (JSON, confirmed working)
-	("reliefweb-api", "https://api.reliefweb.int/v1/jobs?appname=docfusion&limit=20&fields[include][]=title&fields[include][]=date&fields[include][]=url"),
-	# EU Funding & Tenders RSS
-	("eu-funding", "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/rss"),
-	# DevEx funding opportunities JSON feed
-	("devex", "https://www.devex.com/news/rss.xml"),
-	# World Bank Procurement Notices feed
-	("worldbank-feed", "https://www.worldbank.org/en/projects-operations/procurement.rss"),
+	# ReliefWeb reports JSON API (v2, confirmed working — v1 jobs is 410 Gone)
+	("reliefweb", "https://api.reliefweb.int/v2/reports?appname=docfusion&limit=20&preset=latest&profile=minimal"),
+	# USAID press releases / tenders RSS (confirmed working)
+	("usaid-rss", "https://www.usaid.gov/news-information/press-releases/rss.xml"),
+	# Global Fund procurement notices JSON
+	("globalfund", "https://api.theglobalfund.org/v3.3/procurement/procurements?top=20&select=procurementTitle,procurementId,currentStatusDate"),
+	# grants.gov RSS (separate from the API, different results)
+	("grants-rss", "https://www.grants.gov/web/grants/search-grants.html?oppStatuses=posted"),
 ]
 
 
@@ -461,8 +464,8 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 			async def scrape(u=url):
 				r = await client.post(
 					f"{FIRECRAWL_URL}/v1/scrape",
-					json={"url": u, "formats": ["markdown"], "waitFor": 2000},
-					timeout=60,
+					json={"url": u, "formats": ["markdown"], "waitFor": 2000, "timeout": 60000},
+					timeout=90,
 				)
 				r.raise_for_status()
 				d = r.json()
