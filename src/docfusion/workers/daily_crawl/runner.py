@@ -285,30 +285,38 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 
-	# SAM.gov (DEMO_KEY allows limited calls)
+	# SAM.gov public search (no API key needed for basic search)
 	try:
 		async def fetch_sam():
 			r = await client.get(
-				"https://api.sam.gov/opportunities/v2/search",
-				params={"limit": 25, "postedFrom": "06/01/2026",
-						"ptype": "o,k,u,r,s,g,a,i", "api_key": "DEMO_KEY"},
-				headers=_HEADERS, timeout=CALL_TIMEOUT,
+				"https://sam.gov/api/prod/sgs/v1/search/",
+				params={"random": "1", "index": "opp", "q": "",
+						"page": "0", "sort": "-modifiedDate",
+						"size": "25", "mode": "search", "is_active": "true"},
+				headers={**_HEADERS, "Accept": "application/json"},
+				timeout=CALL_TIMEOUT,
 			)
 			r.raise_for_status()
 			return r.json()
 
 		data = await _retry(fetch_sam, label="sam.gov")
-		for item in (data.get("opportunitiesData") or []):
-			title = str(item.get("title") or "").strip()
-			notice_id = str(item.get("noticeId") or "")
+		# SAM.gov public search returns hits under "_embedded.results" or "hits.hits"
+		hits = (data.get("_embedded", {}).get("results")
+				or data.get("hits", {}).get("hits")
+				or data.get("opportunitiesData")
+				or [])
+		for item in hits:
+			src = item.get("_source", item)
+			title = str(src.get("title") or src.get("opportunityTitle") or "").strip()
+			notice_id = str(src.get("noticeId") or src.get("opportunityId") or "")
 			if not title:
 				continue
 			results.append(Opportunity(
 				title=title,
-				source_url=f"https://sam.gov/opp/{notice_id}/view",
+				source_url=f"https://sam.gov/opp/{notice_id}/view" if notice_id else "https://sam.gov/",
 				source="sam.gov",
-				organization=str(item.get("organizationName") or ""),
-				deadline=str(item.get("responseDeadLine") or ""),
+				organization=str(src.get("organizationName") or src.get("department") or ""),
+				deadline=str(src.get("responseDeadLine") or src.get("archiveDate") or ""),
 				reference=notice_id,
 				tags=["contract", "us-federal", "sam.gov"],
 			))
@@ -355,19 +363,21 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 
 RSS_FEEDS = [
-	# reliefweb jobs+tenders RSS
-	("reliefweb", "https://reliefweb.int/rss.xml?source=rwjobs&_gl=1"),
-	# EU FTS grants
+	# ReliefWeb jobs API (JSON, confirmed working)
+	("reliefweb-api", "https://api.reliefweb.int/v1/jobs?appname=docfusion&limit=20&fields[include][]=title&fields[include][]=date&fields[include][]=url"),
+	# EU Funding & Tenders RSS
 	("eu-funding", "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/rss"),
-	# UNGM procurement notices (confirmed to have RSS)
-	("ungm", "https://www.ungm.org/RSS/Notice"),
-	# UNDP procurement notices RSS
-	("undp", "https://procurement-notices.undp.org/rss/procurement.cfm"),
+	# DevEx funding opportunities JSON feed
+	("devex", "https://www.devex.com/news/rss.xml"),
+	# World Bank Procurement Notices feed
+	("worldbank-feed", "https://www.worldbank.org/en/projects-operations/procurement.rss"),
 ]
 
 
 async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
+
+	import re
 
 	for feed_source, url in RSS_FEEDS:
 		try:
@@ -375,28 +385,44 @@ async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 				r = await client.get(u, headers=_HEADERS, timeout=CALL_TIMEOUT,
 									 follow_redirects=True)
 				r.raise_for_status()
-				return r.text
+				return r
 
-			xml = await _retry(fetch, label=f"rss:{feed_source}")
-			# Simple XML parsing without feedparser dependency
-			import re
-			items = re.findall(r"<item[^>]*>(.*?)</item>", xml, re.DOTALL)
-			for item_xml in items[:20]:
-				def _tag(name: str) -> str:
-					m = re.search(rf"<{name}[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{name}>",
-								  item_xml, re.DOTALL)
-					return (m.group(1) or "").strip() if m else ""
-				title = _tag("title")
-				link = _tag("link") or _tag("guid")
-				if not title or not link:
-					continue
-				results.append(Opportunity(
-					title=title,
-					source_url=link.strip(),
-					source=feed_source,
-					description=_tag("description")[:300],
-					tags=["rss", feed_source],
-				))
+			resp = await _retry(fetch, label=f"rss:{feed_source}")
+			content_type = resp.headers.get("content-type", "")
+
+			if "json" in content_type or url.endswith(".json") or "api." in url:
+				# JSON API (e.g. ReliefWeb)
+				data = resp.json()
+				items_raw = data.get("data") or data.get("results") or data.get("items") or []
+				for item in items_raw[:20]:
+					fields = item.get("fields", item)
+					title = str(fields.get("title") or "").strip()
+					item_url = str(fields.get("url") or fields.get("link") or "").strip()
+					if not title or not item_url:
+						continue
+					results.append(Opportunity(
+						title=title, source_url=item_url, source=feed_source,
+						tags=["api-feed", feed_source],
+					))
+			else:
+				# XML/RSS
+				xml = resp.text
+				items_xml = re.findall(r"<item[^>]*>(.*?)</item>", xml, re.DOTALL)
+				for item_xml in items_xml[:20]:
+					def _tag(name: str, ix=item_xml) -> str:
+						m = re.search(
+							rf"<{name}[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{name}>",
+							ix, re.DOTALL)
+						return (m.group(1) or "").strip() if m else ""
+					title = _tag("title")
+					link = _tag("link") or _tag("guid")
+					if not title or not link:
+						continue
+					results.append(Opportunity(
+						title=title, source_url=link.strip(), source=feed_source,
+						description=_tag("description")[:300],
+						tags=["rss", feed_source],
+					))
 		except Exception as exc:
 			_log.warning("[rss:%s] failed: %s", feed_source, exc)
 
@@ -435,8 +461,8 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 			async def scrape(u=url):
 				r = await client.post(
 					f"{FIRECRAWL_URL}/v1/scrape",
-					json={"url": u, "formats": ["markdown"], "waitFor": 3000},
-					timeout=35,
+					json={"url": u, "formats": ["markdown"], "waitFor": 2000},
+					timeout=60,
 				)
 				r.raise_for_status()
 				d = r.json()
@@ -444,7 +470,7 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 					raise RuntimeError(f"Firecrawl returned success=false for {u}")
 				return (d.get("data") or {}).get("markdown", "")
 
-			markdown = await _retry(scrape, attempts=2, base_delay=2.0, label=f"firecrawl:{name}")
+			markdown = await _retry(scrape, attempts=2, base_delay=3.0, label=f"firecrawl:{name}")
 			if len(markdown) < 300:
 				continue
 
