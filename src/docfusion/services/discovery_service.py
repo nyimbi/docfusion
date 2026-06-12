@@ -214,12 +214,14 @@ class DefaultDiscoveryService:
 				enrich_limit,
 			)
 
+		from collections import OrderedDict as _OD
 		for opportunity in opportunities:
 			opp_id = opportunity["id"]
 			self._opportunity_cache[opp_id] = opportunity
-			self._opportunity_cache.move_to_end(opp_id)
-			while len(self._opportunity_cache) > self._opportunity_cache_max:
-				self._opportunity_cache.popitem(last=False)
+			if isinstance(self._opportunity_cache, _OD):
+				self._opportunity_cache.move_to_end(opp_id)
+				while len(self._opportunity_cache) > self._opportunity_cache_max:
+					self._opportunity_cache.popitem(last=False)
 		return opportunities
 
 	async def get_opportunity_details(
