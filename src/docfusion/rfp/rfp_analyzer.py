@@ -9,7 +9,7 @@ Integrates with existing NLP pipeline for enhanced analysis.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -43,7 +43,7 @@ class RFPAnalysisResult(BaseModel):
 	errors: list[str] = Field(default_factory=list)
 	warnings: list[str] = Field(default_factory=list)
 	processing_time: float = Field(default=0.0)
-	analyzed_at: datetime = Field(default_factory=datetime.now)
+	analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class RFPAnalyzer:
 	"""
@@ -190,9 +190,11 @@ class RFPAnalyzer:
 
 			result.success = True
 
+		except (KeyboardInterrupt, SystemExit):
+			raise
 		except Exception as e:
 			result.errors.append(f"PDF analysis failed: {str(e)}")
-			self.logger.error(f"RFP PDF analysis error: {e}")
+			self.logger.error("RFP PDF analysis error", exc_info=True)
 
 		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
@@ -253,9 +255,11 @@ class RFPAnalyzer:
 
 			result.success = True
 
+		except (KeyboardInterrupt, SystemExit):
+			raise
 		except Exception as e:
 			result.errors.append(f"DOCX analysis failed: {str(e)}")
-			self.logger.error(f"RFP DOCX analysis error: {e}")
+			self.logger.error("RFP DOCX analysis error", exc_info=True)
 
 		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
@@ -316,9 +320,11 @@ class RFPAnalyzer:
 
 			result.success = True
 
+		except (KeyboardInterrupt, SystemExit):
+			raise
 		except Exception as e:
 			result.errors.append(f"Text analysis failed: {str(e)}")
-			self.logger.error(f"RFP text analysis error: {e}")
+			self.logger.error("RFP text analysis error", exc_info=True)
 
 		result.processing_time = time.monotonic() - start_time
 		self._log_analysis_complete(len(result.requirements), result.processing_time)
@@ -358,8 +364,10 @@ class RFPAnalyzer:
 				if k in ("compliance_narrative", "risk_narrative", "strategic_recommendations")
 				and v is not None
 			}
-		except Exception as exc:
-			self.logger.warning(f"AI analysis failed: {exc}")
+		except (KeyboardInterrupt, SystemExit):
+			raise
+		except Exception:
+			self.logger.warning("AI analysis failed", exc_info=True)
 			return {}
 
 	def _build_analysis_prompt(

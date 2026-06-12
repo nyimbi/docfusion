@@ -108,7 +108,10 @@ async def _summarise(opportunities: list[dict]) -> str:
 				json={"messages": [{"role": "user", "content": prompt}],
 					  "temperature": 0.3, "max_tokens": 150})
 			return r.json()["choices"][0]["message"]["content"].strip()
+	except (KeyboardInterrupt, SystemExit):
+		raise
 	except Exception:
+		_log.warning("AI summary generation failed — using fallback text", exc_info=True)
 		sources = set(o.get("source", "") for o in opportunities if o.get("source"))
 		return (
 			f"Today's digest contains {len(opportunities)} new procurement opportunities "

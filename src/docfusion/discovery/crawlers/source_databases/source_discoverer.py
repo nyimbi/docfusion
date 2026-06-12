@@ -743,7 +743,7 @@ class SourceDiscoverer:
 	async def _validate_api_endpoint(self, api_url: str) -> bool:
 		"""Validate that an API endpoint exists and returns procurement data"""
 		try:
-			async with aiohttp.ClientSession() as session:
+			async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
 				async with session.get(api_url, timeout=10) as response:
 					if response.status == 200:
 						content = await response.text()

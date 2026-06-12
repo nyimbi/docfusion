@@ -122,7 +122,11 @@ class DefaultDiscoveryService:
 		self._opportunity_analyzer = None
 		self._qualification_analyzer = None
 		self._global_db = None
-		self._opportunity_cache: dict[str, dict[str, Any]] = {}
+		# Bounded LRU cache — evicts oldest entries beyond MAX_CACHE_SIZE
+		# to prevent unbounded memory growth under sustained crawl activity.
+		from collections import OrderedDict
+		self._opportunity_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
+		self._opportunity_cache_max = 2_000
 		self._searxng_url = (
 			os.getenv("SEARXNG_URL")
 			or os.getenv("SEARXNG_BASE_URL")
@@ -211,7 +215,11 @@ class DefaultDiscoveryService:
 			)
 
 		for opportunity in opportunities:
-			self._opportunity_cache[opportunity["id"]] = opportunity
+			opp_id = opportunity["id"]
+			self._opportunity_cache[opp_id] = opportunity
+			self._opportunity_cache.move_to_end(opp_id)
+			while len(self._opportunity_cache) > self._opportunity_cache_max:
+				self._opportunity_cache.popitem(last=False)
 		return opportunities
 
 	async def get_opportunity_details(

@@ -220,16 +220,16 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 		container.database_connection = await get_database_connection()
 		container.database_session = await get_database_session()
 		logger.info("Database connection initialized")
-	except Exception as e:
-		logger.warning(f"Failed to initialize database connection: {e}")
-		# Continue without database - some features will be limited
+	except Exception:
+		logger.error("Failed to initialize database connection — DB-backed features unavailable", exc_info=True)
+		# Degrade gracefully; DB-dependent endpoints will raise 503 at request time
 
 	# 2. Initialize infrastructure clients (no dependencies)
 	try:
 		container.searxng_client = SearXNGClient(base_url=settings.searxng_url)
 		logger.info(f"SearXNG client initialized: {settings.searxng_url}")
 	except Exception as e:
-		logger.warning(f"Failed to initialize SearXNG client: {e}")
+		logger.warning("Failed to initialize SearXNG client", exc_info=True)
 
 	try:
 		container.firecrawl_client = FirecrawlClient(
@@ -238,7 +238,7 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 		)
 		logger.info(f"Firecrawl client initialized: {settings.firecrawl_url}")
 	except Exception as e:
-		logger.warning(f"Failed to initialize Firecrawl client: {e}")
+		logger.warning("Failed to initialize Firecrawl client", exc_info=True)
 
 	try:
 		container.litellm_client = LiteLLMClient(
@@ -247,7 +247,7 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 		)
 		logger.info(f"LiteLLM client initialized: {settings.litellm_url}")
 	except Exception as e:
-		logger.warning(f"Failed to initialize LiteLLM client: {e}")
+		logger.warning("Failed to initialize LiteLLM client", exc_info=True)
 
 	# 3. Initialize SecurityManager (no dependencies)
 	try:
@@ -260,14 +260,14 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 		await container.security_manager._initialize_system()
 		logger.info("Security manager initialized")
 	except Exception as e:
-		logger.warning(f"Failed to initialize security manager: {e}")
+		logger.error("Failed to initialize security manager", exc_info=True)
 		# Create minimal security manager
 		try:
 			container.security_manager = SecurityManager()
 			await container.security_manager._initialize_system()
 			logger.info("Security manager initialized with defaults")
 		except Exception as e2:
-			logger.error(f"Failed to initialize security manager with defaults: {e2}")
+			logger.error("Failed to initialize security manager with defaults", exc_info=True)
 
 	# 4. Initialize SecureStorageService (depends on SecurityManager, database)
 	if container.security_manager and container.database_connection:
@@ -288,7 +288,7 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 			container.storage_service = SecureStorageService(storage_config)
 			logger.info("Secure storage service initialized")
 		except Exception as e:
-			logger.warning(f"Failed to initialize storage service: {e}")
+			logger.error("Failed to initialize storage service", exc_info=True)
 
 	# 5. Initialize SecureDocumentEngine (depends on SecurityManager)
 	if container.security_manager:
@@ -305,7 +305,7 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 			container.document_engine = SecureDocumentEngine(secure_engine_config)
 			logger.info("Secure document engine initialized")
 		except Exception as e:
-			logger.warning(f"Failed to initialize document engine: {e}")
+			logger.error("Failed to initialize document engine", exc_info=True)
 
 	logger.info("Core services initialized")
 	return container
@@ -335,7 +335,7 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			)
 			logger.info("Document endpoints initialized")
 		except Exception as e:
-			logger.error(f"Failed to initialize document endpoints: {e}")
+			logger.error("Failed to initialize document endpoints", exc_info=True)
 
 	# Initialize TemplateEndpoints (uses same services)
 	if container.storage_service and container.document_engine and container.security_manager:
@@ -347,7 +347,7 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			)
 			logger.info("Template endpoints initialized")
 		except Exception as e:
-			logger.error(f"Failed to initialize template endpoints: {e}")
+			logger.error("Failed to initialize template endpoints", exc_info=True)
 
 	# Initialize SearchEndpoints (only needs security_manager)
 	if container.security_manager:
@@ -357,7 +357,7 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			)
 			logger.info("Search endpoints initialized")
 		except Exception as e:
-			logger.error(f"Failed to initialize search endpoints: {e}")
+			logger.error("Failed to initialize search endpoints", exc_info=True)
 
 	# Initialize BatchEndpoints
 	if container.storage_service and container.document_engine and container.security_manager:
@@ -369,7 +369,7 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			)
 			logger.info("Batch endpoints initialized")
 		except Exception as e:
-			logger.error(f"Failed to initialize batch endpoints: {e}")
+			logger.error("Failed to initialize batch endpoints", exc_info=True)
 
 	# Initialize CollaborationEndpoints
 	if container.storage_service and container.security_manager:

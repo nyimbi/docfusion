@@ -405,7 +405,7 @@ class CalendarIntegration:
 			event_body = self._build_google_event_body(event)
 
 			# Create event via API
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.post(
 					f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
 					headers={
@@ -443,7 +443,7 @@ class CalendarIntegration:
 
 			event_body = self._build_google_event_body(event)
 
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.put(
 					f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event.provider_event_id}",
 					headers={
@@ -476,7 +476,7 @@ class CalendarIntegration:
 			if not access_token or not event or not event.provider_event_id:
 				return True  # Assume success if no provider event
 
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.delete(
 					f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{event.provider_event_id}",
 					headers={"Authorization": f"Bearer {access_token}"},
@@ -541,7 +541,7 @@ class CalendarIntegration:
 
 			event_body = self._build_outlook_event_body(event)
 
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.post(
 					"https://graph.microsoft.com/v1.0/me/events",
 					headers={
@@ -579,7 +579,7 @@ class CalendarIntegration:
 
 			event_body = self._build_outlook_event_body(event)
 
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.patch(
 					f"https://graph.microsoft.com/v1.0/me/events/{event.provider_event_id}",
 					headers={
@@ -612,7 +612,7 @@ class CalendarIntegration:
 			if not access_token or not event or not event.provider_event_id:
 				return True
 
-			async with httpx.AsyncClient() as client:
+			async with httpx.AsyncClient(timeout=30) as client:
 				response = await client.delete(
 					f"https://graph.microsoft.com/v1.0/me/events/{event.provider_event_id}",
 					headers={"Authorization": f"Bearer {access_token}"},

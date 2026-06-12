@@ -116,7 +116,7 @@ class TraceabilityMatrix(BaseModel):
 			self.section_index[link.section_id] = []
 		self.section_index[link.section_id].append(link.id)
 
-		self.updated_at = datetime.now()
+		self.updated_at = datetime.now(timezone.utc)
 
 	def remove_link(self, link_id: str) -> bool:
 		"""
@@ -144,7 +144,7 @@ class TraceabilityMatrix(BaseModel):
 
 				# Remove from links
 				self.links.pop(i)
-				self.updated_at = datetime.now()
+				self.updated_at = datetime.now(timezone.utc)
 				return True
 		return False
 
@@ -621,7 +621,7 @@ class TraceabilityMatrixBuilder:
 		key = (requirement_id, section_id)
 		if key in self._links:
 			self._links[key].verified = True
-			self._matrix.updated_at = datetime.now()
+			self._matrix.updated_at = datetime.now(timezone.utc)
 		return self
 
 	def build(self) -> TraceabilityMatrix:
@@ -631,7 +631,7 @@ class TraceabilityMatrixBuilder:
 		Returns:
 			The completed TraceabilityMatrix
 		"""
-		self._matrix.updated_at = datetime.now()
+		self._matrix.updated_at = datetime.now(timezone.utc)
 		return self._matrix
 
 def create_traceability_matrix_builder(

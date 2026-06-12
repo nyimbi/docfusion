@@ -113,8 +113,8 @@ class RequirementMapping(BaseModel):
 		description="Confidence that section addresses requirement"
 	)
 	notes: str = Field(default="", description="Additional notes about this mapping")
-	created_at: datetime = Field(default_factory=datetime.now)
-	updated_at: datetime = Field(default_factory=datetime.now)
+	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+	updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	modality: RequirementModality = Field(
 		default=RequirementModality.MANDATORY,
 		description="Requirement category"
@@ -137,7 +137,7 @@ class RequirementMapping(BaseModel):
 		self.status = new_status
 		if confidence is not None:
 			self.confidence = confidence
-		self.updated_at = datetime.now()
+		self.updated_at = datetime.now(timezone.utc)
 
 class ComplianceMatrix(BaseModel):
 	"""
@@ -168,8 +168,8 @@ class ComplianceMatrix(BaseModel):
 		default_factory=list,
 		description="Requirement mappings"
 	)
-	created_at: datetime = Field(default_factory=datetime.now)
-	updated_at: datetime = Field(default_factory=datetime.now)
+	created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+	updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 	metadata: dict[str, Any] = Field(
 		default_factory=dict,
 		description="Additional metadata"
@@ -546,7 +546,7 @@ class ComplianceMatrix(BaseModel):
 			mapping: The mapping to add
 		"""
 		self.mappings.append(mapping)
-		self.updated_at = datetime.now()
+		self.updated_at = datetime.now(timezone.utc)
 
 	def update_mapping_status(
 		self,
@@ -580,7 +580,7 @@ class ComplianceMatrix(BaseModel):
 				mapping.section_title = section_title
 			if notes is not None:
 				mapping.notes = notes
-			self.updated_at = datetime.now()
+			self.updated_at = datetime.now(timezone.utc)
 			return True
 		return False
 

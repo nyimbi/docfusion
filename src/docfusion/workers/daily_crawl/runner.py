@@ -59,11 +59,25 @@ _log = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+def _env_int(name: str, default: int, minimum: int = 1, maximum: int = 100_000) -> int:
+	raw = os.environ.get(name, "")
+	try:
+		val = int(raw)
+	except (ValueError, TypeError):
+		if raw:
+			_log.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
+		return default
+	if not (minimum <= val <= maximum):
+		_log.warning("%s=%d is out of range [%d, %d], using default %d", name, val, minimum, maximum, default)
+		return default
+	return val
+
+
 STORAGE_DIR = Path(os.environ.get("OPPORTUNITY_STORAGE_DIR", "./storage/opportunities"))
-LOOKBACK_DAYS = int(os.environ.get("CRAWL_LOOKBACK_DAYS", "30"))
-CRAWL_LIMIT = int(os.environ.get("CRAWL_LIMIT", "200"))
-MIN_RESULTS_THRESHOLD = int(os.environ.get("MIN_RESULTS_THRESHOLD", "5"))
-CALL_TIMEOUT = int(os.environ.get("CRAWL_TIMEOUT", "20"))
+LOOKBACK_DAYS = _env_int("CRAWL_LOOKBACK_DAYS", 30, 1, 365)
+CRAWL_LIMIT = _env_int("CRAWL_LIMIT", 200, 1, 10_000)
+MIN_RESULTS_THRESHOLD = _env_int("MIN_RESULTS_THRESHOLD", 5, 0, 1_000)
+CALL_TIMEOUT = _env_int("CRAWL_TIMEOUT", 20, 5, 300)
 FIRECRAWL_URL = os.environ.get("FIRECRAWL_URL", "http://84.247.181.100:3002")
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "https://search.lindela.io")
 
@@ -555,7 +569,7 @@ def _load_seen_keys(storage_dir: Path, lookback_days: int) -> set[str]:
 					if url:
 						seen.add(hashlib.sha256(url.encode()).hexdigest()[:16])
 		except Exception:
-			pass
+			_log.warning("Failed to read seen-keys from %s — duplicates may appear for that date", path, exc_info=True)
 	return seen
 
 
@@ -564,12 +578,20 @@ def _load_seen_keys(storage_dir: Path, lookback_days: int) -> set[str]:
 # ---------------------------------------------------------------------------
 
 def _atomic_write(path: Path, data: list[dict]) -> None:
-	"""Write data to path atomically (crash-safe)."""
+	"""Write data to path atomically (crash-safe, disk-full aware)."""
 	path.parent.mkdir(parents=True, exist_ok=True)
 	tmp = path.with_suffix(".json.tmp")
-	with tmp.open("w") as f:
-		json.dump(data, f, indent=2, default=str)
-	os.replace(tmp, path)
+	try:
+		with tmp.open("w") as f:
+			json.dump(data, f, indent=2, default=str)
+		os.replace(tmp, path)
+	except OSError as exc:
+		# errno 28 = ENOSPC (No space left on device)
+		import errno as _errno
+		if exc.errno == _errno.ENOSPC:
+			_log.critical("DISK FULL — could not write %s. Free disk space immediately.", path)
+		tmp.unlink(missing_ok=True)
+		raise
 
 
 def _write_heartbeat(storage_dir: Path) -> None:

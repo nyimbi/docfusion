@@ -672,7 +672,7 @@ class DeploymentMonitor:
 			
 			timeout = config.get('timeout', 10)
 			
-			async with aiohttp.ClientSession() as session:
+			async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
 				async with session.post(
 					webhook_url,
 					json=payload,

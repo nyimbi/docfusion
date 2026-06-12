@@ -385,7 +385,7 @@ class OAuthAuthentication:
         }
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.post(
                     provider_config.token_endpoint,
                     data=refresh_data,
@@ -528,7 +528,7 @@ class OAuthAuthentication:
                 encoded_auth = base64.b64encode(auth_string.encode()).decode()
                 headers["Authorization"] = f"Basic {encoded_auth}"
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.post(
                     provider_config.token_endpoint,
                     data=token_data,
@@ -589,7 +589,7 @@ class OAuthAuthentication:
                 "Accept": "application/json",
             }
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.get(
                     provider_config.userinfo_endpoint,
                     headers=headers,
