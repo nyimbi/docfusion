@@ -7,6 +7,7 @@ feature engineering and performance monitoring.
 """
 
 import asyncio
+import inspect
 import logging
 logger = logging.getLogger(__name__)
 import numpy as np
@@ -694,8 +695,15 @@ class WinProbabilityPredictor:
 		# Create PredictionFeatures object
 		prediction_features = PredictionFeatures(**features_dict)
 
-		# Use existing prediction logic
-		return await self.predict_win_probability(prediction_features, opportunity_id)
+		if self.is_trained:
+			return await self.predict_win_probability(prediction_features, opportunity_id)
+
+		return self._predict_from_scores_heuristic(
+			section_scores=section_scores,
+			combined_score=combined_score,
+			features=prediction_features,
+			opportunity_id=opportunity_id,
+		)
 
 	def _combine_section_scores(self, section_scores: Dict[str, float]) -> float:
 		"""
@@ -866,19 +874,406 @@ class WinProbabilityPredictor:
 		Returns:
 			Dictionary with integrated prediction results
 		"""
-		# This is a placeholder for integration
-		# In practice, this would call scoring_predictor methods
-		# and combine results with win probability
+		section_scores, scoring_errors = self._collect_section_scores(
+			scoring_predictor=scoring_predictor,
+			requirements=requirements,
+			compliance_matrix=compliance_matrix,
+		)
+		if not section_scores:
+			section_scores = self._derive_section_scores_from_inputs(
+				requirements=requirements,
+				compliance_matrix=compliance_matrix,
+				opportunity_features=opportunity_features,
+			)
+
+		combined_score = self._combine_section_scores(section_scores)
+		score_features = self._create_features_from_scores(
+			section_scores,
+			combined_score,
+			opportunity_features,
+		)
+		features_dict = self._compute_win_features_from_requirements(
+			requirements,
+			compliance_matrix,
+			opportunity_features,
+		)
+		features_dict.update(score_features)
+		features_dict = self._normalize_prediction_feature_values(features_dict)
+		prediction_features = PredictionFeatures(**features_dict)
+
+		if self.is_trained:
+			try:
+				prediction = self._run_awaitable_synchronously(
+					self.predict_win_probability(prediction_features, opportunity_id)
+				)
+			except RuntimeError as exc:
+				scoring_errors.append(str(exc))
+				prediction = self._predict_from_scores_heuristic(
+					section_scores=section_scores,
+					combined_score=combined_score,
+					features=prediction_features,
+					opportunity_id=opportunity_id,
+				)
+		else:
+			prediction = self._predict_from_scores_heuristic(
+				section_scores=section_scores,
+				combined_score=combined_score,
+				features=prediction_features,
+				opportunity_id=opportunity_id,
+			)
 
 		return {
 			"opportunity_id": opportunity_id,
-			"section_scores": {},
-			"combined_score": 0.0,
-			"win_probability": 0.5,
-			"confidence_interval": (0.3, 0.7),
-			"recommendations": [],
-			"integrated_prediction": True
+			"section_scores": section_scores,
+			"combined_score": combined_score,
+			"win_probability": prediction.predicted_win_probability,
+			"confidence_interval": prediction.confidence_interval,
+			"prediction_confidence": prediction.prediction_confidence,
+			"model_used": prediction.model_used,
+			"recommendations": prediction.improvement_recommendations,
+			"risk_factors": prediction.risk_factors,
+			"scoring_errors": scoring_errors,
+			"integrated_prediction": True,
 		}
+
+	def _collect_section_scores(
+		self,
+		scoring_predictor: Any,
+		requirements: List[Any],
+		compliance_matrix: Optional[Any],
+	) -> Tuple[Dict[str, float], List[str]]:
+		"""Collect real section scores from predictor history or trained predictors."""
+		section_scores: Dict[str, float] = {}
+		errors: List[str] = []
+
+		for prediction in getattr(scoring_predictor, "prediction_history", []) or []:
+			section_key = self._section_key_from_prediction(prediction)
+			predicted_score = self._score_from_prediction(prediction)
+			if section_key and predicted_score is not None:
+				section_scores[section_key] = predicted_score
+
+		predict_method = getattr(scoring_predictor, "predict_section_score", None)
+		is_trained = getattr(scoring_predictor, "is_trained", {}) or {}
+		if not callable(predict_method) or not is_trained:
+			return section_scores, errors
+
+		for section_type, trained in is_trained.items():
+			if not trained:
+				continue
+			section_key = getattr(section_type, "value", str(section_type))
+			if section_key in section_scores:
+				continue
+
+			try:
+				section_features = self._build_section_features(
+					requirements,
+					compliance_matrix,
+					section_key,
+				)
+				prediction = predict_method(section_features, section_type)
+				if inspect.isawaitable(prediction):
+					prediction = self._run_awaitable_synchronously(prediction)
+				predicted_score = self._score_from_prediction(prediction)
+				if predicted_score is not None:
+					section_scores[section_key] = predicted_score
+			except Exception as exc:  # Keep other trained sections usable.
+				errors.append(f"{section_key}: {exc}")
+
+		return section_scores, errors
+
+	def _build_section_features(
+		self,
+		requirements: List[Any],
+		compliance_matrix: Optional[Any],
+		section_key: str,
+	) -> Any:
+		"""Build SectionFeatures with the shared feature engineering pipeline."""
+		from .feature_engineer import FeatureEngineer
+		from .scoring_predictor import SectionFeatures
+
+		feature_data = FeatureEngineer().compute_section_score_features(
+			requirements,
+			compliance_matrix,
+			section_key,
+		)
+		return SectionFeatures(**feature_data)
+
+	def _derive_section_scores_from_inputs(
+		self,
+		requirements: List[Any],
+		compliance_matrix: Optional[Any],
+		opportunity_features: Optional[Dict[str, float]],
+	) -> Dict[str, float]:
+		"""Derive transparent fallback section scores from available inputs."""
+		section_scores: Dict[str, float] = {}
+
+		if opportunity_features:
+			raw_section_scores = opportunity_features.get("section_scores")
+			if isinstance(raw_section_scores, dict):
+				for section, score in raw_section_scores.items():
+					section_scores[str(section)] = self._normalize_score(score)
+
+			for key, value in opportunity_features.items():
+				if key.endswith("_score") and key[:-6] in {
+					"technical_approach",
+					"management_approach",
+					"past_performance",
+					"personnel_qualifications",
+					"corporate_experience",
+					"understanding_of_requirements",
+					"price_cost",
+					"risk_management",
+				}:
+					section_scores[key[:-6]] = self._normalize_score(value)
+
+		if section_scores:
+			return section_scores
+
+		grouped_confidence: Dict[str, List[float]] = {}
+		for requirement in requirements or []:
+			section = getattr(requirement, "section", None) or "requirements"
+			confidence = getattr(requirement, "confidence", 0.5)
+			try:
+				confidence_value = float(confidence)
+			except (TypeError, ValueError):
+				confidence_value = 0.5
+			grouped_confidence.setdefault(str(section), []).append(confidence_value)
+
+		for section, confidences in grouped_confidence.items():
+			section_scores[section] = self._normalize_score(
+				sum(confidences) / len(confidences)
+			)
+
+		coverage = self._extract_coverage_percentage(compliance_matrix)
+		if coverage is not None:
+			section_scores.setdefault("understanding_of_requirements", coverage)
+
+		return section_scores
+
+	def _compute_win_features_from_requirements(
+		self,
+		requirements: List[Any],
+		compliance_matrix: Optional[Any],
+		opportunity_features: Optional[Dict[str, float]],
+	) -> Dict[str, Any]:
+		"""Use shared feature engineering when typed requirements are available."""
+		if not requirements:
+			return {}
+		try:
+			from .feature_engineer import FeatureEngineer
+
+			return FeatureEngineer().compute_win_probability_features(
+				requirements,
+				compliance_matrix,
+				opportunity_features,
+			)
+		except Exception:
+			return {}
+
+	def _normalize_prediction_feature_values(
+		self, features: Dict[str, Any]
+	) -> Dict[str, Any]:
+		"""Normalize externally supplied feature values to PredictionFeatures ranges."""
+		normalized = dict(features)
+		for key in [
+			"requirements_complexity",
+			"capability_match_score",
+			"past_performance_score",
+			"team_experience_score",
+			"competitive_intensity",
+			"market_familiarity",
+			"client_relationship_score",
+			"strategic_importance",
+			"resource_availability",
+			"pricing_competitiveness",
+		]:
+			normalized[key] = self._clamp_probability(normalized.get(key, 0.5))
+
+		normalized["opportunity_value"] = max(
+			0.0, float(normalized.get("opportunity_value", 0.0))
+		)
+		normalized["submission_days_remaining"] = max(
+			0, int(normalized.get("submission_days_remaining", 30))
+		)
+		normalized["estimated_competitors"] = max(
+			0, int(normalized.get("estimated_competitors", 5))
+		)
+		normalized["industry_experience_years"] = max(
+			0, int(normalized.get("industry_experience_years", 5))
+		)
+		normalized["incumbent_advantage"] = bool(
+			normalized.get("incumbent_advantage", False)
+		)
+		return normalized
+
+	def _predict_from_scores_heuristic(
+		self,
+		section_scores: Dict[str, float],
+		combined_score: float,
+		features: PredictionFeatures,
+		opportunity_id: str,
+	) -> PredictionResult:
+		"""Predict from section scores when no trained win model is available."""
+		feature_dict = features.model_dump()
+		quality = combined_score / 100.0
+		positive = (
+			0.30 * quality
+			+ 0.18 * feature_dict["capability_match_score"]
+			+ 0.12 * feature_dict["past_performance_score"]
+			+ 0.10 * feature_dict["team_experience_score"]
+			+ 0.08 * feature_dict["resource_availability"]
+			+ 0.07 * feature_dict["pricing_competitiveness"]
+			+ 0.05 * feature_dict["strategic_importance"]
+		)
+		negative = (
+			0.16 * feature_dict["requirements_complexity"]
+			+ 0.14 * feature_dict["competitive_intensity"]
+			+ (0.08 if feature_dict["incumbent_advantage"] else 0.0)
+			+ min(0.08, 0.015 * feature_dict["estimated_competitors"])
+		)
+		probability = self._clamp_probability(0.12 + positive - negative)
+		confidence = self._estimate_integrated_confidence(
+			section_scores,
+			features,
+			has_trained_model=False,
+		)
+		margin = 0.25 * (1 - confidence) + 0.05
+		top_positive, top_negative = self._heuristic_factor_lists(
+			section_scores,
+			feature_dict,
+			quality,
+		)
+		recommendations = self._generate_improvement_recommendations(
+			feature_dict,
+			top_negative,
+		)
+		if combined_score < 80:
+			recommendations.insert(
+				0,
+				"Improve low-scoring proposal sections before bid/no-bid approval",
+			)
+
+		result = PredictionResult(
+			opportunity_id=opportunity_id,
+			predicted_win_probability=probability,
+			confidence_interval=(
+				max(0.0, probability - margin),
+				min(1.0, probability + margin),
+			),
+			top_positive_factors=top_positive,
+			top_negative_factors=top_negative,
+			model_used="scoring_integrated_heuristic",
+			prediction_confidence=confidence,
+			improvement_recommendations=recommendations[:5],
+			risk_factors=self._identify_risk_factors(feature_dict, top_negative),
+		)
+		self.prediction_history.append(result)
+		return result
+
+	def _heuristic_factor_lists(
+		self,
+		section_scores: Dict[str, float],
+		feature_dict: Dict[str, Any],
+		quality: float,
+	) -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
+		positive = [
+			("Combined Section Quality", quality),
+			("Capability Match Score", feature_dict["capability_match_score"]),
+			("Past Performance Score", feature_dict["past_performance_score"]),
+			("Team Experience Score", feature_dict["team_experience_score"]),
+		]
+		negative = [
+			("Requirements Complexity", feature_dict["requirements_complexity"]),
+			("Competitive Intensity", feature_dict["competitive_intensity"]),
+		]
+		if feature_dict["incumbent_advantage"]:
+			negative.append(("Incumbent Advantage", 0.8))
+		if section_scores:
+			lowest_section, lowest_score = min(
+				section_scores.items(),
+				key=lambda item: item[1],
+			)
+			if lowest_score < 75:
+				negative.append((f"{lowest_section.replace('_', ' ').title()} Score", 1 - lowest_score / 100.0))
+		return (
+			sorted(positive, key=lambda item: item[1], reverse=True)[:5],
+			sorted(negative, key=lambda item: item[1], reverse=True)[:5],
+		)
+
+	def _estimate_integrated_confidence(
+		self,
+		section_scores: Dict[str, float],
+		features: PredictionFeatures,
+		has_trained_model: bool,
+	) -> float:
+		confidence = 0.25
+		if has_trained_model:
+			confidence += 0.35
+		if section_scores:
+			confidence += min(0.25, 0.05 * len(section_scores))
+		if features.opportunity_value > 0:
+			confidence += 0.05
+		if features.submission_days_remaining >= 0:
+			confidence += 0.05
+		return self._clamp_probability(confidence)
+
+	def _section_key_from_prediction(self, prediction: Any) -> Optional[str]:
+		if isinstance(prediction, dict):
+			section_type = prediction.get("section_type")
+		else:
+			section_type = getattr(prediction, "section_type", None)
+		if section_type is None:
+			return None
+		return getattr(section_type, "value", str(section_type))
+
+	def _score_from_prediction(self, prediction: Any) -> Optional[float]:
+		if isinstance(prediction, dict):
+			score = prediction.get("predicted_score")
+		else:
+			score = getattr(prediction, "predicted_score", None)
+		if score is None:
+			return None
+		return self._normalize_score(score)
+
+	def _normalize_score(self, score: Any) -> float:
+		try:
+			score_value = float(score)
+		except (TypeError, ValueError):
+			return 0.0
+		if 0.0 <= score_value <= 1.0:
+			score_value *= 100.0
+		return min(100.0, max(0.0, score_value))
+
+	def _clamp_probability(self, value: Any) -> float:
+		try:
+			float_value = float(value)
+		except (TypeError, ValueError):
+			float_value = 0.5
+		return min(1.0, max(0.0, float_value))
+
+	def _extract_coverage_percentage(self, compliance_matrix: Optional[Any]) -> Optional[float]:
+		if compliance_matrix is None:
+			return None
+		summary_method = getattr(compliance_matrix, "get_summary", None)
+		try:
+			summary = summary_method() if callable(summary_method) else {}
+		except Exception:
+			summary = {}
+		coverage = summary.get("coverage_percentage") if isinstance(summary, dict) else None
+		if coverage is None:
+			coverage = getattr(compliance_matrix, "coverage_percentage", None)
+		return self._normalize_score(coverage) if coverage is not None else None
+
+	def _run_awaitable_synchronously(self, awaitable: Any) -> Any:
+		try:
+			asyncio.get_running_loop()
+		except RuntimeError:
+			return asyncio.run(awaitable)
+		if inspect.iscoroutine(awaitable):
+			awaitable.close()
+		raise RuntimeError(
+			"Cannot synchronously run async score prediction while an event loop is active"
+		)
 
 
 # Example usage and testing

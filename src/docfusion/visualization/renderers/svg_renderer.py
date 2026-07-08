@@ -11,6 +11,8 @@ Copyright (c) 2025
 
 import logging
 import re
+import base64
+import importlib.util
 # Security: use defusedxml to prevent XXE attacks when available
 try:
     import defusedxml.ElementTree as ET
@@ -125,21 +127,23 @@ class SVGRenderer:
             # Create root SVG element
             svg_root = await self._create_svg_root(config)
 
-            # Convert chart elements to SVG
-            if "figure" in chart_data and hasattr(chart_data["figure"], "to_dict"):
-                # Handle Plotly figures
+            figure = chart_data.get("figure")
+            if figure is not None and hasattr(figure, "to_dict"):
                 await self._convert_plotly_to_svg(
-                    chart_data["figure"], svg_root, config
+                    figure, svg_root, config
                 )
             elif "elements" in chart_data:
-                # Handle custom element data
                 await self._convert_elements_to_svg(
                     chart_data["elements"], svg_root, config
                 )
+            elif "data" in chart_data:
+                await self._convert_tabular_data_to_svg(
+                    chart_data["data"], svg_root, config
+                )
             else:
-                # Generate placeholder
-                await self._create_placeholder_svg(
-                    svg_root, config, chart_data.get("title", "Chart")
+                raise RuntimeError(
+                    "SVG chart rendering requires a plotly figure, explicit SVG elements, "
+                    "or tabular chart data"
                 )
 
             # Apply optimizations
@@ -347,19 +351,290 @@ class SVGRenderer:
         self, figure, svg_root: SVGElement, config: SVGConfiguration
     ):
         """Convert Plotly figure to SVG elements"""
-        # This would implement conversion from Plotly figure to SVG
-        # For now, create a placeholder
-        placeholder = SVGElement(
-            tag="text",
-            attributes={
-                "x": str(config.width // 2),
-                "y": str(config.height // 2),
-                "text-anchor": "middle",
-                "class": "svg-text",
-            },
-            content="Plotly Chart (SVG Conversion)",
+        if (
+            hasattr(figure, "to_image")
+            and importlib.util.find_spec("kaleido") is not None
+        ):
+            try:
+                svg_bytes = figure.to_image(
+                    format="svg", width=config.width, height=config.height
+                )
+                xml_root = ET.fromstring(svg_bytes)
+                converted = SVGElement(tag="")
+                await self._xml_to_svg_element(xml_root, converted)
+                svg_root.children.extend(converted.children)
+                return
+            except Exception as e:
+                self.logger.warning(
+                    f"Plotly static SVG export failed; rendering traces directly: {e}"
+                )
+
+        figure_dict = figure.to_dict()
+        traces = figure_dict.get("data", [])
+        if not traces:
+            raise RuntimeError("Plotly figure contains no renderable traces")
+
+        layout = figure_dict.get("layout", {})
+        title = layout.get("title", "")
+        if isinstance(title, dict):
+            title = title.get("text", "")
+        if title:
+            svg_root.children.append(
+                SVGElement(
+                    tag="text",
+                    attributes={
+                        "x": str(config.width // 2),
+                        "y": "28",
+                        "text-anchor": "middle",
+                        "class": "svg-text",
+                        "font-size": str(config.font_size + 4),
+                    },
+                    content=str(title),
+                )
+            )
+
+        rendered_any = False
+        for trace in traces:
+            if await self._convert_trace_to_svg(trace, svg_root, config):
+                rendered_any = True
+
+        if not rendered_any:
+            raise RuntimeError("Plotly figure traces are not supported by SVG renderer")
+
+    async def _convert_tabular_data_to_svg(
+        self,
+        data: Dict[str, List[Any]],
+        svg_root: SVGElement,
+        config: SVGConfiguration,
+    ):
+        """Render tabular chart data as SVG bars using actual values."""
+        labels, values = self._extract_chart_series(data)
+        if not values:
+            raise RuntimeError("SVG chart rendering requires numeric data")
+
+        await self._draw_bar_series(svg_root, config, labels, values, "#1f77b4")
+
+    async def _convert_trace_to_svg(
+        self, trace: Dict[str, Any], svg_root: SVGElement, config: SVGConfiguration
+    ) -> bool:
+        """Render a basic Plotly trace as primitive SVG elements."""
+        trace_type = trace.get("type", "scatter")
+        labels = trace.get("x")
+        if labels is None:
+            labels = trace.get("labels")
+        values = trace.get("y")
+        if values is None:
+            values = trace.get("values")
+        color = (
+            trace.get("marker", {}).get("color")
+            if isinstance(trace.get("marker"), dict)
+            else None
+        ) or trace.get("line", {}).get("color", "#1f77b4")
+
+        if values is None:
+            return False
+
+        numeric_values = self._to_float_series(values)
+        if not numeric_values:
+            return False
+
+        if labels is None or len(labels) != len(numeric_values):
+            labels = list(range(1, len(numeric_values) + 1))
+
+        if trace_type == "bar":
+            await self._draw_bar_series(svg_root, config, labels, numeric_values, color)
+            return True
+
+        await self._draw_line_or_scatter_series(
+            svg_root,
+            config,
+            numeric_values,
+            color,
+            draw_line=trace_type in {"scatter", "line"} and "lines" in trace.get("mode", "lines"),
+            draw_markers=trace_type != "line" and "markers" in trace.get("mode", "markers"),
         )
-        svg_root.children.append(placeholder)
+        return True
+
+    async def _draw_bar_series(
+        self,
+        svg_root: SVGElement,
+        config: SVGConfiguration,
+        labels: List[Any],
+        values: List[float],
+        color: str,
+    ):
+        chart_left = 60
+        chart_top = 60
+        chart_width = max(1, config.width - 100)
+        chart_height = max(1, config.height - 120)
+        max_value = max(values) or 1.0
+        slot_width = chart_width / max(1, len(values))
+        bar_width = max(6.0, slot_width * 0.65)
+
+        svg_root.children.append(
+            SVGElement(
+                tag="line",
+                attributes={
+                    "x1": str(chart_left),
+                    "y1": str(chart_top + chart_height),
+                    "x2": str(chart_left + chart_width),
+                    "y2": str(chart_top + chart_height),
+                    "stroke": "#222222",
+                },
+            )
+        )
+
+        for index, value in enumerate(values):
+            bar_height = chart_height * max(0.0, value / max_value)
+            x = chart_left + index * slot_width + (slot_width - bar_width) / 2
+            y = chart_top + chart_height - bar_height
+            svg_root.children.append(
+                SVGElement(
+                    tag="rect",
+                    attributes={
+                        "x": f"{x:.2f}",
+                        "y": f"{y:.2f}",
+                        "width": f"{bar_width:.2f}",
+                        "height": f"{bar_height:.2f}",
+                        "fill": str(color),
+                        "class": "interactive",
+                    },
+                )
+            )
+            if index < 12:
+                svg_root.children.append(
+                    SVGElement(
+                        tag="text",
+                        attributes={
+                            "x": f"{x + bar_width / 2:.2f}",
+                            "y": str(config.height - 28),
+                            "text-anchor": "middle",
+                            "class": "svg-text",
+                            "font-size": str(max(9, config.font_size - 2)),
+                        },
+                        content=str(labels[index])[:12],
+                    )
+                )
+
+    async def _draw_line_or_scatter_series(
+        self,
+        svg_root: SVGElement,
+        config: SVGConfiguration,
+        values: List[float],
+        color: str,
+        draw_line: bool,
+        draw_markers: bool,
+    ):
+        chart_left = 60
+        chart_top = 60
+        chart_width = max(1, config.width - 100)
+        chart_height = max(1, config.height - 120)
+        max_value = max(values) or 1.0
+        min_value = min(values)
+        value_range = max(max_value - min_value, 1.0)
+        step = chart_width / max(1, len(values) - 1)
+        points = []
+
+        for index, value in enumerate(values):
+            x = chart_left + index * step
+            y = chart_top + chart_height - ((value - min_value) / value_range) * chart_height
+            points.append((x, y))
+
+        if draw_line and points:
+            svg_root.children.append(
+                SVGElement(
+                    tag="polyline",
+                    attributes={
+                        "points": " ".join(f"{x:.2f},{y:.2f}" for x, y in points),
+                        "fill": "none",
+                        "stroke": str(color),
+                        "stroke-width": "2",
+                    },
+                )
+            )
+
+        if draw_markers:
+            for x, y in points:
+                svg_root.children.append(
+                    SVGElement(
+                        tag="circle",
+                        attributes={
+                            "cx": f"{x:.2f}",
+                            "cy": f"{y:.2f}",
+                            "r": "4",
+                            "fill": str(color),
+                            "class": "interactive",
+                        },
+                    )
+                )
+
+    def _extract_chart_series(
+        self, data: Optional[Dict[str, List[Any]]]
+    ) -> tuple[List[Any], List[float]]:
+        if not data:
+            return [], []
+
+        labels: List[Any] = []
+        values: List[float] = []
+        label_column = None
+
+        for column, column_values in data.items():
+            numeric_values = self._to_float_series(column_values)
+            if numeric_values and not values:
+                values = numeric_values
+            elif label_column is None:
+                label_column = column
+
+        if not values:
+            first_column = next(iter(data.values()), [])
+            counts: Dict[str, float] = {}
+            for value in first_column:
+                counts[str(value)] = counts.get(str(value), 0.0) + 1.0
+            return list(counts.keys()), list(counts.values())
+
+        if label_column and len(data[label_column]) == len(values):
+            labels = data[label_column]
+        else:
+            labels = list(range(1, len(values) + 1))
+
+        return labels, values
+
+    def _to_float_series(self, values: Any) -> List[float]:
+        if values is None:
+            return []
+
+        if isinstance(values, dict) and "bdata" in values and "dtype" in values:
+            try:
+                import numpy as np
+
+                dtype_map = {
+                    "f8": np.float64,
+                    "f4": np.float32,
+                    "i8": np.int64,
+                    "i4": np.int32,
+                    "i2": np.int16,
+                    "i1": np.int8,
+                    "u8": np.uint64,
+                    "u4": np.uint32,
+                    "u2": np.uint16,
+                    "u1": np.uint8,
+                }
+                dtype = dtype_map.get(values["dtype"])
+                if dtype is None:
+                    return []
+                decoded = base64.b64decode(values["bdata"])
+                return [float(value) for value in np.frombuffer(decoded, dtype=dtype)]
+            except Exception:
+                return []
+
+        numeric_values = []
+        for value in values:
+            try:
+                numeric_values.append(float(value))
+            except (TypeError, ValueError):
+                return []
+
+        return numeric_values
 
     async def _convert_elements_to_svg(
         self,
@@ -411,39 +686,6 @@ class SVGRenderer:
                 )
 
             svg_root.children.append(svg_element)
-
-    async def _create_placeholder_svg(
-        self, svg_root: SVGElement, config: SVGConfiguration, title: str
-    ):
-        """Create placeholder SVG content"""
-        # Background
-        bg_rect = SVGElement(
-            tag="rect",
-            attributes={
-                "x": "10%",
-                "y": "10%",
-                "width": "80%",
-                "height": "80%",
-                "fill": "#f0f0f0",
-                "stroke": "#cccccc",
-                "stroke-width": "2",
-            },
-        )
-        svg_root.children.append(bg_rect)
-
-        # Title
-        title_text = SVGElement(
-            tag="text",
-            attributes={
-                "x": "50%",
-                "y": "50%",
-                "text-anchor": "middle",
-                "class": "svg-text",
-                "font-size": str(config.font_size + 4),
-            },
-            content=title,
-        )
-        svg_root.children.append(title_text)
 
     async def _render_diagram_elements(
         self,

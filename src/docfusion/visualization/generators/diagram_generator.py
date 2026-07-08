@@ -16,7 +16,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-# For diagram libraries - would need to install these
+# Diagram libraries are required for real diagram generation.
 try:
     import graphviz
 
@@ -76,7 +76,7 @@ class DiagramNode:
     node_id: str
     label: str
     shape: NodeShape = NodeShape.RECTANGLE
-    color: str = "#lightblue"
+    color: str = "#ADD8E6"
     text_color: str = "#000000"
     position: Optional[Tuple[float, float]] = None
     size: Tuple[float, float] = (100, 50)
@@ -178,7 +178,7 @@ class DiagramGenerator:
 
         if not GRAPHVIZ_AVAILABLE and not MATPLOTLIB_AVAILABLE:
             self.logger.warning(
-                "Neither Graphviz nor Matplotlib available - using mock generation"
+                "Neither Graphviz nor Matplotlib available - diagram generation is disabled"
             )
 
     async def generate_diagram(
@@ -208,7 +208,10 @@ class DiagramGenerator:
             elif MATPLOTLIB_AVAILABLE:
                 diagram_output = await self._generate_matplotlib_diagram(data, config)
             else:
-                diagram_output = await self._generate_mock_diagram(data, config)
+                raise RuntimeError(
+                    "Real diagram generation requires graphviz or matplotlib. "
+                    "Install project dependencies with `uv sync` or run through `uv run`."
+                )
 
             # Add metadata
             result = {
@@ -659,7 +662,7 @@ class DiagramGenerator:
     ) -> Dict[str, Any]:
         """Generate diagram using Graphviz"""
         if not GRAPHVIZ_AVAILABLE:
-            return await self._generate_mock_diagram(data, config)
+            raise RuntimeError("Graphviz is required for this diagram type")
 
         try:
             # Create Graphviz graph
@@ -695,22 +698,24 @@ class DiagramGenerator:
                     try:
                         outputs[format_type] = dot.pipe(format=format_type)
                     except Exception as e:
-                        self.logger.warning(f"Graphviz pipe failed for format {format_type}: {e}")
-                        outputs[format_type] = f"Mock {format_type} output"
+                        raise RuntimeError(
+                            f"Graphviz failed to render {format_type}: {e}"
+                        ) from e
 
             return {"success": True, "source": str(dot.source), "outputs": outputs}
 
         except Exception as e:
             self.logger.error(f"Graphviz generation failed: {e}")
-            return await self._generate_mock_diagram(data, config)
+            raise
 
     async def _generate_matplotlib_diagram(
         self, data: DiagramData, config: DiagramConfiguration
     ) -> Dict[str, Any]:
         """Generate diagram using Matplotlib"""
         if not MATPLOTLIB_AVAILABLE:
-            return await self._generate_mock_diagram(data, config)
+            raise RuntimeError("Matplotlib is required for diagram generation")
 
+        fig = None
         try:
             fig, ax = plt.subplots(figsize=(config.width / 100, config.height / 100))
             ax.set_xlim(0, config.width)
@@ -833,7 +838,7 @@ class DiagramGenerator:
                         import io
 
                         buffer = io.BytesIO()
-                        plt.savefig(
+                        fig.savefig(
                             buffer,
                             format=format_type,
                             bbox_inches="tight",
@@ -841,32 +846,18 @@ class DiagramGenerator:
                         )
                         outputs[format_type] = buffer.getvalue()
                     except Exception as e:
-                        self.logger.warning(f"Matplotlib savefig failed for format {format_type}: {e}")
-                        outputs[format_type] = f"Mock {format_type} output"
-
-            plt.close(fig)
+                        raise RuntimeError(
+                            f"Matplotlib failed to render {format_type}: {e}"
+                        ) from e
 
             return {"success": True, "outputs": outputs, "renderer": "matplotlib"}
 
         except Exception as e:
             self.logger.error(f"Matplotlib generation failed: {e}")
-            return await self._generate_mock_diagram(data, config)
-
-    async def _generate_mock_diagram(
-        self, data: DiagramData, config: DiagramConfiguration
-    ) -> Dict[str, Any]:
-        """Generate mock diagram when libraries are not available"""
-        return {
-            "success": True,
-            "mock": True,
-            "diagram_type": config.diagram_type.value,
-            "node_count": len(data.nodes),
-            "edge_count": len(data.edges),
-            "outputs": {
-                format_type: f"Mock {format_type} output"
-                for format_type in config.export_formats
-            },
-        }
+            raise
+        finally:
+            if fig is not None:
+                plt.close(fig)
 
     def _get_graphviz_shape(self, shape: NodeShape) -> str:
         """Convert internal shape to Graphviz shape"""

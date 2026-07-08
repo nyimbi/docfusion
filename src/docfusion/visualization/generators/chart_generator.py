@@ -9,7 +9,6 @@ Company: Datacraft Ltd
 Copyright (c) 2025
 """
 
-import json
 import logging
 import math
 from dataclasses import dataclass, field
@@ -17,7 +16,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-# For visualization libraries - would need to install these
+# Visualization libraries are required for real chart generation.
 try:
     import pandas as pd
     import plotly.express as px
@@ -144,7 +143,7 @@ class ChartGenerator:
 
         if not PLOTLY_AVAILABLE:
             self.logger.warning(
-                "Plotly not available - chart generation will use mock data"
+                "Plotly/pandas not available - chart generation is disabled"
             )
 
     async def generate_chart(
@@ -176,16 +175,15 @@ class ChartGenerator:
             if not config:
                 config = ChartConfiguration(chart_type=ChartType.BAR)
 
-            # Generate the chart
-            if PLOTLY_AVAILABLE:
-                figure = await self._create_plotly_chart(data, config)
-                chart_html = figure.to_html(include_plotlyjs=True)
-                chart_json = figure.to_json()
-            else:
-                # Mock chart generation
-                figure = await self._create_mock_chart(data, config)
-                chart_html = f"<div>Mock Chart: {config.chart_type.value}</div>"
-                chart_json = json.dumps({"mock": True, "type": config.chart_type.value})
+            if not PLOTLY_AVAILABLE:
+                raise RuntimeError(
+                    "Real chart generation requires plotly and pandas. "
+                    "Install project dependencies with `uv sync` or run through `uv run`."
+                )
+
+            figure = await self._create_plotly_chart(data, config)
+            chart_html = figure.to_html(include_plotlyjs=True)
+            chart_json = figure.to_json()
 
             # Apply accessibility enhancements
             await self._apply_accessibility_features(config)
@@ -197,6 +195,7 @@ class ChartGenerator:
                 "figure": figure,
                 "html": chart_html,
                 "json": chart_json,
+                "data": data.data,
                 "config": config,
                 "metadata": {
                     "generated_at": datetime.now().isoformat(),
@@ -258,7 +257,7 @@ class ChartGenerator:
                 data, config, auto_select_type=False
             )
 
-            if "error" not in chart_result:
+            if chart_result.get("success", True) and "error" not in chart_result:
                 charts[chart_type.value] = chart_result
 
         return {
@@ -282,19 +281,33 @@ class ChartGenerator:
                 Dashboard with multiple charts
         """
         charts = []
+        failures = []
 
         for i, data in enumerate(data_sets):
             chart_result = await self.generate_chart(data)
-            if "error" not in chart_result:
+            if chart_result.get("success", True) and "error" not in chart_result:
                 charts.append(chart_result)
+            else:
+                failures.append(chart_result)
+
+        if not charts:
+            return {
+                "dashboard_id": uuid7str(),
+                "charts": [],
+                "layout": layout,
+                "success": False,
+                "errors": failures,
+                "generated_at": datetime.now().isoformat(),
+                "metadata": {"chart_count": 0, "layout_type": layout},
+            }
 
         # Create dashboard layout
         if PLOTLY_AVAILABLE and len(charts) > 1:
             dashboard_fig = await self._create_dashboard_layout(charts, layout)
             dashboard_html = dashboard_fig.to_html(include_plotlyjs=True)
         else:
-            dashboard_fig = None
-            dashboard_html = f"<div>Dashboard with {len(charts)} charts</div>"
+            dashboard_fig = charts[0].get("figure")
+            dashboard_html = charts[0].get("html", "")
 
         return {
             "dashboard_id": uuid7str(),
@@ -302,6 +315,7 @@ class ChartGenerator:
             "layout": layout,
             "figure": dashboard_fig,
             "html": dashboard_html,
+            "success": True,
             "generated_at": datetime.now().isoformat(),
             "metadata": {"chart_count": len(charts), "layout_type": layout},
         }
@@ -427,11 +441,11 @@ class ChartGenerator:
     ) -> Any:
         """Create chart using Plotly"""
         if not PLOTLY_AVAILABLE:
-            return None
+            raise RuntimeError("Plotly and pandas are required for chart generation")
 
         df = data.to_dataframe()
         if df is None or df.empty:
-            return None
+            raise ValueError("Chart data is empty")
 
         # Get chart creation function
         chart_func = getattr(self, f"_create_{config.chart_type.value}_chart", None)
@@ -519,20 +533,6 @@ class ChartGenerator:
 
         columns = df.columns.tolist()
         return px.box(df, y=columns[0], title=config.title)
-
-    async def _create_mock_chart(
-        self, data: ChartData, config: ChartConfiguration
-    ) -> Dict[str, Any]:
-        """Create mock chart when Plotly is not available"""
-        return {
-            "type": "mock_chart",
-            "chart_type": config.chart_type.value,
-            "title": config.title,
-            "data_points": len(data.data.get(list(data.data.keys())[0], []))
-            if data.data
-            else 0,
-            "mock": True,
-        }
 
     async def _create_dashboard_layout(
         self, charts: List[Dict[str, Any]], layout: str

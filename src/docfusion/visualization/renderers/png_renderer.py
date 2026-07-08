@@ -10,6 +10,7 @@ Copyright (c) 2025
 """
 
 import base64
+import importlib.util
 import io
 import logging
 from dataclasses import dataclass
@@ -108,7 +109,7 @@ class PNGRenderer:
 
         if not PIL_AVAILABLE and not MATPLOTLIB_AVAILABLE:
             self.logger.warning(
-                "Neither PIL nor Matplotlib available - using mock generation"
+                "Neither PIL nor Matplotlib available - PNG rendering is disabled"
             )
 
     async def render_chart_to_png(
@@ -131,15 +132,23 @@ class PNGRenderer:
             # Apply quality settings
             await self._apply_quality_settings(config)
 
-            # Generate PNG based on available libraries
-            if MATPLOTLIB_AVAILABLE and "figure" in chart_data:
-                png_data = await self._render_matplotlib_to_png(
-                    chart_data["figure"], config
-                )
-            elif PIL_AVAILABLE:
+            figure = chart_data.get("figure")
+
+            if figure is not None and hasattr(figure, "savefig"):
+                png_data = await self._render_matplotlib_to_png(figure, config)
+            elif figure is not None and hasattr(figure, "to_image"):
+                try:
+                    png_data = await self._render_plotly_to_png(figure, config)
+                except RuntimeError:
+                    if "data" not in chart_data:
+                        raise
+                    png_data = await self._render_with_pil(chart_data, config)
+            elif PIL_AVAILABLE and ("data" in chart_data or "elements" in chart_data):
                 png_data = await self._render_with_pil(chart_data, config)
             else:
-                png_data = await self._generate_mock_png(chart_data, config)
+                raise RuntimeError(
+                    "PNG chart rendering requires a matplotlib/plotly figure or tabular chart data"
+                )
 
             # Optimize if requested
             if config.optimize:
@@ -200,7 +209,7 @@ class PNGRenderer:
             if PIL_AVAILABLE:
                 png_data = await self._render_diagram_with_pil(diagram_data, config)
             else:
-                png_data = await self._generate_mock_png(diagram_data, config)
+                raise RuntimeError("Diagram PNG rendering requires Pillow")
 
             if config.optimize:
                 png_data = await self._optimize_png(png_data, config)
@@ -454,14 +463,35 @@ class PNGRenderer:
 
         except Exception as e:
             self.logger.error(f"Matplotlib PNG rendering failed: {e}")
-            return await self._generate_mock_png({"figure": figure}, config)
+            raise RuntimeError(f"Matplotlib PNG rendering failed: {e}") from e
+
+    async def _render_plotly_to_png(self, figure, config: PNGConfiguration) -> bytes:
+        """Render Plotly figure to PNG using Plotly's static image export."""
+        if importlib.util.find_spec("kaleido") is None:
+            raise RuntimeError(
+                "Plotly PNG rendering requires kaleido when tabular fallback data is unavailable"
+            )
+
+        try:
+            return figure.to_image(
+                format="png",
+                width=config.width,
+                height=config.height,
+                scale=max(1, round(config.dpi / 150)),
+            )
+        except Exception as e:
+            self.logger.error(f"Plotly PNG rendering failed: {e}")
+            raise RuntimeError(
+                "Plotly PNG rendering failed. Install kaleido or provide tabular "
+                "chart data for the Pillow renderer."
+            ) from e
 
     async def _render_with_pil(
         self, chart_data: Dict[str, Any], config: PNGConfiguration
     ) -> bytes:
         """Render chart data using PIL"""
         if not PIL_AVAILABLE:
-            return await self._generate_mock_png(chart_data, config)
+            raise RuntimeError("Pillow is required for PNG rendering")
 
         # Create image
         if config.color_mode == "RGBA":
@@ -491,7 +521,7 @@ class PNGRenderer:
     ) -> bytes:
         """Render diagram using PIL"""
         if not PIL_AVAILABLE:
-            return await self._generate_mock_png(diagram_data, config)
+            raise RuntimeError("Pillow is required for diagram PNG rendering")
 
         # Create image
         image = Image.new("RGB", (config.width, config.height), config.background_color)
@@ -517,7 +547,7 @@ class PNGRenderer:
         try:
             font = ImageFont.truetype("arial.ttf", 16)
         except (IOError, OSError) as e:
-            self.logger.warning(f"Failed to load truetype font: {e}")
+            self.logger.debug(f"Falling back to default PNG font: {e}")
             font = ImageFont.load_default()
 
         # Get text bounding box for centering
@@ -528,25 +558,109 @@ class PNGRenderer:
             ((config.width - text_width) // 2, 20), title, fill="black", font=font
         )
 
-        # Draw placeholder chart elements
+        data = chart_data.get("data")
+        elements = chart_data.get("elements")
         chart_area = (50, 60, config.width - 50, config.height - 50)
         draw.rectangle(chart_area, outline="black", width=2)
 
-        # Draw sample bars
-        bar_width = 40
-        bar_spacing = 60
-        max_bar_height = chart_area[3] - chart_area[1] - 40
+        if elements:
+            await self._draw_custom_elements(draw, elements)
+            return
 
-        for i in range(5):
+        labels, values = self._extract_chart_series(data)
+        if not values:
+            raise ValueError("PNG chart rendering requires numeric data")
+
+        # Draw bars from actual chart data.
+        usable_width = chart_area[2] - chart_area[0] - 40
+        bar_spacing = max(4, usable_width // max(1, len(values)))
+        bar_width = max(8, int(bar_spacing * 0.65))
+        max_bar_height = chart_area[3] - chart_area[1] - 40
+        max_value = max(values) or 1.0
+        palette = [
+            "#1f77b4",
+            "#ff7f0e",
+            "#2ca02c",
+            "#d62728",
+            "#9467bd",
+            "#8c564b",
+        ]
+
+        for i, value in enumerate(values):
             x = chart_area[0] + 20 + i * bar_spacing
-            height = max_bar_height * (0.3 + i * 0.15)
+            height = max_bar_height * max(0.0, value / max_value)
             y = chart_area[3] - 20 - height
 
             draw.rectangle(
                 (x, y, x + bar_width, chart_area[3] - 20),
-                fill=f"rgb({50 + i * 40}, {100 + i * 30}, {150 + i * 20})",
+                fill=palette[i % len(palette)],
                 outline="black",
             )
+            if i < 12:
+                label = str(labels[i])[:12]
+                draw.text((x, chart_area[3] - 16), label, fill="black", font=font)
+
+    def _extract_chart_series(
+        self, data: Optional[Dict[str, List[Any]]]
+    ) -> Tuple[List[Any], List[float]]:
+        """Extract one label series and one numeric series from chart data."""
+        if not data:
+            return [], []
+
+        labels: List[Any] = []
+        values: List[float] = []
+        numeric_column = None
+        label_column = None
+
+        for column, column_values in data.items():
+            numeric_values = []
+            for value in column_values:
+                try:
+                    numeric_values.append(float(value))
+                except (TypeError, ValueError):
+                    numeric_values = []
+                    break
+            if numeric_values and numeric_column is None:
+                numeric_column = column
+                values = numeric_values
+            elif label_column is None:
+                label_column = column
+
+        if not values:
+            first_column = next(iter(data.values()), [])
+            counts: Dict[str, float] = {}
+            for value in first_column:
+                counts[str(value)] = counts.get(str(value), 0.0) + 1.0
+            return list(counts.keys()), list(counts.values())
+
+        if label_column and len(data[label_column]) == len(values):
+            labels = data[label_column]
+        else:
+            labels = list(range(1, len(values) + 1))
+
+        return labels, values
+
+    async def _draw_custom_elements(self, draw, elements: List[Dict[str, Any]]):
+        """Draw explicit chart elements instead of generated samples."""
+        for element in elements:
+            element_type = element.get("type")
+            if element_type == "rect":
+                draw.rectangle(
+                    (
+                        element.get("x", 0),
+                        element.get("y", 0),
+                        element.get("x", 0) + element.get("width", 0),
+                        element.get("y", 0) + element.get("height", 0),
+                    ),
+                    fill=element.get("fill", "#000000"),
+                    outline=element.get("stroke", "black"),
+                )
+            elif element_type == "text":
+                draw.text(
+                    (element.get("x", 0), element.get("y", 0)),
+                    element.get("text", ""),
+                    fill=element.get("fill", "black"),
+                )
 
     async def _draw_diagram_elements(
         self, draw, diagram_data: Dict[str, Any], config: PNGConfiguration
@@ -558,7 +672,7 @@ class PNGRenderer:
         try:
             font = ImageFont.truetype("arial.ttf", 12)
         except (IOError, OSError) as e:
-            self.logger.warning(f"Failed to load truetype font: {e}")
+            self.logger.debug(f"Falling back to default PNG font: {e}")
             font = ImageFont.load_default()
 
         # Draw edges first
@@ -639,9 +753,3 @@ class PNGRenderer:
         except Exception as e:
             self.logger.error(f"PNG optimization failed: {e}")
             return png_data
-
-    async def _generate_mock_png(
-        self, data: Dict[str, Any], config: PNGConfiguration
-    ) -> str:
-        """Generate mock PNG when libraries are not available"""
-        return f"Mock PNG data: {config.width}x{config.height} at {config.dpi}dpi"
