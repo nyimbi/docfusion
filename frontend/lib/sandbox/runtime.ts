@@ -11,6 +11,8 @@ export function getSandboxRuntimeContext(): SandboxRuntimeContext {
 	const mode = process.env.DOCFUSION_SANDBOX_MODE === "true" || process.env.NODE_ENV !== "production"
 		? "sandbox"
 		: "live";
+	const fakeDispatchRequested = process.env.DOCFUSION_FAKE_DISPATCH === "true"
+		|| (isFakeDispatchEnvironment() && mode === "sandbox");
 	const runIdPrefix = process.env.DOCFUSION_SANDBOX_RUN_PREFIX
 		?? `df-${mode}-${new Date().toISOString().slice(0, 10)}`;
 	return {
@@ -18,7 +20,7 @@ export function getSandboxRuntimeContext(): SandboxRuntimeContext {
 		label: mode === "sandbox" ? "Sandbox mode" : "Live mode",
 		runIdPrefix,
 		mutatingProofAllowed: mode === "sandbox" || process.env.DOCFUSION_ALLOW_LIVE_PROOF === "true",
-		fakeDispatch: process.env.DOCFUSION_FAKE_DISPATCH === "true" || mode === "sandbox",
+		fakeDispatch: resolveFakeDispatch(fakeDispatchRequested, "sandbox runtime context"),
 		cleanupRequired: true,
 	};
 }
@@ -49,7 +51,7 @@ export function decideSandboxMutation(input: {
 			runtimeMode: context.mode,
 			mutationAllowed: false,
 			mutationSuppressed: true,
-			fakeDispatch: true,
+			fakeDispatch: resolveFakeDispatch(true, `${input.operation} preview mode`),
 			cleanupRequired: false,
 			runIdPrefix: context.runIdPrefix,
 			reason: `${input.operation} is running in preview-only sandbox mode`,
@@ -64,7 +66,7 @@ export function decideSandboxMutation(input: {
 		runtimeMode: context.mode,
 		mutationAllowed,
 		mutationSuppressed: !mutationAllowed,
-		fakeDispatch: context.fakeDispatch || requestedMode === "sandbox",
+		fakeDispatch: resolveFakeDispatch(context.fakeDispatch || requestedMode === "sandbox", input.operation),
 		cleanupRequired: context.cleanupRequired && mutationAllowed,
 		runIdPrefix: context.runIdPrefix,
 		reason: mutationAllowed
@@ -76,4 +78,16 @@ export function decideSandboxMutation(input: {
 function normalizeRequestedMode(value: unknown): SandboxRequestMode {
 	if (value === "preview" || value === "sandbox" || value === "live") return value;
 	return "live";
+}
+
+function resolveFakeDispatch(requested: boolean, operation: string): boolean {
+	if (!requested) return false;
+	if (isFakeDispatchEnvironment()) return true;
+	throw new Error(
+		`${operation} attempted fakeDispatch outside NODE_ENV=test or ENVIRONMENT=test`
+	);
+}
+
+function isFakeDispatchEnvironment(): boolean {
+	return process.env.NODE_ENV === "test" || process.env.ENVIRONMENT === "test";
 }
