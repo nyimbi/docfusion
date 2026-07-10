@@ -380,6 +380,7 @@ interface CompetitorComparison {
 interface DashboardMetrics {
 	totalDebriefs: number;
 	recentWinRate: number;
+	averagePwin: number | null;
 	totalContractValueWon: number;
 	pendingActionItems: number;
 	activePatterns: number;
@@ -2716,6 +2717,18 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 				mutableOrganizationCondition(winLossPatterns.organizationId, userContext)
 			));
 
+		const [averagePwinResult] = await db
+			.select({ average: avg(opportunities.winProbability) })
+			.from(opportunities)
+			.where(and(
+				mutableOrganizationCondition(opportunities.organizationId, userContext),
+				isNotNull(opportunities.winProbability)
+			));
+		const averagePwinRaw = averagePwinResult?.average == null ? null : Number(averagePwinResult.average);
+		const averagePwin = averagePwinRaw == null || !Number.isFinite(averagePwinRaw)
+			? null
+			: Math.round((averagePwinRaw <= 1 ? averagePwinRaw * 100 : averagePwinRaw) * 10) / 10;
+
 		// Calculate ROI
 		const [investmentResult] = await db
 			.select({ total: sum(debriefs.proposalInvestment) })
@@ -2763,6 +2776,7 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
 			data: {
 				totalDebriefs: Number(debriefCount.count),
 				recentWinRate: Math.round(recentWinRate * 10) / 10,
+				averagePwin,
 				totalContractValueWon: totalContractValue,
 				pendingActionItems,
 				activePatterns: Number(patternCount.count),

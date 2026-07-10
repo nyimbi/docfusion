@@ -26,7 +26,6 @@ import {
 	Users,
 	Settings,
 	Search,
-	Command,
 	Bell,
 	ChevronDown,
 	LogOut,
@@ -67,6 +66,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { Toaster } from "@/components/ui/toaster";
+import { getUnreadWorkflowNotificationSummary } from "@/lib/actions/notifications";
 
 // ============================================================================
 // Types
@@ -98,17 +99,6 @@ interface NavSection {
  * 5. MANAGE - Coordinate tasks, reviews, deadlines
  */
 const NAV_SECTIONS: NavSection[] = [
-	{
-		title: "Home",
-		items: [
-			{
-				label: "Role Home",
-				href: "/home",
-				icon: Home,
-				description: "Role-based work surface",
-			},
-		],
-	},
 	{
 		title: "Discover",
 		items: [
@@ -159,7 +149,7 @@ const NAV_SECTIONS: NavSection[] = [
 				description: "Create and edit proposals",
 			},
 			{
-				label: "HDSI Editor",
+				label: "AI Synthesis",
 				href: "/hdsi",
 				icon: GitBranch,
 				description: "AI-powered document synthesis",
@@ -311,6 +301,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 					</ErrorBoundary>
 				</div>
 			</main>
+			<Toaster />
 		</div>
 	);
 }
@@ -583,24 +574,24 @@ const SidebarNavigation = React.memo(function SidebarNavigation({
 
 	return (
 		<nav className="flex-1 overflow-y-auto py-4 px-3">
-			{/* Home link for mobile */}
-			{isMobile && (
-				<Link
-					href="/home"
-					className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all mb-2"
-					onClick={handleNavClick}
-				>
-					<div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-						<Home className="h-5 w-5" />
-					</div>
-					<div className="flex-1">
+			{/* Home link */}
+			<Link
+				href="/home"
+				className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-all mb-2"
+				onClick={handleNavClick}
+				title={collapsed ? "Home" : undefined}
+			>
+				<div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+					<Home className="h-5 w-5" />
+				</div>
+				{!collapsed && (
+					<div className="flex-1 min-w-0">
 						<div className="text-sm font-medium">Home</div>
-						<div className="text-xs text-muted-foreground/70">Role work surface</div>
 					</div>
-				</Link>
-			)}
+				)}
+			</Link>
 
-			{isMobile && <div className="h-px bg-border my-2" />}
+			<div className="h-px bg-border my-2" />
 
 			{/* Workflow-Organized Navigation Sections */}
 			<div className="space-y-4">
@@ -696,7 +687,7 @@ const NavItemLink = React.memo(function NavItemLink({
 					? "bg-primary/10 text-primary"
 					: "text-muted-foreground hover:text-foreground hover:bg-accent"
 			)}
-			title={!isMobile && collapsed ? item.label : undefined}
+			title={!isMobile ? (collapsed ? item.label : item.description) : undefined}
 		>
 			<div
 				className={cn(
@@ -709,11 +700,6 @@ const NavItemLink = React.memo(function NavItemLink({
 			{!collapsed && (
 				<div className="flex-1 min-w-0">
 					<div className="text-sm font-medium">{item.label}</div>
-					{item.description && (
-						<div className="text-xs text-muted-foreground/70 truncate">
-							{item.description}
-						</div>
-					)}
 				</div>
 			)}
 			{isActive && !collapsed && (
@@ -811,12 +797,9 @@ const SearchBar = React.memo(function SearchBar() {
 				<Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
 				<input
 					type="search"
-					placeholder="Search documents, opportunities..."
-					className="w-full h-10 pl-11 pr-20 rounded-xl bg-background border border-input text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+					aria-label="Search documents and opportunities"
+					className="w-full h-10 pl-11 pr-4 rounded-xl bg-background border border-input text-foreground text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
 				/>
-				<kbd className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 rounded-lg bg-muted text-muted-foreground text-xs font-mono">
-					<Command className="h-3 w-3" />K
-				</kbd>
 			</div>
 		</div>
 	);
@@ -829,7 +812,23 @@ SearchBar.displayName = "SearchBar";
 // ============================================================================
 
 const NotificationBell = React.memo(function NotificationBell() {
-	const hasNotifications = true; // Get from real notification state
+	const [hasNotifications, setHasNotifications] = React.useState(false);
+
+	React.useEffect(() => {
+		let isMounted = true;
+
+		getUnreadWorkflowNotificationSummary()
+			.then((summary) => {
+				if (isMounted) setHasNotifications(summary.hasNotifications);
+			})
+			.catch(() => {
+				if (isMounted) setHasNotifications(false);
+			});
+
+		return () => {
+			isMounted = false;
+		};
+	}, []);
 
 	return (
 		<button 

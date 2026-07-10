@@ -31,7 +31,7 @@ import {
 	type WorkItemPriority,
 	type WorkItemSummary,
 } from "@/lib/work-items/projections";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 export interface OperationalInboxProjection {
 	items: WorkItem[];
@@ -67,6 +67,30 @@ export interface OpportunityCommandCenterProjection {
 		createdAt: string;
 	}>;
 	generatedAt: string;
+}
+
+export async function getUnreadWorkflowNotificationSummary(): Promise<{
+	hasNotifications: boolean;
+	unreadCount: number;
+}> {
+	const scope = await getWorkflowViewerScopeFromSession();
+	if (!scope) {
+		return { hasNotifications: false, unreadCount: 0 };
+	}
+
+	const [result] = await db
+		.select({ unreadCount: count() })
+		.from(workflowNotifications)
+		.where(and(
+			eq(workflowNotifications.recipientId, scope.userId),
+			isNull(workflowNotifications.acknowledgedAt)
+		));
+
+	const unreadCount = Number(result?.unreadCount ?? 0);
+	return {
+		hasNotifications: unreadCount > 0,
+		unreadCount,
+	};
 }
 
 export async function getOperationalInboxProjection(options: {

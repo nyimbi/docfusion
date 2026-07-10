@@ -43,6 +43,46 @@ export default function AnalyticsPage() {
 	const [activeTab, setActiveTab] = React.useState("overview");
 	const [showDebriefForm, setShowDebriefForm] = React.useState(false);
 	const [selectedDebriefId, setSelectedDebriefId] = React.useState<string | null>(null);
+	const [headerMetrics, setHeaderMetrics] = React.useState<{
+		recentWinRate?: number;
+		averagePwin?: number | null;
+		totalDebriefs?: number;
+		pendingActionItems?: number;
+		trendDirection?: string;
+	} | null>(null);
+	const [isLoadingMetrics, setIsLoadingMetrics] = React.useState(true);
+
+	React.useEffect(() => {
+		getDashboardMetrics()
+			.then((result) => {
+				if (result.success && result.data) setHeaderMetrics(result.data);
+			})
+			.finally(() => setIsLoadingMetrics(false));
+	}, []);
+
+	const winRateValue = isLoadingMetrics
+		? "…"
+		: headerMetrics?.recentWinRate != null
+			? `${headerMetrics.recentWinRate.toFixed(0)}%`
+			: "—";
+
+	const totalDebriefsValue = isLoadingMetrics
+		? "…"
+		: headerMetrics?.totalDebriefs != null
+			? String(headerMetrics.totalDebriefs)
+			: "—";
+
+	const avgPwinValue = isLoadingMetrics
+		? "…"
+		: headerMetrics?.averagePwin != null
+			? `${headerMetrics.averagePwin.toFixed(1)}%`
+			: "—";
+
+	const pendingActionsValue = isLoadingMetrics
+		? "…"
+		: headerMetrics?.pendingActionItems != null
+			? String(headerMetrics.pendingActionItems)
+			: "—";
 
 	return (
 		<div className="h-full flex flex-col overflow-hidden">
@@ -66,34 +106,34 @@ export default function AnalyticsPage() {
 					</div>
 				</div>
 
-				{/* Quick Stats */}
+				{/* Quick Stats — sourced from real getDashboardMetrics data */}
 				<div className="grid grid-cols-4 gap-4">
 					<QuickStat
 						icon={TrendingUp}
 						label="Win Rate (12mo)"
-						value="67%"
-						change="+5%"
-						positive
+						value={winRateValue}
+						change={headerMetrics?.trendDirection === "up" ? "↑" : headerMetrics?.trendDirection === "down" ? "↓" : "—"}
+						positive={headerMetrics?.trendDirection !== "down"}
 					/>
 					<QuickStat
 						icon={Target}
 						label="Avg Pwin Score"
-						value="0.58"
-						change="+0.03"
-						positive
-					/>
-					<QuickStat
-						icon={DollarSign}
-						label="Proposal ROI"
-						value="4.2x"
-						change="+0.8x"
-						positive
+						value={avgPwinValue}
+						change="—"
+						positive={true}
 					/>
 					<QuickStat
 						icon={FileText}
-						label="Active Pursuits"
-						value="12"
-						change="-2"
+						label="Total Debriefs"
+						value={totalDebriefsValue}
+						change="—"
+						positive={true}
+					/>
+					<QuickStat
+						icon={CheckCircle}
+						label="Pending Actions"
+						value={pendingActionsValue}
+						change="—"
 						positive={false}
 					/>
 				</div>
@@ -210,7 +250,7 @@ export default function AnalyticsPage() {
 
 			{/* Debrief Detail Side Panel */}
 			{selectedDebriefId && (
-				<div className="fixed right-0 top-0 h-full w-[600px] bg-background border-l shadow-xl z-50 overflow-y-auto">
+				<div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-[600px] bg-background border-l shadow-xl z-50 overflow-y-auto">
 					<DebriefDetail
 						debriefId={selectedDebriefId}
 						onClose={() => setSelectedDebriefId(null)}
