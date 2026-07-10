@@ -29,10 +29,10 @@ Usage:
 Environment:
     OPPORTUNITY_STORAGE_DIR  (default: ./storage/opportunities)
     CRAWL_LOOKBACK_DAYS      (default: 30)
-    CRAWL_LIMIT              (default: 200)
+    CRAWL_LIMIT              (default: 300)
     MIN_RESULTS_THRESHOLD    (default: 5)
     CRAWL_TIMEOUT            (default: 20)
-    FIRECRAWL_URL            (default: http://84.247.181.100:3002)
+    FIRECRAWL_URL            (default: http://62.169.25.77:3002)
     SEARXNG_URL              (default: https://search.lindela.io)
 """
 
@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -75,10 +76,10 @@ def _env_int(name: str, default: int, minimum: int = 1, maximum: int = 100_000) 
 
 STORAGE_DIR = Path(os.environ.get("OPPORTUNITY_STORAGE_DIR", "./storage/opportunities"))
 LOOKBACK_DAYS = _env_int("CRAWL_LOOKBACK_DAYS", 30, 1, 365)
-CRAWL_LIMIT = _env_int("CRAWL_LIMIT", 200, 1, 10_000)
+CRAWL_LIMIT = _env_int("CRAWL_LIMIT", 300, 1, 10_000)
 MIN_RESULTS_THRESHOLD = _env_int("MIN_RESULTS_THRESHOLD", 5, 0, 1_000)
 CALL_TIMEOUT = _env_int("CRAWL_TIMEOUT", 20, 5, 300)
-FIRECRAWL_URL = os.environ.get("FIRECRAWL_URL", "http://84.247.181.100:3002")
+FIRECRAWL_URL = os.environ.get("FIRECRAWL_URL", "http://62.169.25.77:3002")
 SEARXNG_URL = os.environ.get("SEARXNG_URL", "https://search.lindela.io")
 
 _HEADERS = {
@@ -100,6 +101,7 @@ class Opportunity:
 	reference: str = ""
 	description: str = ""
 	tags: list[str] = field(default_factory=list)
+	quality_score: int = 0
 
 	def key(self) -> str:
 		return hashlib.sha256(self.source_url.encode()).hexdigest()[:16]
@@ -117,6 +119,7 @@ class Opportunity:
 			"reference": self.reference,
 			"description": self.description,
 			"tags": self.tags,
+			"quality_score": self.quality_score,
 		}
 
 
@@ -143,24 +146,102 @@ async def _retry(coro_fn, *, attempts: int = 3, base_delay: float = 1.0,
 	raise last_exc  # type: ignore[misc]
 
 
+def _text(value: Any) -> str:
+	"""Best-effort text normalisation for source APIs with inconsistent shapes."""
+	if value is None:
+		return ""
+	if isinstance(value, list):
+		return " ".join(part for part in (_text(item) for item in value) if part).strip()
+	if isinstance(value, dict):
+		for key in ("value", "text", "label", "name", "en"):
+			if key in value:
+				text = _text(value.get(key))
+				if text:
+					return text
+		return " ".join(part for part in (_text(item) for item in value.values()) if part).strip()
+	return str(value).strip()
+
+
 # ---------------------------------------------------------------------------
 # Discovery path 1 — SearXNG metasearch
 # ---------------------------------------------------------------------------
 
 SEARXNG_QUERIES = [
-	"RFP tender procurement Africa 2026",
-	"grant development NGO Africa 2026",
-	"international tender consultancy 2026",
-	"call for proposals foundation grants 2026",
-	"procurement notice UN multilateral 2026",
-	"Caribbean Pacific Islands tender 2026",
-	"World Bank UNDP UNICEF tender procurement 2026",
+	"RFP health systems strengthening Africa 2026",
+	"tender primary healthcare supply chain 2026",
+	"RFP ICT digital transformation government Africa 2026",
+	"tender education curriculum learning management 2026",
+	"RFP water sanitation WASH infrastructure 2026",
+	"tender agriculture food security smallholder 2026",
+	"RFP climate change adaptation resilience 2026",
+	"tender renewable energy solar off-grid 2026",
+	"RFP security governance rule of law 2026",
+	"tender infrastructure roads urban development 2026",
+	"RFP humanitarian aid emergency response 2026",
+	"call for proposals gender equality women empowerment 2026",
+	"tender financial inclusion microfinance 2026",
+	"RFP monitoring evaluation M&E consultancy 2026",
+	"tender capacity building training technical assistance 2026",
+	"USAID RFP request for proposal 2026",
+	"USAID RFQ request for quotation 2026",
+	"EU European Commission call for proposals 2026",
+	"GIZ tender consultancy Africa 2026",
+	"FCDO UK Aid tender 2026",
+	"African Development Bank tender procurement 2026",
+	"Asian Development Bank ADB tender 2026",
+	"World Bank IDA procurement Africa 2026",
+	"UNDP call for proposals 2026",
+	"UNICEF supply tender 2026",
+	"WFP World Food Programme tender 2026",
+	"FAO tender consultancy 2026",
+	"Global Fund procurement grant 2026",
+	"MCC Millennium Challenge tender 2026",
+	"AIIB Asian Infrastructure tender 2026",
+	"IFC World Bank Group RFP 2026",
+	"IADB Inter-American Development Bank tender 2026",
+	"tender Kenya Uganda Tanzania East Africa 2026",
+	"tender West Africa Nigeria Ghana Ivory Coast 2026",
+	"tender Southern Africa Zambia Zimbabwe Mozambique 2026",
+	"tender Horn of Africa Ethiopia Somalia 2026",
+	"tender Francophone Africa Sahel 2026",
+	"Pacific Islands development tender 2026",
+	"Caribbean development bank tender 2026",
 ]
+
+# Domains that never contain actual procurement opportunities
+_JUNK_DOMAINS: frozenset[str] = frozenset({
+	"wikipedia.org", "wiktionary.org", "wikimedia.org", "wikivoyage.org",
+	"wordreference.com", "merriam-webster.com", "dictionary.com",
+	"thefreedictionary.com", "collinsdictionary.com", "larousse.fr",
+	"answers.com", "quora.com", "reddit.com",
+	"youtube.com", "youtu.be", "facebook.com", "twitter.com", "x.com",
+	"linkedin.com", "instagram.com", "pinterest.com", "tiktok.com",
+})
+
+# Token substrings that, if found in the title (lowercase), mark the result as non-procurement
+_JUNK_TITLE_TOKENS: frozenset[str] = frozenset({
+	"wikipedia", "wiktionary", "encyclop", "wikimedia",
+	"dictionary", "définition", "definition", "traduction",
+	"wikivoyage", "wikibooks", "wikisource",
+})
+
+# Domains known to host real procurement content — URL from these earns a quality bonus
+BONUS_DOMAINS: frozenset[str] = frozenset({
+	"ungm.org", "ted.europa.eu", "usaid.gov", "afdb.org", "adb.org",
+	"iadb.org", "giz.de", "devex.com", "reliefweb.int", "phap.org",
+	"mcc.gov", "ifc.org", "worldbank.org", "projects.worldbank.org",
+	"undp.org", "unicef.org", "wfp.org", "fao.org", "who.int",
+	"globalfund.org", "tenders.go.ke", "etenders.gov.za", "ppda.go.ug",
+	"ppra.go.tz", "bpp.gov.ng", "ppa.gov.gh", "rppa.gov.rw",
+	"unops.org", "grants.gov", "sam.gov", "reporter.nih.gov",
+	"gatesfoundation.org", "rockefellerfoundation.org", "aiib.org",
+})
+_PROCUREMENT_DOMAINS = BONUS_DOMAINS
 
 
 async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportunity]:
 	results: list[Opportunity] = []
-	per_query = max(5, limit // len(SEARXNG_QUERIES))
+	per_query = max(10, limit // len(SEARXNG_QUERIES))
 
 	for query in SEARXNG_QUERIES:
 		try:
@@ -376,12 +457,234 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 
 
 # ---------------------------------------------------------------------------
-# Discovery path 5 — XML/RSS feeds
+# Discovery paths 5-8 — additional structured procurement sources
 # ---------------------------------------------------------------------------
 
-# No public procurement RSS feeds exist — this list is intentionally empty.
-# The Firecrawl path (path 6) handles direct portal scraping.
-RSS_FEEDS: list[tuple[str, str]] = []
+async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
+	results: list[Opportunity] = []
+	try:
+		async def fetch():
+			r = await client.get(
+				"https://www.ungm.org/Public/Notice",
+				params={"noticeType": 0, "noticeStatus": 0, "limit": 50},
+				headers=_HEADERS,
+				timeout=CALL_TIMEOUT,
+			)
+			r.raise_for_status()
+			return r.json()
+
+		data = await _retry(fetch, label="ungm")
+		items = data if isinstance(data, list) else (
+			data.get("data") or data.get("items") or data.get("results") or data.get("notices") or []
+		)
+		for item in items[:50] if isinstance(items, list) else []:
+			title = _text(item.get("Title") or item.get("title"))
+			notice_id = _text(item.get("NoticeId") or item.get("noticeId") or item.get("id"))
+			if not title or not notice_id:
+				continue
+			published = _text(item.get("PublishedOn") or item.get("publishedOn"))
+			results.append(Opportunity(
+				title=title,
+				source_url=f"https://www.ungm.org/Public/Notice/{notice_id}",
+				source="ungm",
+				organization=_text(item.get("OrganizationName") or item.get("organizationName")),
+				deadline=_text(item.get("Deadline") or item.get("deadline")),
+				reference=notice_id,
+				description=f"Published: {published}" if published else "",
+				tags=["ungm", "un", "procurement"],
+			))
+	except Exception as exc:
+		_log.warning("[ungm] failed: %s", exc)
+
+	_log.info("[ungm] collected %d results", len(results))
+	return results
+
+
+async def _path_ted_eu(client: httpx.AsyncClient) -> list[Opportunity]:
+	results: list[Opportunity] = []
+	try:
+		async def fetch():
+			r = await client.get(
+				"https://ted.europa.eu/api/v3.0/notices/search",
+				params={
+					"q": "scope:INT",
+					"fields": "ND,TI,PC,DT,AU",
+					"pageSize": 50,
+					"page": 1,
+				},
+				headers=_HEADERS,
+				timeout=CALL_TIMEOUT,
+			)
+			r.raise_for_status()
+			return r.json()
+
+		data = await _retry(fetch, label="ted.europa.eu")
+		items = data if isinstance(data, list) else (
+			data.get("results") or data.get("notices") or data.get("data") or data.get("items") or []
+		)
+		for item in items[:50] if isinstance(items, list) else []:
+			notice_no = _text(item.get("ND") or item.get("noticeNumber") or item.get("notice_number"))
+			title = _text(item.get("TI") or item.get("title"))
+			if not notice_no or not title:
+				continue
+			results.append(Opportunity(
+				title=title,
+				source_url=f"https://ted.europa.eu/en/notice/{notice_no}",
+				source="ted.europa.eu",
+				organization=_text(item.get("AU") or item.get("authority")),
+				deadline=_text(item.get("DT") or item.get("deadline")),
+				reference=notice_no,
+				tags=["ted", "eu", "procurement"],
+			))
+	except Exception as exc:
+		_log.warning("[ted.europa.eu] failed: %s", exc)
+
+	_log.info("[ted.europa.eu] collected %d results", len(results))
+	return results
+
+
+async def _firecrawl_markdown(client: httpx.AsyncClient, url: str, label: str) -> str:
+	async def scrape():
+		r = await client.post(
+			f"{FIRECRAWL_URL.rstrip('/')}/v1/scrape",
+			json={"url": url, "formats": ["markdown"], "waitFor": 2000, "timeout": 60000},
+			timeout=90,
+		)
+		r.raise_for_status()
+		data = r.json()
+		if not data.get("success"):
+			raise RuntimeError(f"Firecrawl returned success=false for {url}")
+		return (data.get("data") or {}).get("markdown", "")
+
+	return await _retry(scrape, attempts=2, base_delay=3.0, label=f"firecrawl:{label}")
+
+
+async def _path_usaid(client: httpx.AsyncClient) -> list[Opportunity]:
+	results: list[Opportunity] = []
+	try:
+		async def fetch():
+			r = await client.get(
+				"https://www.usaid.gov/api/procurement-notices.json",
+				headers=_HEADERS,
+				timeout=CALL_TIMEOUT,
+			)
+			r.raise_for_status()
+			return r.json()
+
+		data = await _retry(fetch, label="usaid")
+		items = data if isinstance(data, list) else (
+			data.get("items") or data.get("data") or data.get("results") or data.get("notices") or []
+		)
+		for item in items[:50] if isinstance(items, list) else []:
+			title = _text(item.get("title"))
+			url = _text(item.get("url"))
+			if not title or not url:
+				continue
+			results.append(Opportunity(
+				title=title,
+				source_url=urljoin("https://www.usaid.gov/", url),
+				source="usaid",
+				deadline=_text(item.get("close_date")),
+				reference=_text(item.get("id") or item.get("nid") or item.get("number")),
+				description=f"Posted: {_text(item.get('posted_date'))}" if item.get("posted_date") else "",
+				tags=["usaid", "procurement"],
+			))
+	except Exception as exc:
+		_log.warning("[usaid] API failed: %s — falling back to Firecrawl", exc)
+		try:
+			import re
+			url = "https://www.usaid.gov/work-usaid/partner-with-us/business-forecast"
+			markdown = await _firecrawl_markdown(client, url, "usaid-business-forecast")
+			seen: set[str] = set()
+			for match in re.finditer(r"\[([^\]]{10,220})\]\(([^)]+)\)", markdown):
+				title = re.sub(r"\s+", " ", match.group(1)).strip()
+				href = urljoin(url, match.group(2).strip())
+				title_lc = title.lower()
+				if href in seen or not any(k in title_lc for k in (
+					"forecast", "rfp", "rfq", "solicitation", "procurement",
+					"tender", "grant", "contract", "call",
+				)):
+					continue
+				seen.add(href)
+				window = markdown[max(0, match.start() - 300):match.end() + 300]
+				deadline_match = re.search(
+					r"(?i)(?:close(?: date)?|deadline|response due)[:\s|,-]+([A-Za-z0-9, /:-]{6,40})",
+					window,
+				)
+				results.append(Opportunity(
+					title=title,
+					source_url=href,
+					source="usaid",
+					deadline=deadline_match.group(1).strip(" .|-") if deadline_match else "",
+					tags=["usaid", "firecrawl", "business-forecast"],
+				))
+				if len(results) >= 50:
+					break
+		except Exception as fallback_exc:
+			_log.warning("[usaid] Firecrawl fallback failed: %s", fallback_exc)
+
+	_log.info("[usaid] collected %d results", len(results))
+	return results
+
+
+async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
+	import re
+	results: list[Opportunity] = []
+	url = "https://www.afdb.org/en/projects-and-operations/procurement/procurement-notices?tid=All&field_notice_type_value=All&page=0"
+	try:
+		markdown = await _firecrawl_markdown(client, url, "afdb-procurement-notices")
+		seen: set[str] = set()
+		for match in re.finditer(r"\[([^\]]{10,240})\]\(([^)]+)\)", markdown):
+			title = re.sub(r"\s+", " ", match.group(1)).strip()
+			title_lc = title.lower()
+			if title_lc in {"procurement notices", "list of tenders"}:
+				continue
+			if not any(k in title_lc for k in (
+				"tender", "procurement", "expression of interest", "eoi",
+				"request for proposal", "rfp", "bid", "consultancy", "consultant",
+				"goods", "works", "services",
+			)):
+				continue
+			item_url = urljoin(url, match.group(2).strip())
+			if item_url in seen:
+				continue
+			seen.add(item_url)
+			window = markdown[max(0, match.start() - 400):match.end() + 500]
+			ref_match = re.search(
+				r"(?i)(?:reference(?: number)?|ref(?:erence)?\.?|project id|loan no\.?)[:\s#-]+([A-Z0-9][A-Z0-9/()._-]{3,40})",
+				window,
+			)
+			deadline_match = re.search(
+				r"(?i)(?:closing date|deadline|submission deadline|closing)[:\s|,-]+([A-Za-z0-9, /:-]{6,40})",
+				window,
+			)
+			results.append(Opportunity(
+				title=title,
+				source_url=item_url,
+				source="afdb",
+				deadline=deadline_match.group(1).strip(" .|-") if deadline_match else "",
+				reference=ref_match.group(1).strip(" .|-") if ref_match else "",
+				tags=["afdb", "firecrawl", "procurement"],
+			))
+			if len(results) >= 50:
+				break
+	except Exception as exc:
+		_log.warning("[afdb] failed: %s", exc)
+
+	_log.info("[afdb] collected %d results", len(results))
+	return results
+
+
+# ---------------------------------------------------------------------------
+# Discovery path 9 — XML/RSS feeds
+# ---------------------------------------------------------------------------
+
+RSS_FEEDS: list[tuple[str, str]] = [
+	("devex", "https://www.devex.com/rss/procurement.rss"),
+	("ungm-rss", "https://www.ungm.org/rss/notices"),
+	("reliefweb-funding", "https://reliefweb.int/updates/rss.xml?tag=Funding+opportunity"),
+	("phap-opportunities", "https://phap.org/opportunities/feed"),
+]
 
 
 async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
@@ -441,7 +744,7 @@ async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 
 
 # ---------------------------------------------------------------------------
-# Discovery path 6 — Firecrawl high-value portals
+# Discovery path 10 — Firecrawl high-value portals
 # ---------------------------------------------------------------------------
 
 FIRECRAWL_TARGETS = [
@@ -468,14 +771,13 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 	"""Scrape high-value portals via Firecrawl with waitFor for JS-heavy pages."""
 	import re
 	results: list[Opportunity] = []
-	AZURE_ENDPOINT = (
-		"https://lindela.openai.azure.com/openai/deployments/gpt-4.1-mini"
-		"/chat/completions?api-version=2024-02-15-preview"
+	litellm_url = os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1").rstrip("/")
+	litellm_api_key = (
+		os.environ.get("LITELLM_API_KEY")
+		or os.environ.get("LITELLM_KEY")
+		or "sk-pjs-litellm-master-key"
 	)
-	AZURE_KEY = os.environ.get(
-		"AZURE_OPENAI_API_KEY",
-		"1qTgOdaDaJUgfgkSllTJlmTptKNv2wdRpRHLoipIh2nWCWBP2qDaJQQJ99BLACYeBjFXJ3w3AAABACOGNs03",
-	)
+	litellm_model = os.environ.get("LLM_MODEL", "gpt-4o")
 
 	for name, url in FIRECRAWL_TARGETS:
 		try:
@@ -495,12 +797,13 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 			if len(markdown) < 300:
 				continue
 
-			# Extract with Azure OpenAI
+			# Extract through the LiteLLM gateway.
 			async def extract(md=markdown, n=name):
 				r = await client.post(
-					AZURE_ENDPOINT,
-					headers={"api-key": AZURE_KEY},
+					f"{litellm_url}/chat/completions",
+					headers={"Authorization": f"Bearer {litellm_api_key}"},
 					json={
+						"model": litellm_model,
 						"messages": [{"role": "user", "content": (
 							f"Extract tenders/grants from this procurement page ({n}). "
 							"Return ONLY JSON array: "
@@ -515,7 +818,7 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 				raw = re.sub(r"```(?:json)?", "", r.json()["choices"][0]["message"]["content"]).strip()
 				return json.loads(raw)
 
-			items = await _retry(extract, attempts=2, base_delay=1.0, label=f"azure:{name}")
+			items = await _retry(extract, attempts=2, base_delay=1.0, label=f"litellm:{name}")
 			for item in (items if isinstance(items, list) else []):
 				title = str(item.get("title") or "").strip()
 				item_url = str(item.get("url") or url).strip()
@@ -540,16 +843,55 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 # Validation and deduplication
 # ---------------------------------------------------------------------------
 
+def _domain(url: str) -> str:
+	"""Return the bare domain (no www.) from a URL, or '' on failure."""
+	try:
+		return urlparse(url).netloc.lower().removeprefix("www.")
+	except Exception:
+		return ""
+
+
+def _score_opportunity(opp: Opportunity) -> int:
+	"""
+	Estimate procurement relevance on a 0–7 scale.
+	Structured API sources (grants.gov, worldbank, etc.) naturally score high
+	because they populate deadline + organization + reference. SearXNG results
+	score lower by default and need at least one populated field to survive the
+	digest quality filter.
+	"""
+	score = 0
+	if opp.deadline:
+		score += 2
+	if opp.organization:
+		score += 1
+	if opp.reference:
+		score += 1
+	d = _domain(opp.source_url)
+	if d and any(d == p or d.endswith("." + p) for p in _PROCUREMENT_DOMAINS):
+		score += 3
+	# Slight penalty for unstructured metasearch — these are the noisiest path
+	if opp.source.startswith("searxng:"):
+		score -= 1
+	return score
+
+
 def _validate(opp: Opportunity) -> bool:
-	"""Reject junk: too-short titles, missing URL, obvious non-opportunities."""
+	"""Reject junk: too-short titles, missing URL, encyclopedic content, junk domains."""
 	if not opp.is_valid():
 		return False
-	title = opp.title.lower()
-	# Filter obvious non-opportunity pages
-	if any(junk in title for junk in ["404", "page not found", "access denied",
-									   "login required", "javascript required"]):
+	title_lc = opp.title.lower()
+	# Error pages
+	if any(t in title_lc for t in ("404", "page not found", "access denied",
+								   "login required", "javascript required")):
 		return False
-	if len(opp.title) < 5:
+	if len(opp.title) < 10:
+		return False
+	# Encyclopedic / dictionary content — never a procurement opportunity
+	if any(tok in title_lc for tok in _JUNK_TITLE_TOKENS):
+		return False
+	# Known non-procurement domains
+	d = _domain(opp.source_url)
+	if d and any(d == j or d.endswith("." + j) for j in _JUNK_DOMAINS):
 		return False
 	return True
 
@@ -621,16 +963,23 @@ async def run_crawl(date_str: str | None = None) -> int:
 	async with httpx.AsyncClient(timeout=CALL_TIMEOUT, verify=False,
 								 follow_redirects=True) as client:
 		path_results = await asyncio.gather(
-			_path_searxng(client, CRAWL_LIMIT // 2),
+			_path_searxng(client, CRAWL_LIMIT),
 			_path_grants_gov(client),
 			_path_worldbank(client),
 			_path_us_federal(client),
+			_path_ungm(client),
+			_path_ted_eu(client),
+			_path_usaid(client),
+			_path_afdb(client),
 			_path_rss_feeds(client),
 			_path_firecrawl(client),
 			return_exceptions=True,
 		)
 
-	path_names = ["searxng", "grants.gov", "worldbank", "us-federal", "rss", "firecrawl"]
+	path_names = [
+		"searxng", "grants.gov", "worldbank", "us-federal",
+		"ungm", "ted.europa.eu", "usaid", "afdb", "rss", "firecrawl",
+	]
 	all_opps: list[Opportunity] = []
 	path_counts: dict[str, int] = {}
 
@@ -640,6 +989,8 @@ async def run_crawl(date_str: str | None = None) -> int:
 			path_counts[name] = 0
 		elif isinstance(result, list):
 			valid = [o for o in result if isinstance(o, Opportunity) and _validate(o)]
+			for o in valid:
+				o.quality_score = _score_opportunity(o)
 			path_counts[name] = len(valid)
 			all_opps.extend(valid)
 		else:
@@ -661,6 +1012,9 @@ async def run_crawl(date_str: str | None = None) -> int:
 	new_opps = [o for o in deduped if o.key() not in seen_prior]
 	_log.info("After dedup: %d unique this run → %d new (not seen in %d days)",
 			  len(deduped), len(new_opps), LOOKBACK_DAYS)
+
+	# Sort best opportunities first so the digest sees them at the top
+	new_opps.sort(key=lambda o: o.quality_score, reverse=True)
 
 	# Minimum result check
 	if len(new_opps) < MIN_RESULTS_THRESHOLD:
