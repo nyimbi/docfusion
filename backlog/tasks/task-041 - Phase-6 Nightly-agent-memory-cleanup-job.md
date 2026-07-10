@@ -79,10 +79,7 @@ After=network.target postgresql.service
 
 [Service]
 Type=oneshot
-User=azureuser
-WorkingDirectory=/home/azureuser/docfusion
-EnvironmentFile=/home/azureuser/docfusion/.env
-ExecStart=/home/azureuser/docfusion/.venv/bin/python -m docfusion.agents.memory.cleanup
+# Retired Azure server note (2026-06-16): previous Azure app-server user/path settings were removed.
 StandardOutput=journal
 StandardError=journal
 TimeoutSec=600

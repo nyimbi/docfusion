@@ -158,7 +158,7 @@ class SecretsManager:
 			name="litellm_key",
 			env_var="LITELLM_KEY",
 			description="LiteLLM API key for AI gateway",
-			development_default="",
+			development_default="sk-pjs-litellm-master-key",
 			required_in_production=False,
 		),
 		"OPENAI_API_KEY": SecretConfig(
@@ -467,7 +467,7 @@ class SecretsManager:
 	@staticmethod
 	def get_litellm_url() -> str:
 		"""Get LiteLLM server URL."""
-		return os.environ.get("LITELLM_URL", "http://84.247.181.100:4000")
+		return os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1")
 
 	@staticmethod
 	def get_docling_url() -> str:

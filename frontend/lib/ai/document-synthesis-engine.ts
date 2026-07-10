@@ -892,64 +892,34 @@ async function generateEmbedding(content: string): Promise<number[]> {
 		return simpleEmbedding;
 	}
 
-	try {
-		// Get the active provider to access config
-		const provider = await manager.getActiveProvider();
-		if (!provider || provider.name !== "azure-openai") {
-			// Fallback for non-Azure providers
-			const fallbackEmbed = generateSimpleEmbedding(content);
-			setCachedEmbedding(contentHash, fallbackEmbed);
-			return fallbackEmbed;
+		try {
+			const provider = await manager.getActiveProvider();
+			if (!provider?.createEmbedding) {
+				const fallbackEmbed = generateSimpleEmbedding(content);
+				setCachedEmbedding(contentHash, fallbackEmbed);
+				return fallbackEmbed;
+			}
+
+			const data = await provider.createEmbedding({
+				input: content.slice(0, 8000),
+				...(process.env.LLM_EMBEDDING_MODEL
+					? { model: process.env.LLM_EMBEDDING_MODEL }
+					: {}),
+			});
+			const embedding = data.embeddings?.[0];
+
+			if (!embedding || !Array.isArray(embedding)) {
+				logger.warn("[Embedding] Invalid response format from AI provider");
+				const fallbackEmbed = generateSimpleEmbedding(content);
+				setCachedEmbedding(contentHash, fallbackEmbed);
+				return fallbackEmbed;
 		}
 
-		// Get Azure config from environment
-		const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-		const deployment = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || "text-embedding-ada-002";
-		const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2024-02-15-preview";
-		const apiKey = process.env.AZURE_OPENAI_API_KEY;
-
-		if (!endpoint || !apiKey) {
-			const fallbackEmbed = generateSimpleEmbedding(content);
-			setCachedEmbedding(contentHash, fallbackEmbed);
-			return fallbackEmbed;
-		}
-
-		// Call Azure OpenAI embeddings API
-		const url = `${endpoint.replace(/\/$/, "")}/openai/deployments/${deployment}/embeddings?api-version=${apiVersion}`;
-
-		const response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"api-key": apiKey,
-			},
-			body: JSON.stringify({
-				input: content.slice(0, 8000), // Limit input size
-			}),
-		});
-
-		if (!response.ok) {
-			logger.warn("[Embedding] Azure OpenAI API error:", response.status);
-			const fallbackEmbed = generateSimpleEmbedding(content);
-			setCachedEmbedding(contentHash, fallbackEmbed);
-			return fallbackEmbed;
-		}
-
-		const data = await response.json();
-		const embedding = data.data?.[0]?.embedding;
-
-		if (!embedding || !Array.isArray(embedding)) {
-			logger.warn("[Embedding] Invalid response format from Azure OpenAI");
-			const fallbackEmbed = generateSimpleEmbedding(content);
-			setCachedEmbedding(contentHash, fallbackEmbed);
-			return fallbackEmbed;
-		}
-
-		// Cache the Azure OpenAI embedding
-		setCachedEmbedding(contentHash, embedding);
-		return embedding;
-	} catch (error) {
-		logger.warn("[Embedding] Error calling Azure OpenAI:", error);
+			// Cache the provider embedding.
+			setCachedEmbedding(contentHash, embedding);
+			return embedding;
+		} catch (error) {
+			logger.warn("[Embedding] Error calling AI provider:", error);
 		const fallbackEmbed = generateSimpleEmbedding(content);
 		setCachedEmbedding(contentHash, fallbackEmbed);
 		return fallbackEmbed;
@@ -958,7 +928,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
 
 /**
  * Generate a simple embedding vector using word frequency analysis.
- * Fallback for when Azure OpenAI embeddings are not available.
+	 * Fallback for when provider embeddings are not available.
  * Returns a 50-dimensional normalized vector based on word frequencies.
  */
 function generateSimpleEmbedding(content: string): number[] {

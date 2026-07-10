@@ -28,7 +28,7 @@ describe("LiteLLMProvider", () => {
 		global.fetch = fetchMock as typeof fetch;
 
 		const provider = new LiteLLMProvider({
-			baseUrl: "http://84.247.181.100:4000",
+			baseUrl: "http://62.169.25.77:4000",
 			apiKey: "test-key",
 			defaultModel: "gpt-4o",
 			fastModel: "gpt-4o-mini",
@@ -51,7 +51,7 @@ describe("LiteLLMProvider", () => {
 			},
 		});
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:4000/v1/chat/completions",
+			"http://62.169.25.77:4000/v1/chat/completions",
 			expect.objectContaining({
 				method: "POST",
 				headers: expect.objectContaining({
@@ -74,7 +74,7 @@ describe("LiteLLMProvider", () => {
 		global.fetch = fetchMock as typeof fetch;
 
 		const provider = new LiteLLMProvider({
-			baseUrl: "http://84.247.181.100:4000/v1",
+			baseUrl: "http://62.169.25.77:4000/v1",
 			apiKey: "test-key",
 			defaultModel: "gpt-4o",
 			fastModel: "gpt-4o-mini",
@@ -89,7 +89,7 @@ describe("LiteLLMProvider", () => {
 			"text-embedding-ada-002",
 		]);
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:4000/v1/models",
+			"http://62.169.25.77:4000/v1/models",
 			expect.objectContaining({ method: "GET" })
 		);
 	});
@@ -106,7 +106,7 @@ describe("LiteLLMProvider", () => {
 		global.fetch = fetchMock as typeof fetch;
 
 		const provider = new LiteLLMProvider({
-			baseUrl: "http://84.247.181.100:4000",
+			baseUrl: "http://62.169.25.77:4000",
 			apiKey: "test-key",
 			defaultModel: "gpt-4o",
 			embeddingModel: "text-embedding-ada-002",
@@ -123,7 +123,7 @@ describe("LiteLLMProvider", () => {
 			},
 		});
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://84.247.181.100:4000/v1/embeddings",
+			"http://62.169.25.77:4000/v1/embeddings",
 			expect.objectContaining({
 				method: "POST",
 				body: expect.stringContaining("\"model\":\"text-embedding-ada-002\""),

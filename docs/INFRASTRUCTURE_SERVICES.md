@@ -245,7 +245,7 @@ All services are managed via pm2:
 
 ```bash
 # SSH to server
-ssh azureuser@20.84.71.33
+# Retired Azure server note (2026-06-16): previous Azure app-server SSH target was removed.
 
 # View all services
 pm2 list
@@ -426,7 +426,7 @@ curl -X POST http://127.0.0.1:11434/api/generate \
 ### Service Not Responding
 
 ```bash
-ssh azureuser@20.84.71.33
+# Retired Azure server note (2026-06-16): previous Azure app-server SSH target was removed.
 pm2 list                    # Check status
 pm2 logs <service-name>     # Check logs
 pm2 restart <service-name>  # Restart
@@ -450,7 +450,7 @@ ollama pull <model-name>    # Pull if missing
 
 ### SearXNG Rate Limiting
 
-Ensure `limiter: false` in `/home/azureuser/searxng/data/settings.yml`, then:
+Retired Azure server note (2026-06-16): the previous Azure app-server SearXNG path was removed; use the current service host path, then:
 ```bash
 pm2 restart searxng
 ```
@@ -469,8 +469,8 @@ When migrating to a new server:
 
 2. **Install Services**
    - [ ] Firecrawl (follow official docs)
-   - [ ] Stealth Scraper (copy from `/home/azureuser/stealth-scraper`)
-   - [ ] SearXNG (copy from `/home/azureuser/searxng`)
+   - [ ] Stealth Scraper (retired Azure server note, 2026-06-16: previous copy path was removed)
+   - [ ] SearXNG (retired Azure server note, 2026-06-16: previous copy path was removed)
    - [ ] Docling (`pip install docling-serve`)
    - [ ] Ollama (`curl -fsSL https://ollama.com/install.sh | sh`)
 

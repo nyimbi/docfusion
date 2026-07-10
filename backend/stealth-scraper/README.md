@@ -97,12 +97,12 @@ python server.py
 
 **1. Copy files to server:**
 ```bash
-scp -r backend/stealth-scraper azureuser@YOUR_SERVER:~/
+# Retired Azure server note (2026-06-16): previous Azure app-server copy target was removed.
 ```
 
 **2. SSH and install dependencies:**
 ```bash
-ssh azureuser@YOUR_SERVER
+# Retired Azure server note (2026-06-16): previous Azure app-server SSH target was removed.
 cd ~/stealth-scraper
 python3 -m venv venv
 source venv/bin/activate
@@ -135,7 +135,7 @@ module.exports = {
     name: 'stealth-scraper',
     script: 'server.py',
     interpreter: './venv/bin/python',
-    cwd: '/home/azureuser/stealth-scraper',
+    // Retired Azure server note (2026-06-16): previous Azure app-server path was removed.
     env: {
       PORT: 3003,
       HOST: '0.0.0.0',

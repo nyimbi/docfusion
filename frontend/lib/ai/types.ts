@@ -318,7 +318,7 @@ export const AI_CONFIG_DEFAULTS = {
 	/** Default Ollama model */
 	OLLAMA_DEFAULT_MODEL: "gpt-oss",
 	/** Default LiteLLM URL from infra docs */
-	LITELLM_BASE_URL: "http://84.247.181.100:4000/v1",
+	LITELLM_BASE_URL: "http://62.169.25.77:4000/v1",
 	/** Default LiteLLM model alias from infra docs */
 	LITELLM_DEFAULT_MODEL: "gpt-4o",
 	/** Default LiteLLM fast model alias from infra docs */

@@ -65,7 +65,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	process.env = {
 		...ORIGINAL_ENV,
-		LITELLM_URL: "http://84.247.181.100:4000/v1",
+		LITELLM_URL: "http://62.169.25.77:4000/v1",
 		LITELLM_API_KEY: "litellm-test-key",
 		LLM_MODEL: "gpt-4o",
 		AZURE_OPENAI_API_KEY: "test-key",

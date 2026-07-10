@@ -114,8 +114,8 @@ class ServiceSettings:
 	# Infrastructure Services
 	searxng_url: str = "https://search.lindela.io"
 	firecrawl_url: str = "http://84.247.181.100:3002"
-	litellm_url: str = "http://84.247.181.100:4000"
-	litellm_key: str = ""
+	litellm_url: str = "http://62.169.25.77:4000/v1"
+	litellm_key: str = "sk-pjs-litellm-master-key"
 
 	# CORS
 	cors_allowed_origins: list[str] = field(default_factory=lambda: ["http://localhost:3000"])

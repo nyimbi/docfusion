@@ -229,7 +229,7 @@ module.exports = {
   apps: [
     {
       name: 'docfusion-frontend',
-      cwd: '/home/azureuser/docfusion/frontend',
+      // Retired Azure server note (2026-06-16): previous Azure app-server path was removed.
       script: 'npm',
       args: 'start',
       instances: 2,
@@ -241,7 +241,7 @@ module.exports = {
     },
     {
       name: 'scraper-tier1',
-      cwd: '/home/azureuser/docfusion/backend',
+      // Retired Azure server note (2026-06-16): previous Azure app-server path was removed.
       script: 'scraper_runner.py',
       args: '--tier 1',
       cron_restart: '0 */6 * * *',
@@ -254,15 +254,14 @@ module.exports = {
 **Backup Script**:
 ```bash
 #!/bin/bash
-# /home/azureuser/scripts/backup.sh
-BACKUP_DIR="/home/azureuser/backups"
+# Retired Azure server note (2026-06-16): previous Azure app-server backup path was removed.
 DATE=$(date +%Y%m%d_%H%M%S)
 
 # Database backup
 pg_dump docfusion > $BACKUP_DIR/db_$DATE.sql
 
 # File backup
-tar -czf $BACKUP_DIR/files_$DATE.tar.gz /home/azureuser/docfusion/uploads
+# Retired Azure server note (2026-06-16): previous Azure app-server upload path was removed.
 
 # Keep last 30 days
 find $BACKUP_DIR -type f -mtime +30 -delete

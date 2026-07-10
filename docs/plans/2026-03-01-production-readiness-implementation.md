@@ -306,12 +306,8 @@ After=network.target postgresql.service
 
 [Service]
 Type=oneshot
-User=azureuser
-Group=azureuser
-WorkingDirectory=/home/azureuser/docfusion/backend
+# Retired Azure server note (2026-06-16): previous Azure app-server user/path settings were removed.
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/home/azureuser/docfusion/.env
-ExecStart=/home/azureuser/docfusion/.venv/bin/python discovery/scheduler/scraper_runner.py --tier 1
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=docfusion-scraper-tier1
@@ -352,12 +348,8 @@ After=network.target postgresql.service
 
 [Service]
 Type=oneshot
-User=azureuser
-Group=azureuser
-WorkingDirectory=/home/azureuser/docfusion/backend
+# Retired Azure server note (2026-06-16): previous Azure app-server user/path settings were removed.
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/home/azureuser/docfusion/.env
-ExecStart=/home/azureuser/docfusion/.venv/bin/python discovery/scheduler/scraper_runner.py --tier 2
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=docfusion-scraper-tier2
@@ -396,12 +388,8 @@ After=network.target postgresql.service
 
 [Service]
 Type=oneshot
-User=azureuser
-Group=azureuser
-WorkingDirectory=/home/azureuser/docfusion/backend
+# Retired Azure server note (2026-06-16): previous Azure app-server user/path settings were removed.
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/home/azureuser/docfusion/.env
-ExecStart=/home/azureuser/docfusion/.venv/bin/python discovery/scheduler/scraper_runner.py --tier 3
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=docfusion-scraper-tier3
@@ -2091,7 +2079,7 @@ jobs:
           username: ${{ secrets.AZURE_USER }}
           key: ${{ secrets.AZURE_SSH_KEY }}
           script: |
-            cd /home/azureuser/docfusion
+            # Retired Azure server note (2026-06-16): previous Azure app-server path was removed.
             git pull origin main
             cd frontend && npm ci && npm run build
             pm2 restart docfusion-frontend || pm2 start npm --name docfusion-frontend -- start
@@ -2279,7 +2267,7 @@ git commit -m "feat(deploy): Add PM2 ecosystem configuration and deployment scri
 ```nginx
 # deployment/nginx/docfusion.conf
 # DocuFusion production nginx configuration
-# Install: sudo ln -s /home/azureuser/docfusion/deployment/nginx/docfusion.conf /etc/nginx/sites-available/docfusion
+# Retired Azure server note (2026-06-16): previous Azure app-server install path was removed.
 # Enable: sudo ln -s /etc/nginx/sites-available/docfusion /etc/nginx/sites-enabled/docfusion
 
 # Rate limiting zone for API
@@ -2489,12 +2477,12 @@ git commit -m "feat(deploy): Add nginx configuration with SSL and rate limiting"
 #!/bin/bash
 # scripts/backup.sh
 # DocuFusion backup script
-# Run via cron: 0 2 * * * /home/azureuser/docfusion/scripts/backup.sh
+# Retired Azure server note (2026-06-16): previous Azure app-server cron path was removed.
 
 set -e
 
 # Configuration
-BACKUP_DIR="/home/azureuser/backups"
+# Retired Azure server note (2026-06-16): previous Azure app-server backup path was removed.
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DATE=$(date +%Y%m%d)
 RETENTION_DAYS=30
@@ -2520,18 +2508,11 @@ gzip "$BACKUP_DIR/daily/db_$TIMESTAMP.sql"
 
 # File uploads backup
 echo "📁 Backing up uploads..."
-if [ -d "/home/azureuser/docfusion/uploads" ]; then
-    tar -czf "$BACKUP_DIR/daily/uploads_$TIMESTAMP.tar.gz" \
-        -C /home/azureuser/docfusion uploads
-fi
+# Retired Azure server note (2026-06-16): previous Azure app-server upload path was removed.
 
 # Configuration backup
 echo "⚙️ Backing up configuration..."
-tar -czf "$BACKUP_DIR/daily/config_$TIMESTAMP.tar.gz" \
-    -C /home/azureuser/docfusion \
-    ecosystem.config.js \
-    .env.production \
-    deployment/
+# Retired Azure server note (2026-06-16): previous Azure app-server config path was removed.
 
 # Weekly full backup (on Sundays)
 if [ $(date +%u) -eq 7 ]; then
@@ -2578,8 +2559,7 @@ if [ $# -lt 1 ]; then
     echo "Usage: $0 <backup_file.dump> [--uploads]"
     echo ""
     echo "Examples:"
-    echo "  $0 /home/azureuser/backups/daily/db_20260301_020000.dump"
-    echo "  $0 /home/azureuser/backups/daily/db_20260301_020000.dump --uploads"
+    echo "  Retired Azure server note (2026-06-16): previous Azure app-server backup examples were removed."
     exit 1
 fi
 
@@ -2613,8 +2593,7 @@ pg_restore -U $DB_USER -d $DB_NAME "$BACKUP_FILE"
 if [ "$RESTORE_UPLOADS" == "--uploads" ]; then
     UPLOADS_BACKUP=$(dirname "$BACKUP_FILE")/uploads_$(basename "$BACKUP_FILE" .dump).tar.gz
     if [ -f "$UPLOADS_BACKUP" ]; then
-        echo "📁 Restoring uploads..."
-        tar -xzf "$UPLOADS_BACKUP" -C /home/azureuser/docfusion
+        echo "Retired Azure server note (2026-06-16): previous Azure app-server restore path was removed."
     else
         echo "⚠️ Uploads backup not found: $UPLOADS_BACKUP"
     fi
@@ -2627,7 +2606,7 @@ pm2 start docfusion-frontend
 echo "✅ Restore complete!"
 echo ""
 echo "Run database migrations if needed:"
-echo "  cd /home/azureuser/docfusion/frontend && npx drizzle-kit push"
+echo "  Retired Azure server note (2026-06-16): previous Azure app-server migration path was removed."
 ```
 
 **Step 3: Make scripts executable**
