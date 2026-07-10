@@ -82,6 +82,7 @@ interface PageViewProps {
 	pageNumber: number;
 	totalPages: number;
 	template?: FormatTemplate;
+	previewHtml: string;
 	headerFooterSettings?: HeaderFooterSettings;
 	zoom: number;
 }
@@ -90,6 +91,7 @@ function PageView({
 	pageNumber,
 	totalPages,
 	template,
+	previewHtml,
 	headerFooterSettings,
 	zoom,
 }: PageViewProps) {
@@ -209,35 +211,10 @@ function PageView({
 					right: `${marginRight}px`,
 				}}
 			>
-				{/* Simulated text lines */}
-				<div className="space-y-1" style={{ fontSize: `${fontSize}px` }}>
-					{pageNumber === 1 && (
-						<div className="text-center mb-4">
-							<div
-								className="font-bold"
-								style={{ fontSize: `${fontSize * 1.5}px` }}
-							>
-								Document Title
-							</div>
-							<div className="text-gray-500 mt-2">
-								Proposal Response
-							</div>
-						</div>
-					)}
-
-					{/* Simulated paragraphs */}
-					{Array.from({ length: 15 }).map((_, i) => (
-						<div
-							key={i}
-							className="h-3 bg-gray-200 rounded"
-							style={{
-								width: `${70 + Math.random() * 30}%`,
-								height: `${fontSize * 0.8}px`,
-								marginBottom: `${fontSize * 0.5}px`,
-							}}
-						/>
-					))}
-				</div>
+				<div
+					style={{ fontSize: `${fontSize}px` }}
+					dangerouslySetInnerHTML={{ __html: previewHtml }}
+				/>
 			</div>
 
 			{/* Footer Area */}
@@ -445,7 +422,7 @@ export function FormatPreview({
 	className,
 }: FormatPreviewProps) {
 	// Use hook for format preview
-	const { template, totalPages, isLoading, error } = useFormatPreview(documentId, templateId);
+	const { template, previewHtml, totalPages, isLoading, error, refresh } = useFormatPreview(documentId, templateId);
 
 	// Local state
 	const [currentPage, setCurrentPage] = React.useState(1);
@@ -453,9 +430,8 @@ export function FormatPreview({
 
 	// Reload function for manual refresh
 	const loadPreview = React.useCallback(() => {
-		// The hook handles the loading, this is just for the refresh button
-		// A real implementation would trigger a refetch
-	}, []);
+		refresh();
+	}, [refresh]);
 
 	// Loading state
 	if (isLoading) {
@@ -527,6 +503,7 @@ export function FormatPreview({
 						pageNumber={currentPage}
 						totalPages={totalPages}
 						template={template || undefined}
+						previewHtml={previewHtml}
 						headerFooterSettings={
 							headerFooterSettings || template?.defaultHeaderFooter
 						}

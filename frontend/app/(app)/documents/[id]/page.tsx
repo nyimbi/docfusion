@@ -40,7 +40,6 @@ import type { Editor } from "@tiptap/react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Toaster } from "@/components/ui/toaster";
 import type { DocumentContent, Document } from "@/lib/types/document";
 import type { OutlineItem } from "@/lib/editor/extensions/outline";
 import {
@@ -647,8 +646,6 @@ function DocumentEditor({ document }: DocumentEditorProps) {
 					/>
 				</footer>
 			)}
-
-			<Toaster />
 		</div>
 	);
 }

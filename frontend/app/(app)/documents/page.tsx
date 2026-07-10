@@ -14,6 +14,7 @@ import type { ComponentType } from "react";
 import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import {
 	useDocuments,
@@ -130,9 +131,10 @@ export default function DocumentsPage() {
 		if (confirm(`Are you sure you want to delete "${title}"? This action cannot be undone.`)) {
 			try {
 				await deleteMutation.mutateAsync(id);
+				toast.success("Document deleted");
 			} catch (err) {
 				console.error("Failed to delete document:", err);
-				alert("Failed to delete document. Check console for details.");
+				toast.error("Failed to delete document");
 			}
 		}
 	};
@@ -144,10 +146,11 @@ export default function DocumentsPage() {
 			console.log("[Create Document] Document created:", newDoc.id);
 			setIsCreateDialogOpen(false);
 			setBlankDocTitle("");
+			toast.success("Document created");
 			router.push(`/documents/${newDoc.id}`);
 		} catch (err) {
 			console.error("[Create Document] Failed to create document:", err);
-			alert("Failed to create document. Check console for details.");
+			toast.error("Failed to create document");
 		}
 	};
 

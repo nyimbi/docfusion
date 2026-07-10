@@ -43,6 +43,9 @@ import {
 	type AccessibilityIssue as ServerAccessibilityIssue,
 } from "@/lib/actions/formatting";
 
+const FORMAT_PREVIEW_SAMPLE_TEXT =
+	"DocFusion prepares a compliant proposal response with clear executive themes, measurable delivery milestones, and evidence-backed differentiators for the reviewing agency.";
+
 // =============================================================================
 // Type Adapters
 // =============================================================================
@@ -572,16 +575,86 @@ export function useHeaderFooter(documentId: string) {
 }
 
 /**
- * Hook for format preview (placeholder - would need actual rendering).
+ * Escapes generated preview content before embedding it as HTML.
+ */
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+/**
+ * Converts template spacing settings to CSS line-height values.
+ */
+function lineHeightForSpacing(spacing: FormatTemplate["lineSpacing"]): string {
+	switch (spacing) {
+		case "single":
+			return "1";
+		case "1.5":
+			return "1.5";
+		case "double":
+			return "2";
+		default:
+			return "1.15";
+	}
+}
+
+/**
+ * Builds deterministic HTML that applies selected format options to sample text.
+ */
+function buildFormatPreviewHtml(template: FormatTemplate | null): string {
+	const sampleText = escapeHtml(FORMAT_PREVIEW_SAMPLE_TEXT.slice(0, 200));
+	const fontFamily = template?.font.family.replace(/-/g, " ") || "Times New Roman";
+	const fontSize = template?.font.size || 12;
+	const lineHeight = lineHeightForSpacing(template?.lineSpacing || "1.15");
+	const margins = template?.margins || { top: 1, bottom: 1, left: 1, right: 1 };
+	const pageSize = template?.pageSize === "legal"
+		? "US Legal"
+		: template?.pageSize === "a4"
+			? "A4"
+			: "US Letter";
+	const maxPages = template?.maxPages ? `${template.maxPages} page limit` : "No page limit configured";
+	const templateName = escapeHtml(template?.name || "Default proposal format");
+	const agency = escapeHtml((template?.agency || "other").toUpperCase());
+
+	return [
+		`<article style="font-family: '${fontFamily}', serif; font-size: ${fontSize}pt; line-height: ${lineHeight}; color: #111827;">`,
+		`<h1 style="font-size: ${Math.round(fontSize * 1.35)}pt; margin: 0 0 ${fontSize}px; text-align: center;">${templateName}</h1>`,
+		`<p style="margin: 0 0 ${fontSize}px; text-align: center; color: #4b5563;">${agency} format - ${pageSize} - margins ${margins.top}/${margins.right}/${margins.bottom}/${margins.left} in - ${maxPages}</p>`,
+		`<h2 style="font-size: ${Math.round(fontSize * 1.12)}pt; margin: ${fontSize * 1.4}px 0 ${fontSize * 0.6}px;">Executive Summary</h2>`,
+		`<p style="margin: 0 0 ${fontSize}px;">${sampleText}</p>`,
+		`<ul style="margin: 0 0 0 ${fontSize * 1.5}px; padding: 0;">`,
+		`<li>Typography, spacing, and page constraints are applied from the selected template.</li>`,
+		`<li>Preview content is generated from a short proposal sample for fast client-side rendering.</li>`,
+		`</ul>`,
+		`</article>`,
+	].join("");
+}
+
+/**
+ * Hook for format preview.
  */
 export function useFormatPreview(documentId: string, templateId?: string) {
 	const [template, setTemplate] = React.useState<FormatTemplate | null>(null);
+	const [previewHtml, setPreviewHtml] = React.useState(() => buildFormatPreviewHtml(null));
+	const [totalPages, setTotalPages] = React.useState(1);
 	const [isLoading, setIsLoading] = React.useState(true);
 	const [error, setError] = React.useState<string | null>(null);
+	const [refreshToken, setRefreshToken] = React.useState(0);
+
+	const refresh = React.useCallback(() => {
+		setRefreshToken((value) => value + 1);
+	}, []);
 
 	React.useEffect(() => {
 		async function load() {
 			if (!templateId) {
+				setTemplate(null);
+				setPreviewHtml(buildFormatPreviewHtml(null));
+				setTotalPages(1);
 				setIsLoading(false);
 				return;
 			}
@@ -592,17 +665,26 @@ export function useFormatPreview(documentId: string, templateId?: string) {
 			try {
 				const serverTemplate = await getFormatTemplateById(templateId);
 				if (serverTemplate) {
-					setTemplate(adaptFormatTemplate(serverTemplate));
+					const clientTemplate = adaptFormatTemplate(serverTemplate);
+					setTemplate(clientTemplate);
+					setPreviewHtml(buildFormatPreviewHtml(clientTemplate));
+					setTotalPages(Math.max(1, Math.min(clientTemplate.maxPages || 1, 3)));
+				} else {
+					setTemplate(null);
+					setPreviewHtml(buildFormatPreviewHtml(null));
+					setTotalPages(1);
 				}
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to load preview");
+				setPreviewHtml(buildFormatPreviewHtml(null));
+				setTotalPages(1);
 			}
 
 			setIsLoading(false);
 		}
 
 		load();
-	}, [templateId]);
+	}, [templateId, refreshToken]);
 
-	return { template, totalPages: 42, isLoading, error };
+	return { template, previewHtml, totalPages, isLoading, error, refresh };
 }

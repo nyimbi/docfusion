@@ -7,11 +7,14 @@ recommendations for opportunity pursuit.
 """
 
 import asyncio
+import json
 import logging
+import os
 import re
 from dataclasses import field
 from datetime import datetime, timedelta
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -174,6 +177,159 @@ class MarketIntelligence(BaseModel):
 	partnership_opportunities: List[str] = Field(default_factory=list, description="Partnership opportunities")
 
 
+DEFAULT_COMPETITOR_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config" / "competitors.yaml"
+
+DEFAULT_COMPETITIVE_ANALYZER_CONFIG: Dict[str, Any] = {
+	"scoring_weights": {
+		"market_share": 0.25,
+		"capability_overlap": 0.20,
+		"win_rate": 0.20,
+		"client_relationships": 0.15,
+		"pricing_competitiveness": 0.10,
+		"innovation_capability": 0.10,
+	},
+	"competitors": {
+		"acme_consulting": {
+			"name": "ACME Consulting",
+			"tier": "tier_1",
+			"estimated_revenue": 500000000.0,
+			"employee_count": 2500,
+			"core_capabilities": {
+				"software_development": 0.9,
+				"project_management": 0.8,
+				"cybersecurity": 0.7,
+				"data_analytics": 0.6,
+			},
+			"competitive_advantages": [
+				"scale_advantage",
+				"incumbent_advantage",
+			],
+			"win_rate": 0.35,
+			"growth_trajectory": "growing",
+		},
+		"specialized_tech": {
+			"name": "Specialized Tech Solutions",
+			"tier": "tier_2",
+			"estimated_revenue": 50000000.0,
+			"employee_count": 300,
+			"core_capabilities": {
+				"software_development": 0.95,
+				"innovation": 0.9,
+				"emerging_tech": 0.8,
+			},
+			"competitive_advantages": [
+				"innovation_advantage",
+				"capability_advantage",
+			],
+			"win_rate": 0.45,
+			"growth_trajectory": "growing",
+		},
+	},
+	"market_segments": {
+		"federal_technology": {
+			"market_segment": "Federal Technology Services",
+			"market_size": 25000000000.0,
+			"growth_rate": 0.08,
+			"leading_players": [
+				"ACME Consulting",
+				"Big Tech Corp",
+				"Federal Solutions Inc",
+			],
+			"key_buying_criteria": [
+				"Security clearance",
+				"Past performance",
+				"Technical capability",
+				"Cost",
+			],
+			"key_trends": [
+				"Cloud migration",
+				"AI/ML adoption",
+				"Zero trust security",
+			],
+		},
+	},
+}
+
+COMPETITIVE_WEIGHT_ENV_ALIASES = {
+	"pricing_competitiveness": ["COMPETITIVE_WEIGHT_PRICE"],
+}
+
+
+class CompetitiveAnalyzerConfig(BaseModel):
+	"""Config-backed competitive analyzer inputs."""
+	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
+
+	scoring_weights: Dict[str, float] = Field(description="Threat assessment weights by scoring factor")
+	competitors: Dict[str, CompetitorProfile] = Field(description="Configured competitor profiles keyed by stable slug")
+	market_segments: Dict[str, MarketIntelligence] = Field(default_factory=dict, description="Configured market intelligence keyed by segment slug")
+
+
+def _strip_json_config_comments(config_text: str) -> str:
+	"""Strip whole-line comments for the JSON-compatible YAML fallback parser."""
+	return "\n".join(
+		line for line in config_text.splitlines()
+		if line.strip() and not line.lstrip().startswith("#")
+	)
+
+
+def _read_competitive_config_file(config_path: Path) -> Dict[str, Any]:
+	config_text = config_path.read_text(encoding="utf-8")
+
+	try:
+		import yaml  # type: ignore[import-untyped]
+	except ImportError:
+		yaml = None
+
+	if yaml is not None:
+		loaded_config = yaml.safe_load(config_text)
+	else:
+		loaded_config = json.loads(_strip_json_config_comments(config_text))
+
+	if not isinstance(loaded_config, dict):
+		raise ValueError(f"Competitive analyzer config must be a mapping: {config_path}")
+
+	return loaded_config
+
+
+def _apply_weight_env_overrides(weights: Dict[str, float]) -> Dict[str, float]:
+	updated_weights = dict(weights)
+
+	for weight_name in list(updated_weights.keys()):
+		env_names = [
+			f"COMPETITIVE_WEIGHT_{weight_name.upper()}",
+			*COMPETITIVE_WEIGHT_ENV_ALIASES.get(weight_name, []),
+		]
+		for env_name in env_names:
+			env_value = os.getenv(env_name)
+			if env_value is None:
+				continue
+			try:
+				updated_weights[weight_name] = float(env_value)
+			except ValueError:
+				logger.warning("Ignoring invalid %s value for competitive analyzer weight: %r", env_name, env_value)
+			break
+
+	return updated_weights
+
+
+def load_competitive_analyzer_config(config_path: Optional[Path] = None) -> CompetitiveAnalyzerConfig:
+	"""Load competitor profiles and scoring weights from config/competitors.yaml."""
+	resolved_path = Path(config_path) if config_path else DEFAULT_COMPETITOR_CONFIG_PATH
+
+	if resolved_path.exists():
+		raw_config = _read_competitive_config_file(resolved_path)
+	else:
+		logger.warning(
+			"Competitive analyzer config not found at %s; using built-in fallback competitor profiles.",
+			resolved_path,
+		)
+		raw_config = json.loads(json.dumps(DEFAULT_COMPETITIVE_ANALYZER_CONFIG))
+
+	analyzer_config = CompetitiveAnalyzerConfig.model_validate(raw_config)
+	analyzer_config.scoring_weights = _apply_weight_env_overrides(analyzer_config.scoring_weights)
+	return analyzer_config
+
+
 class CompetitiveAnalysis(BaseModel):
 	"""Complete competitive analysis result"""
 	model_config = ConfigDict(extra='forbid', validate_by_name=True, validate_by_alias=True)
@@ -226,10 +382,12 @@ class CompetitiveAnalyzer:
 	def __init__(self, 
 	             text_analyzer: Optional[TextAnalyzer] = None,
 	             semantic_matcher: Optional[SemanticMatcher] = None,
-	             intelligence_db: Optional[CompetitiveIntelligenceDatabase] = None):
+	             intelligence_db: Optional[CompetitiveIntelligenceDatabase] = None,
+	             competitor_config_path: Optional[Path] = None):
 		self.text_analyzer = text_analyzer or TextAnalyzer()
 		self.semantic_matcher = semantic_matcher or SemanticMatcher()
-		self.intelligence_db = intelligence_db or self._initialize_intelligence_db()
+		self._analyzer_config = load_competitive_analyzer_config(competitor_config_path)
+		self.intelligence_db = intelligence_db or self._initialize_intelligence_db(self._analyzer_config)
 		
 		# Analysis patterns
 		self._competitor_patterns = self._initialize_competitor_patterns()
@@ -237,73 +395,29 @@ class CompetitiveAnalyzer:
 		self._market_patterns = self._initialize_market_patterns()
 		
 		# Scoring models
-		self._threat_assessment_weights = {
-			'market_share': 0.25,
-			'capability_overlap': 0.20,
-			'win_rate': 0.20,
-			'client_relationships': 0.15,
-			'pricing_competitiveness': 0.10,
-			'innovation_capability': 0.10
-		}
+		self._threat_assessment_weights = self._analyzer_config.scoring_weights
 	
-	def _initialize_intelligence_db(self) -> CompetitiveIntelligenceDatabase:
-		"""Initialize competitive intelligence database with sample data"""
-		
-		# Sample competitor profiles
-		competitors = {
-			'acme_consulting': CompetitorProfile(
-				name='ACME Consulting',
-				tier=CompetitorTier.TIER_1,
-				estimated_revenue=500000000.0,
-				employee_count=2500,
-				core_capabilities={
-					'software_development': 0.9,
-					'project_management': 0.8,
-					'cybersecurity': 0.7,
-					'data_analytics': 0.6
-				},
-				competitive_advantages=[
-					CompetitiveAdvantage.SCALE_ADVANTAGE,
-					CompetitiveAdvantage.INCUMBENT_ADVANTAGE
-				],
-				win_rate=0.35,
-				growth_trajectory='growing'
-			),
-			'specialized_tech': CompetitorProfile(
-				name='Specialized Tech Solutions',
-				tier=CompetitorTier.TIER_2,
-				estimated_revenue=50000000.0,
-				employee_count=300,
-				core_capabilities={
-					'software_development': 0.95,
-					'innovation': 0.9,
-					'emerging_tech': 0.8
-				},
-				competitive_advantages=[
-					CompetitiveAdvantage.INNOVATION_ADVANTAGE,
-					CompetitiveAdvantage.CAPABILITY_ADVANTAGE
-				],
-				win_rate=0.45,
-				growth_trajectory='growing'
-			)
-		}
-		
-		# Sample market intelligence
-		markets = {
-			'federal_technology': MarketIntelligence(
-				market_segment='Federal Technology Services',
-				market_size=25000000000.0,
-				growth_rate=0.08,
-				leading_players=['ACME Consulting', 'Big Tech Corp', 'Federal Solutions Inc'],
-				key_buying_criteria=['Security clearance', 'Past performance', 'Technical capability', 'Cost'],
-				key_trends=['Cloud migration', 'AI/ML adoption', 'Zero trust security']
-			)
-		}
-		
+	def _initialize_intelligence_db(self, analyzer_config: CompetitiveAnalyzerConfig) -> CompetitiveIntelligenceDatabase:
+		"""Initialize competitive intelligence database from configured data."""
 		return CompetitiveIntelligenceDatabase(
-			competitor_profiles=competitors,
-			market_segments=markets
+			competitor_profiles=analyzer_config.competitors,
+			market_segments=analyzer_config.market_segments
 		)
+
+	def _get_competitor_profile(self, competitor_identifier: str) -> Optional[CompetitorProfile]:
+		"""Find a competitor by configured slug or display name."""
+		configured_profile = self.intelligence_db.competitor_profiles.get(competitor_identifier)
+		if configured_profile:
+			return configured_profile
+
+		normalized_identifier = competitor_identifier.casefold()
+		for competitor_key, competitor_profile in self.intelligence_db.competitor_profiles.items():
+			if competitor_key.casefold() == normalized_identifier:
+				return competitor_profile
+			if competitor_profile.name.casefold() == normalized_identifier:
+				return competitor_profile
+
+		return None
 	
 	def _initialize_competitor_patterns(self) -> Dict[str, List[str]]:
 		"""Initialize competitor identification patterns"""
@@ -505,10 +619,9 @@ class CompetitiveAnalyzer:
 		# Add market context competitors
 		if market_context and 'known_competitors' in market_context:
 			for competitor_name in market_context['known_competitors']:
-				if competitor_name in self.intelligence_db.competitor_profiles:
-					relevant_competitors.append(
-						self.intelligence_db.competitor_profiles[competitor_name]
-					)
+				competitor_profile = self._get_competitor_profile(competitor_name)
+				if competitor_profile:
+					relevant_competitors.append(competitor_profile)
 		
 		# Remove duplicates and limit to top competitors
 		seen_names = set()
@@ -522,10 +635,9 @@ class CompetitiveAnalyzer:
 			# Add top tier competitors from relevant market segments
 			for market_intel in self.intelligence_db.market_segments.values():
 				for leader in market_intel.leading_players[:3]:
-					if leader in self.intelligence_db.competitor_profiles:
-						identified_competitors.append(
-							self.intelligence_db.competitor_profiles[leader]
-						)
+					competitor_profile = self._get_competitor_profile(leader)
+					if competitor_profile:
+						identified_competitors.append(competitor_profile)
 		
 		return identified_competitors[:8]  # Limit to top 8 competitors
 	
@@ -846,21 +958,13 @@ class CompetitiveAnalyzer:
 	def _assess_competitor_threat(self, competitor: CompetitorProfile,
 	                              organizational_profile: Dict[str, Any]) -> float:
 		"""Assess individual competitor threat level"""
-		
-		threat_factors = []
-		
-		# Tier-based threat
+
 		tier_threats = {
 			CompetitorTier.TIER_1: 0.8,
 			CompetitorTier.TIER_2: 0.6,
 			CompetitorTier.TIER_3: 0.3,
 			CompetitorTier.UNKNOWN: 0.2
 		}
-		threat_factors.append(tier_threats[competitor.tier])
-		
-		# Win rate threat
-		if competitor.win_rate:
-			threat_factors.append(competitor.win_rate)
 		
 		# Capability overlap threat
 		our_capabilities = organizational_profile.get('capabilities', {})
@@ -875,22 +979,42 @@ class CompetitiveAnalyzer:
 				]
 				capability_overlap = np.mean(overlap_scores)
 		
-		threat_factors.append(capability_overlap)
-		
-		# Competitive advantage threats
-		high_threat_advantages = [
+		relationship_advantages = [
 			CompetitiveAdvantage.INCUMBENT_ADVANTAGE,
-			CompetitiveAdvantage.SCALE_ADVANTAGE,
-			CompetitiveAdvantage.RELATIONSHIP_ADVANTAGE
+			CompetitiveAdvantage.RELATIONSHIP_ADVANTAGE,
+			CompetitiveAdvantage.PARTNERSHIP_ADVANTAGE,
 		]
-		
-		advantage_threat = sum(
-			0.2 for advantage in competitor.competitive_advantages
-			if advantage in high_threat_advantages
+		client_relationship_score = 1.0 if any(
+			advantage in relationship_advantages
+			for advantage in competitor.competitive_advantages
+		) else 0.0
+		pricing_score = 1.0 if CompetitiveAdvantage.COST_ADVANTAGE in competitor.competitive_advantages else 0.4
+		innovation_score = max(
+			competitor.core_capabilities.get('innovation', 0.0),
+			1.0 if CompetitiveAdvantage.INNOVATION_ADVANTAGE in competitor.competitive_advantages else 0.0,
 		)
-		
-		base_threat = np.mean(threat_factors) if threat_factors else 0.5
-		return min(base_threat + advantage_threat, 1.0)
+		factor_scores = {
+			'market_share': tier_threats[competitor.tier],
+			'capability_overlap': capability_overlap,
+			'win_rate': competitor.win_rate if competitor.win_rate is not None else 0.5,
+			'client_relationships': client_relationship_score,
+			'pricing_competitiveness': pricing_score,
+			'innovation_capability': innovation_score,
+		}
+		weighted_scores = [
+			factor_scores[factor_name] * weight
+			for factor_name, weight in self._threat_assessment_weights.items()
+			if factor_name in factor_scores and weight > 0
+		]
+		total_weight = sum(
+			weight
+			for factor_name, weight in self._threat_assessment_weights.items()
+			if factor_name in factor_scores and weight > 0
+		)
+		if total_weight <= 0:
+			return 0.5
+
+		return min(sum(weighted_scores) / total_weight, 1.0)
 	
 	def _identify_competitive_gaps(self, competitors: List[CompetitorProfile],
 	                               organizational_profile: Dict[str, Any]) -> List[str]:
