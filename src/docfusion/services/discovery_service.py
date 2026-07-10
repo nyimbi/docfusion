@@ -5,12 +5,14 @@ agents can depend on a stable interface rather than importing concrete
 scrapers, analyzers, and matchers directly.
 """
 
-import logging
 import hashlib
+import logging
 import os
 import re
-from typing import Protocol, Any
+from typing import Any, Protocol
 from urllib.parse import urljoin, urlparse, urlunparse
+
+from docfusion.core.errors import DocuFusionError
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,10 @@ DEFAULT_SEARXNG_PUBLIC_FALLBACK_LIMIT = 8
 DEFAULT_FIRECRAWL_URL = "http://84.247.181.100:3002"
 DEFAULT_FIRECRAWL_ENRICH_LIMIT = 3
 MAX_SCRAPED_MARKDOWN_CHARS = 12_000
+
+
+class DiscoveryServiceError(DocuFusionError):
+	"""Raised when the default discovery service cannot complete an operation."""
 
 
 class DiscoveryServiceInterface(Protocol):
@@ -183,117 +189,200 @@ class DefaultDiscoveryService:
 		sources: list[str] | None = None,
 		filters: dict[str, Any] | None = None,
 	) -> list[dict[str, Any]]:
-		filters = filters or {}
-		query = self._build_search_query(filters)
-		limit = self._coerce_limit(filters.get("limit"), default=20)
-
+		filter_keys = sorted(str(key) for key in (filters or {}))
+		logger.info(
+			"Discovery opportunity scan started (sources=%s, filter_keys=%s)",
+			sources or ["default"],
+			filter_keys,
+		)
 		try:
-			opportunities = await self._discover_with_searxng(query, limit)
-		except Exception as exc:
-			logger.warning("SearXNG discovery failed: %s", exc)
-			opportunities = []
+			filters = filters or {}
+			query = self._build_search_query(filters)
+			limit = self._coerce_limit(filters.get("limit"), default=20)
 
-		if not opportunities:
-			logger.info("SearXNG returned 0 results; falling back to direct API crawl")
 			try:
-				opportunities = await self._discover_with_direct_apis(limit)
+				opportunities = await self._discover_with_searxng(query, limit)
 			except Exception as exc:
-				logger.warning("Direct API fallback failed: %s", exc)
+				logger.warning("SearXNG discovery failed: %s", exc)
+				opportunities = []
 
-		if self._should_enrich_with_firecrawl(filters):
-			enrich_limit = self._coerce_limit(
-				filters.get("enrich_limit"),
-				default=getattr(
-					self,
-					"_firecrawl_enrich_limit",
-					DEFAULT_FIRECRAWL_ENRICH_LIMIT,
-				),
-			)
-			opportunities = await self._enrich_opportunities_with_firecrawl(
-				opportunities,
-				enrich_limit,
-			)
+			if not opportunities:
+				logger.info("SearXNG returned 0 results; falling back to direct API crawl")
+				try:
+					opportunities = await self._discover_with_direct_apis(limit)
+				except Exception as exc:
+					logger.warning("Direct API fallback failed: %s", exc)
 
-		from collections import OrderedDict as _OD
-		for opportunity in opportunities:
-			opp_id = opportunity["id"]
-			self._opportunity_cache[opp_id] = opportunity
-			if isinstance(self._opportunity_cache, _OD):
-				self._opportunity_cache.move_to_end(opp_id)
-				while len(self._opportunity_cache) > self._opportunity_cache_max:
-					self._opportunity_cache.popitem(last=False)
-		return opportunities
+			if self._should_enrich_with_firecrawl(filters):
+				enrich_limit = self._coerce_limit(
+					filters.get("enrich_limit"),
+					default=getattr(
+						self,
+						"_firecrawl_enrich_limit",
+						DEFAULT_FIRECRAWL_ENRICH_LIMIT,
+					),
+				)
+				opportunities = await self._enrich_opportunities_with_firecrawl(
+					opportunities,
+					enrich_limit,
+				)
+
+			from collections import OrderedDict as _OD
+			for opportunity in opportunities:
+				opp_id = opportunity["id"]
+				self._opportunity_cache[opp_id] = opportunity
+				if isinstance(self._opportunity_cache, _OD):
+					self._opportunity_cache.move_to_end(opp_id)
+					while len(self._opportunity_cache) > self._opportunity_cache_max:
+						self._opportunity_cache.popitem(last=False)
+			logger.info(
+				"Discovery opportunity scan completed (count=%d)",
+				len(opportunities),
+			)
+			return opportunities
+		except DocuFusionError:
+			raise
+		except Exception as exc:
+			logger.exception("Discovery opportunity scan failed")
+			raise DiscoveryServiceError(f"Discovery opportunity scan failed: {exc}") from exc
 
 	async def get_opportunity_details(
 		self,
 		opportunity_id: str,
 	) -> dict[str, Any] | None:
-		return self._opportunity_cache.get(opportunity_id)
+		logger.info("Discovery opportunity detail lookup started (opportunity_id=%s)", opportunity_id)
+		try:
+			opportunity = self._opportunity_cache.get(opportunity_id)
+			logger.info(
+				"Discovery opportunity detail lookup completed (opportunity_id=%s, found=%s)",
+				opportunity_id,
+				opportunity is not None,
+			)
+			return opportunity
+		except DocuFusionError:
+			raise
+		except Exception as exc:
+			logger.exception(
+				"Discovery opportunity detail lookup failed (opportunity_id=%s)",
+				opportunity_id,
+			)
+			raise DiscoveryServiceError(
+				f"Discovery opportunity detail lookup failed for {opportunity_id}: {exc}"
+			) from exc
 
 	async def analyze_opportunity(
 		self,
 		opportunity_id: str,
 	) -> dict[str, Any]:
-		if not self._opportunity_analyzer:
-			return {"error": "Opportunity analyzer unavailable", "opportunity_id": opportunity_id}
-		opportunity = await self.get_opportunity_details(opportunity_id)
-		if not opportunity:
-			return {
-				"opportunity_id": opportunity_id,
-				"status": "unavailable",
-				"error": "Opportunity details not found in discovery cache",
-			}
-		result = await self._opportunity_analyzer.analyze_opportunity(opportunity)
-		return result.model_dump() if hasattr(result, "model_dump") else dict(result)
+		logger.info("Discovery opportunity analysis started (opportunity_id=%s)", opportunity_id)
+		try:
+			if not self._opportunity_analyzer:
+				result = {"error": "Opportunity analyzer unavailable", "opportunity_id": opportunity_id}
+			else:
+				opportunity = await self.get_opportunity_details(opportunity_id)
+				if not opportunity:
+					result = {
+						"opportunity_id": opportunity_id,
+						"status": "unavailable",
+						"error": "Opportunity details not found in discovery cache",
+					}
+				else:
+					analysis = await self._opportunity_analyzer.analyze_opportunity(opportunity)
+					result = analysis.model_dump() if hasattr(analysis, "model_dump") else dict(analysis)
+			logger.info(
+				"Discovery opportunity analysis completed (opportunity_id=%s, status=%s)",
+				opportunity_id,
+				result.get("status", "ok"),
+			)
+			return result
+		except DocuFusionError:
+			raise
+		except Exception as exc:
+			logger.exception("Discovery opportunity analysis failed (opportunity_id=%s)", opportunity_id)
+			raise DiscoveryServiceError(
+				f"Discovery opportunity analysis failed for {opportunity_id}: {exc}"
+			) from exc
 
 	async def assess_qualification(
 		self,
 		opportunity_id: str,
 		organizational_profile: dict[str, Any] | None = None,
 	) -> dict[str, Any]:
-		if not self._qualification_analyzer:
-			return {"error": "Qualification analyzer unavailable", "opportunity_id": opportunity_id}
-		opportunity = await self.get_opportunity_details(opportunity_id)
-		if not opportunity:
-			return {
-				"opportunity_id": opportunity_id,
-				"status": "unavailable",
-				"error": "Opportunity details not found in discovery cache",
-			}
+		logger.info("Discovery qualification assessment started (opportunity_id=%s)", opportunity_id)
+		try:
+			if not self._qualification_analyzer:
+				result = {"error": "Qualification analyzer unavailable", "opportunity_id": opportunity_id}
+			else:
+				opportunity = await self.get_opportunity_details(opportunity_id)
+				if not opportunity:
+					result = {
+						"opportunity_id": opportunity_id,
+						"status": "unavailable",
+						"error": "Opportunity details not found in discovery cache",
+					}
+				else:
+					from docfusion.discovery.analyzers.qualification_analyzer import OrganizationalCapabilities
+					from docfusion.discovery.models.opportunity_models import OpportunityData
 
-		from docfusion.discovery.analyzers.qualification_analyzer import OrganizationalCapabilities
-		from docfusion.discovery.models.opportunity_models import OpportunityData
-
-		capabilities = OrganizationalCapabilities(**(organizational_profile or {}))
-		result = await self._qualification_analyzer.analyze_qualification(
-			OpportunityData(**self._to_opportunity_data(opportunity)),
-			capabilities,
-		)
-		return result.model_dump() if hasattr(result, "model_dump") else dict(result)
+					capabilities = OrganizationalCapabilities(**(organizational_profile or {}))
+					assessment = await self._qualification_analyzer.analyze_qualification(
+						OpportunityData(**self._to_opportunity_data(opportunity)),
+						capabilities,
+					)
+					result = assessment.model_dump() if hasattr(assessment, "model_dump") else dict(assessment)
+			logger.info(
+				"Discovery qualification assessment completed (opportunity_id=%s, status=%s)",
+				opportunity_id,
+				result.get("status", "ok"),
+			)
+			return result
+		except DocuFusionError:
+			raise
+		except Exception as exc:
+			logger.exception("Discovery qualification assessment failed (opportunity_id=%s)", opportunity_id)
+			raise DiscoveryServiceError(
+				f"Discovery qualification assessment failed for {opportunity_id}: {exc}"
+			) from exc
 
 	async def list_sources(
 		self,
 		source_type: str | None = None,
 		region: str | None = None,
 	) -> list[dict[str, Any]]:
-		sources = [{
-			"id": "searxng",
-			"name": "SearXNG metasearch",
-			"type": "metasearch",
-			"region": "global",
-			"url": self._searxng_url,
-		}, {
-			"id": "firecrawl",
-			"name": "Firecrawl page enrichment",
-			"type": "scraper",
-			"region": "global",
-			"url": getattr(self, "_firecrawl_url", DEFAULT_FIRECRAWL_URL),
-		}]
-		if source_type:
-			sources = [source for source in sources if source["type"] == source_type]
-		if region and region != "global":
-			sources = [source for source in sources if source["region"] == region]
-		return sources
+		logger.info(
+			"Discovery source listing started (source_type=%s, region=%s)",
+			source_type,
+			region,
+		)
+		try:
+			sources = [{
+				"id": "searxng",
+				"name": "SearXNG metasearch",
+				"type": "metasearch",
+				"region": "global",
+				"url": self._searxng_url,
+			}, {
+				"id": "firecrawl",
+				"name": "Firecrawl page enrichment",
+				"type": "scraper",
+				"region": "global",
+				"url": getattr(self, "_firecrawl_url", DEFAULT_FIRECRAWL_URL),
+			}]
+			if source_type:
+				sources = [source for source in sources if source["type"] == source_type]
+			if region and region != "global":
+				sources = [source for source in sources if source["region"] == region]
+			logger.info("Discovery source listing completed (count=%d)", len(sources))
+			return sources
+		except DocuFusionError:
+			raise
+		except Exception as exc:
+			logger.exception(
+				"Discovery source listing failed (source_type=%s, region=%s)",
+				source_type,
+				region,
+			)
+			raise DiscoveryServiceError(f"Discovery source listing failed: {exc}") from exc
 
 	def _build_search_query(self, filters: dict[str, Any]) -> str:
 		query = str(filters.get("query") or "").strip()
