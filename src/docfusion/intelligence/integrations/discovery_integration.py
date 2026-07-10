@@ -368,6 +368,145 @@ class IntelligenceDiscoveryService:
             
         except Exception as e:
             return {"status": "discovery_analysis_failed", "error": str(e)}
+
+    async def integrate_with_scoring_predictor(
+        self,
+        opportunity_data: OpportunityData,
+        scoring_service: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """Fuse win probability with available section scores for one opportunity."""
+
+        safe_default = {
+            "combined_score": 0.0,
+            "win_probability": 0.0,
+            "section_scores": {}
+        }
+
+        try:
+            opportunity_id = getattr(opportunity_data, "id", None)
+            if opportunity_id is None and isinstance(opportunity_data, dict):
+                opportunity_id = opportunity_data.get("id")
+            opportunity_id = str(opportunity_id or "unknown")
+
+            prediction_features = await self._extract_prediction_features(opportunity_data)
+            win_prediction = self.win_predictor.predict_win_probability(
+                prediction_features, opportunity_id
+            )
+            if asyncio.iscoroutine(win_prediction):
+                win_prediction = await win_prediction
+
+            if isinstance(win_prediction, dict):
+                raw_win_probability = win_prediction.get(
+                    "win_probability",
+                    win_prediction.get("predicted_win_probability", 0.0)
+                )
+            else:
+                raw_win_probability = getattr(
+                    win_prediction,
+                    "predicted_win_probability",
+                    getattr(win_prediction, "win_probability", 0.0)
+                )
+            win_probability = float(raw_win_probability)
+
+            section_scores = await self._get_section_scores(opportunity_data, scoring_service)
+            section_mean = (
+                sum(section_scores.values()) / len(section_scores)
+                if section_scores
+                else 0.0
+            )
+            combined_score = (win_probability * 0.4) + (section_mean * 0.6)
+
+            return {
+                "combined_score": float(combined_score),
+                "win_probability": win_probability,
+                "section_scores": section_scores
+            }
+
+        except Exception as e:
+            logger.exception(
+                "IntelligenceDiscoveryService: scoring predictor integration failed for %s: %s",
+                getattr(opportunity_data, "id", "unknown"),
+                e
+            )
+            return safe_default
+
+    async def _get_section_scores(
+        self,
+        opportunity_data: OpportunityData,
+        scoring_service: Optional[Any] = None
+    ) -> Dict[str, float]:
+        """Retrieve numeric section scores from a scoring service or opportunity data."""
+
+        score_sources = []
+
+        if scoring_service is not None:
+            for method_name in (
+                "get_section_scores",
+                "predict_section_scores",
+                "score_sections",
+                "score_opportunity"
+            ):
+                method = getattr(scoring_service, method_name, None)
+                if callable(method):
+                    try:
+                        scores = method(opportunity_data)
+                        if asyncio.iscoroutine(scores):
+                            scores = await scores
+                        score_sources.append(scores)
+                    except Exception as e:
+                        logger.warning(
+                            "IntelligenceDiscoveryService: %s failed while retrieving section scores: %s",
+                            method_name,
+                            e
+                        )
+
+            score_sources.append(getattr(scoring_service, "section_scores", None))
+
+        score_sources.extend([
+            getattr(opportunity_data, "section_scores", None),
+            getattr(opportunity_data, "score_breakdown", None),
+            getattr(opportunity_data, "scores", None),
+        ])
+
+        if isinstance(opportunity_data, dict):
+            score_sources.extend([
+                opportunity_data.get("section_scores"),
+                opportunity_data.get("score_breakdown"),
+                opportunity_data.get("scores"),
+            ])
+
+        for score_source in score_sources:
+            section_scores = self._coerce_section_scores(score_source)
+            if section_scores:
+                return section_scores
+
+        return {}
+
+    def _coerce_section_scores(self, score_source: Any) -> Dict[str, float]:
+        """Normalize supported section score containers into a score dictionary."""
+
+        if not score_source:
+            return {}
+
+        if hasattr(score_source, "model_dump"):
+            score_source = score_source.model_dump()
+
+        if isinstance(score_source, dict):
+            raw_scores = score_source.get("section_scores", score_source)
+            if hasattr(raw_scores, "model_dump"):
+                raw_scores = raw_scores.model_dump()
+            if not isinstance(raw_scores, dict):
+                return {}
+
+            section_scores = {}
+            for section, score in raw_scores.items():
+                try:
+                    section_scores[str(section)] = float(score)
+                except (TypeError, ValueError):
+                    continue
+            return section_scores
+
+        return {}
     
     def _create_opportunity_context(self, opportunity_data: OpportunityData) -> OpportunityContext:
         """Create opportunity context for strategy recommender"""
