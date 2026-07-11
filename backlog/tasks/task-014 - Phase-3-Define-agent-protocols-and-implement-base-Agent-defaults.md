@@ -4,7 +4,7 @@ title: 'Phase 3: Define agent protocols and implement base Agent defaults'
 status: Done
 assignee: []
 created_date: ''
-updated_date: '2026-04-22 22:38'
+updated_date: '2026-07-11 06:02'
 labels: []
 dependencies: []
 ---
@@ -233,5 +233,5 @@ git commit -m "feat(agents): concrete defaults for BaseAgent; add protocols [G-A
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Agent protocols defined, 5 NotImplementedError stubs replaced with concrete defaults, 13 tests pass
+AgentProtocol + BaseAgent ABC defined at src/docfusion/agents/base.py
 <!-- SECTION:NOTES:END -->

@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Set, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 from ...core.utils import uuid7str
+from ..base import AgentResult, AgentTask, BaseAgent
 
 """
 Core Agent Base Class
@@ -195,7 +196,7 @@ class AgentContext(BaseModel):
 
 T = TypeVar("T")
 
-class Agent(ABC, Generic[T]):
+class Agent(BaseAgent, ABC, Generic[T]):
     """
     Base Agent class for multi-agent system
 
@@ -330,6 +331,23 @@ class Agent(ABC, Generic[T]):
         await self._on_resume()
 
     # Abstract methods for specialization
+
+    async def run(self, task: AgentTask) -> AgentResult:
+        """Run a structured task through the existing process_task hook."""
+        started_at = datetime.utcnow()
+        try:
+            result = await self.process_task(task.payload)
+        except Exception as exc:
+            self.logger.error("Agent %s failed structured task %s: %s", self.agent_id, task.task_id, exc)
+            return self._build_result(
+                task,
+                status="failure",
+                errors=[str(exc)],
+                started_at=started_at,
+            )
+
+        data = result if isinstance(result, dict) else {"result": result}
+        return self._build_result(task, status="success", data=data, started_at=started_at)
 
     async def process_task(self, task: Any) -> Any:
         """Default task processor. Subclasses override for domain logic.

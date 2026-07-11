@@ -20,6 +20,7 @@ from .core import (
 	MessageType,
 	MessagePriority
 )
+from .base import AgentProtocol, BaseAgent, AgentTask, AgentResult
 
 # Import specialists with optional dependency handling
 # Some specialists may not be available due to missing dependencies
@@ -73,6 +74,10 @@ __all__ = [
 	"AgentMessage",
 	"MessageType",
 	"MessagePriority",
+	"AgentProtocol",
+	"BaseAgent",
+	"AgentTask",
+	"AgentResult",
 
 	# Specialists (may be None if dependencies unavailable)
 	"ResearchAgent",
