@@ -3,49 +3,47 @@
 # Server inventory for deployment orchestration
 
 servers:
-  # DataCraft Systems (Primary)
+  # spare-2 — primary DocFusion host (Contabo vmi3379061)
+  spare-2:
+    host: "161.97.124.202"
+    user: "root"
+    app_dir: "/root/docfusion"
+    env_file: "/root/docfusion/.env"
+    description: "spare-2 — DocFusion API + frontend + timers"
+    services:
+      - docfusion-api
+      - docfusion-frontend
+    timers:
+      - docfusion-daily-crawl.timer
+      - docfusion-digest.timer
+      - docfusion-memory-cleanup.timer
+
+  # datacraft-ours — legacy slot (37.60.225.7 / ours.datacraft.systems)
   datacraft-ours:
     host: "37.60.225.7"
-    domain: "ours.datacraft.systems"
     user: "root"
-    alias: "datacraft"
-    roles:
-      - app
-      - database
-      - scrapers
-      - monitoring
-    description: "Primary server at DataCraft Systems"
-    https_url: "https://ours.datacraft.systems"
+    app_dir: "/root/docfusion"
+    env_file: "/root/docfusion/.env"
+    description: "datacraft — DataCraft Systems production slot"
+    services:
+      - docfusion-api
+      - docfusion-frontend
+    timers:
+      - docfusion-daily-crawl.timer
+      - docfusion-digest.timer
+      - docfusion-memory-cleanup.timer
 
-# Deployment Configuration
+# Deployment defaults
 deployment:
-  default_server: "datacraft-ours"
-
-  # SSH Configuration
+  default_server: "spare-2"
   ssh:
     port: 22
-    key_path: "~/.ssh/id_rsa"
-    timeout: 30
+    key: "~/.ssh/id_rsa"
 
-  # Application Settings
-  app:
-    repo_url: "https://github.com/your-org/docfusion.git"
-    branch: "main"
-    deploy_user: "docfusion"
-    app_dir: "/opt/docfusion/app"
-
-  # Database Settings
-  database:
-    name: "docfusion"
-    user: "docfusion"
-    # Password auto-generated if not set
-
-  # Scraper Settings
-  scrapers:
-    tier1_schedule: "0 */6 * * *"   # Every 6 hours
-    tier2_schedule: "0 */12 * * *"  # Every 12 hours
-    tier3_schedule: "0 6 * * *"     # Daily at 6am UTC
-
-# Domain Mapping
-domains:
-  primary: "ours.datacraft.systems"
+# Shared infrastructure (not per-server — accessed from all app hosts)
+shared_infra:
+  db_host: "144.91.122.29"        # db.lindela.io — PostgreSQL 17 PRIMARY
+  litellm_url: "http://62.169.25.77:4000/v1"
+  searxng_url: "http://84.247.181.100:8888"
+  firecrawl_url: "http://84.247.181.100:3002"
+  smtp_host: "mail.lindela.io"    # 217.76.53.144 — Stalwart

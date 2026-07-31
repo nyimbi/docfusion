@@ -1,0 +1,21 @@
+[Unit]
+Description=DocFusion Next.js frontend
+After=network.target docfusion-api.service
+Wants=docfusion-api.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/docfusion/frontend
+EnvironmentFile=/root/docfusion/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node node_modules/.bin/next start --port 3000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docfusion-frontend
+
+[Install]
+WantedBy=multi-user.target

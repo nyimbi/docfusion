@@ -1,142 +1,203 @@
-#!/bin/bash
-# ============================================================================
-# DocuFusion Master Deployment Script
-# Orchestrates all deployment steps
-# ============================================================================
+#!/usr/bin/env bash
+# DocFusion deploy script — rsync + systemd, no Docker, no nginx
+# Usage:
+#   ./deploy.sh [server] [action]
+#
+#   server   spare-2 (default) | datacraft-ours
+#   action   sync     — rsync code only
+#            build    — uv sync + npm build on server (no restart)
+#            install  — first-time: sync + build + install units + enable + start
+#            deploy   — subsequent: sync + build + restart (default)
+#            restart  — restart services without sync
+#            status   — show service status
+#            logs     — tail journals (Ctrl-C to stop)
+#            timers   — show timer schedule and last/next run
+#            shell    — open SSH shell
+#
+# Requires: rsync, ssh, ~/.ssh/id_rsa with access to the target host.
 
 set -euo pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# ── Config ─────────────────────────────────────────────────────────────────
+declare -A HOST=( [spare-2]="161.97.124.202" [datacraft-ours]="37.60.225.7" )
+APP_DIR="/root/docfusion"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
+LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-log_step() { echo -e "\n${BLUE}==>${NC} $1\n"; }
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+info()  { echo -e "${GREEN}[deploy]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[warn]${NC}  $*"; }
+die()   { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
+step()  { echo -e "\n${CYAN}──▶${NC} $*\n"; }
 
-# Configuration
-SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STEP="${1:-all}"
-DOMAIN="${DOMAIN:-docfusion.com}"
-DEPLOY_USER="${DEPLOY_USER:-docfusion}"
+SERVER="${1:-spare-2}"
+ACTION="${2:-deploy}"
 
-show_help() {
-    cat << 'EOF'
-DocuFusion Deployment Script
+[[ -n "${HOST[$SERVER]+x}" ]] || die "Unknown server '$SERVER'. Known: ${!HOST[*]}"
+REMOTE="root@${HOST[$SERVER]}"
 
-Usage: deploy.sh [step|all]
+ssh_cmd() { ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$REMOTE" "$@"; }
 
-Steps:
-  1 or vps       Configure base VPS (updates, firewall, user)
-  2 or postgres  Install and configure PostgreSQL
-  3 or nginx     Install Nginx with SSL
-  4 or app       Deploy Next.js application
-  5 or scrapers  Deploy scraper systemd timers
-  6 or monitor   Set up monitoring and alerting
-  all            Run all steps in sequence
+# ── Actions ────────────────────────────────────────────────────────────────
 
-Environment Variables:
-  DOMAIN         Domain name (default: docfusion.com)
-  DEPLOY_USER    Deployment user (default: docfusion)
-  DB_NAME        Database name (default: docfusion)
-  DB_USER        Database user (default: docfusion)
-  DB_PASSWORD    Database password (auto-generated if not set)
-  REPO_URL       Git repository URL
-  BRANCH         Git branch (default: main)
-
-Examples:
-  ./deploy.sh all              # Full deployment
-  ./deploy.sh vps              # Only configure VPS
-  ./deploy.sh app              # Only deploy application
-  DOMAIN=myapp.com ./deploy.sh all  # Custom domain
-
-Prerequisites:
-  - Fresh Ubuntu 22.04/24.04 server
-  - Root or sudo access
-  - SSH key for authentication
-
-Order of execution:
-  1. VPS configuration (run once)
-  2. PostgreSQL installation
-  3. Nginx with SSL
-  4. Application deployment
-  5. Scraper timers
-  6. Monitoring setup
-EOF
+do_sync() {
+    step "Syncing code → $REMOTE:$APP_DIR"
+    rsync -az --delete \
+        --exclude='.git' \
+        --exclude='.venv' \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='node_modules' \
+        --exclude='.next' \
+        --exclude='storage/documents' \
+        --exclude='storage/indexes' \
+        --exclude='storage/search' \
+        --exclude='intelligence_storage/data' \
+        -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
+        "$LOCAL_ROOT/" "$REMOTE:$APP_DIR/"
+    info "Sync complete."
 }
 
-run_step() {
-    local step=$1
-    local script
-
-    case $step in
-        1|vps)
-            script="01-configure-vps.sh"
-            ;;
-        2|postgres|postgresql|db)
-            script="02-install-postgresql.sh"
-            ;;
-        3|nginx)
-            script="03-install-nginx.sh"
-            ;;
-        4|app|application)
-            script="04-deploy-app.sh"
-            ;;
-        5|scrapers|scraper)
-            script="05-deploy-scrapers.sh"
-            ;;
-        6|monitor|monitoring)
-            script="06-setup-monitoring.sh"
-            ;;
-        *)
-            log_error "Unknown step: $step"
-            show_help
-            exit 1
-            ;;
-    esac
-
-    if [ -f "${SCRIPTS_DIR}/${script}" ]; then
-        log_step "Running: ${script}"
-        chmod +x "${SCRIPTS_DIR}/${script}"
-        "${SCRIPTS_DIR}/${script}"
-    else
-        log_error "Script not found: ${SCRIPTS_DIR}/${script}"
-        exit 1
-    fi
-}
-
-run_all() {
-    log_info "Starting full deployment..."
-    log_info "Domain: ${DOMAIN}"
-    log_info "User: ${DEPLOY_USER}"
-    log_info ""
-
-    for step in 1 2 3 4 5 6; do
-        run_step $step
-    done
-
-    log_step "Deployment Complete!"
-    log_info "Application URL: https://${DOMAIN}"
-    log_info ""
-    log_info "Next steps:"
-    log_info "1. Configure DNS records for ${DOMAIN}"
-    log_info "2. Generate SSL certificates: certbot --nginx -d ${DOMAIN}"
-    log_info "3. Configure alerts: cp /opt/docfusion/.env.alerts.example /opt/docfusion/.env.alerts"
-    log_info "4. Test scrapers: docfusion-scraper all run"
-}
-
-# Main
-if [ "${STEP}" = "-h" ] || [ "${STEP}" = "--help" ]; then
-    show_help
-    exit 0
+do_bootstrap_uv() {
+    step "Bootstrapping uv on $REMOTE"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+if ! command -v uv &>/dev/null; then
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    # astral installer puts uv in ~/.local/bin — add to PATH for this session
+    export PATH="$HOME/.local/bin:$PATH"
 fi
+uv --version
+REMOTE
+}
 
-if [ "${STEP}" = "all" ]; then
-    run_all
-else
-    run_step "${STEP}"
-fi
+do_build() {
+    step "Building on $REMOTE"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+export PATH="$HOME/.local/bin:$PATH"
+cd /root/docfusion
+
+echo "── Python deps (uv sync) ──"
+uv sync --frozen
+
+echo "── Frontend (npm ci + build) ──"
+cd frontend
+npm ci --prefer-offline --no-audit --no-fund
+npm run build
+cd ..
+
+echo "── Build complete ──"
+REMOTE
+}
+
+do_install_units() {
+    step "Installing systemd units"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+cd /root/docfusion
+
+cp deployment/systemd/docfusion-api.service          /etc/systemd/system/
+cp deployment/systemd/docfusion-frontend.service      /etc/systemd/system/
+cp deployment/systemd/docfusion-daily-crawl.service   /etc/systemd/system/
+cp deployment/systemd/docfusion-daily-crawl.timer     /etc/systemd/system/
+cp deployment/systemd/docfusion-digest.service        /etc/systemd/system/
+cp deployment/systemd/docfusion-digest.timer          /etc/systemd/system/
+cp deployment/systemd/docfusion-memory-cleanup.service /etc/systemd/system/
+cp deployment/systemd/docfusion-memory-cleanup.timer  /etc/systemd/system/
+
+systemctl daemon-reload
+echo "Units installed and daemon reloaded."
+REMOTE
+}
+
+do_enable() {
+    step "Enabling and starting all services"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+systemctl enable --now docfusion-api
+systemctl enable --now docfusion-frontend
+systemctl enable --now docfusion-daily-crawl.timer
+systemctl enable --now docfusion-digest.timer
+systemctl enable --now docfusion-memory-cleanup.timer
+echo "All services enabled and started."
+REMOTE
+}
+
+do_restart() {
+    step "Restarting app services on $REMOTE"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+systemctl daemon-reload
+systemctl restart docfusion-api
+systemctl restart docfusion-frontend
+echo "Restarted docfusion-api and docfusion-frontend."
+REMOTE
+}
+
+do_status() {
+    ssh_cmd bash << 'REMOTE'
+echo "=== Services ==="
+systemctl status docfusion-api      --no-pager -l 2>&1 | head -8
+systemctl status docfusion-frontend --no-pager -l 2>&1 | head -8
+echo ""
+echo "=== Timers ==="
+systemctl list-timers docfusion-* --no-pager 2>&1
+REMOTE
+}
+
+do_logs() {
+    ssh_cmd journalctl -f \
+        -u docfusion-api \
+        -u docfusion-frontend \
+        -u docfusion-daily-crawl \
+        -u docfusion-digest \
+        -u docfusion-memory-cleanup \
+        -n 50
+}
+
+do_timers() {
+    ssh_cmd systemctl list-timers 'docfusion-*' --no-pager
+}
+
+do_shell() {
+    exec ssh -i "$SSH_KEY" "$REMOTE"
+}
+
+check_env() {
+    ssh_cmd test -f "$APP_DIR/.env" \
+        || warn ".env not found at $APP_DIR/.env on $REMOTE — create it before starting services."
+}
+
+# ── Dispatch ───────────────────────────────────────────────────────────────
+
+case "$ACTION" in
+    sync)
+        do_sync ;;
+    build)
+        do_build ;;
+    install)
+        info "First-time install on $SERVER (${HOST[$SERVER]})"
+        check_env
+        do_sync
+        do_bootstrap_uv
+        do_build
+        do_install_units
+        do_enable
+        info "Install complete. Run './deploy.sh $SERVER status' to verify." ;;
+    deploy|update)
+        info "Deploying to $SERVER (${HOST[$SERVER]})"
+        do_sync
+        do_build
+        do_install_units
+        do_restart
+        info "Deploy complete. Run './deploy.sh $SERVER status' to verify." ;;
+    restart)
+        do_restart ;;
+    status)
+        do_status ;;
+    logs)
+        do_logs ;;
+    timers)
+        do_timers ;;
+    shell)
+        do_shell ;;
+    *)
+        die "Unknown action '$ACTION'. Valid: sync build install deploy restart status logs timers shell" ;;
+esac

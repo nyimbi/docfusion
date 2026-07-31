@@ -1,0 +1,25 @@
+[Unit]
+Description=DocFusion FastAPI backend
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/docfusion
+EnvironmentFile=/root/docfusion/.env
+ExecStart=/root/docfusion/.venv/bin/uvicorn \
+    src.docfusion.api.app:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --log-level info \
+    --no-access-log
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docfusion-api
+
+[Install]
+WantedBy=multi-user.target
