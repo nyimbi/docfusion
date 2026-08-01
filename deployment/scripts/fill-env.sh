@@ -13,14 +13,11 @@ p() { pass "$1"; }  # shorthand
 # ── Helper: generate+store a secret in pass if not present ─────
 pass_ensure() {
 	local entry="$1"
-	if pass "$entry" &>/dev/null; then
-		pass "$entry"
-	else
-		local val
-		val=$(openssl rand -hex 32)
-		printf '%s' "$val" | pass insert --echo "$entry"
-		echo "$val"
-	fi
+	local val
+	val=$(pass "$entry" 2>/dev/null) && { echo "$val"; return; }
+	val=$(openssl rand -hex 32)
+	printf '%s\n%s' "$val" "$val" | pass insert "$entry" >/dev/null 2>&1
+	echo "$val"
 }
 
 # ── Fetch secrets from pass ────────────────────────────────────

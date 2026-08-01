@@ -53,9 +53,9 @@ do_sync() {
         --exclude='*.pyc' \
         --exclude='node_modules' \
         --exclude='.next' \
-        --exclude='storage/documents' \
-        --exclude='storage/indexes' \
-        --exclude='storage/search' \
+        --exclude='/storage/documents' \
+        --exclude='/storage/indexes' \
+        --exclude='/storage/search' \
         --exclude='intelligence_storage/data' \
         -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
         "$LOCAL_ROOT/" "$REMOTE:$APP_DIR/"
