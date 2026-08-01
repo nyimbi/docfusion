@@ -77,6 +77,7 @@ export interface Opportunity {
 
 	// Metadata
 	isReviewed: boolean;
+	notes: string | null;
 	tags: string[];
 	metadata: Record<string, unknown> | null;
 	createdAt: Date;
