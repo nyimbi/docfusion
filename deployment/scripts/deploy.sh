@@ -19,7 +19,6 @@
 set -euo pipefail
 
 # ── Config ─────────────────────────────────────────────────────────────────
-declare -A HOST=( [spare-2]="161.97.124.202" [datacraft-ours]="37.60.225.7" )
 APP_DIR="/root/docfusion"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,8 +32,13 @@ step()  { echo -e "\n${CYAN}──▶${NC} $*\n"; }
 SERVER="${1:-spare-2}"
 ACTION="${2:-deploy}"
 
-[[ -n "${HOST[$SERVER]+x}" ]] || die "Unknown server '$SERVER'. Known: ${!HOST[*]}"
-REMOTE="root@${HOST[$SERVER]}"
+# bash 3.2-safe server→host lookup (no associative arrays)
+case "$SERVER" in
+    spare-2)        HOST_IP="161.97.124.202" ;;
+    datacraft-ours) HOST_IP="37.60.225.7" ;;
+    *) die "Unknown server '$SERVER'. Known: spare-2, datacraft-ours" ;;
+esac
+REMOTE="root@${HOST_IP}"
 
 ssh_cmd() { ssh -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new "$REMOTE" "$@"; }
 
@@ -173,7 +177,7 @@ case "$ACTION" in
     build)
         do_build ;;
     install)
-        info "First-time install on $SERVER (${HOST[$SERVER]})"
+        info "First-time install on $SERVER (${HOST_IP})"
         check_env
         do_sync
         do_bootstrap_uv
@@ -182,7 +186,7 @@ case "$ACTION" in
         do_enable
         info "Install complete. Run './deploy.sh $SERVER status' to verify." ;;
     deploy|update)
-        info "Deploying to $SERVER (${HOST[$SERVER]})"
+        info "Deploying to $SERVER (${HOST_IP})"
         do_sync
         do_build
         do_install_units
