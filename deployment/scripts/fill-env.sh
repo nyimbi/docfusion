@@ -42,14 +42,9 @@ TENANT_SECRET=$(pass_ensure pjs/docfusion/tenant-header-secret)
 KC_CLIENT_ID=$(p pjs/docfusion/keycloak-client-id 2>/dev/null || echo "SETUP_REQUIRED")
 KC_CLIENT_SECRET=$(p pjs/docfusion/keycloak-client-secret 2>/dev/null || echo "SETUP_REQUIRED")
 
-# ── DB creds from OpenBao (only source with the actual password) ─
-export BAO_ADDR="http://62.169.25.77:8200"
-BAO_TOKEN=$(bao write -field=token auth/approle/login \
-	role_id=78b01326-6401-e02e-b2c4-f329ad03c62d \
-	secret_id=ea18d6e5-fad6-4155-5626-dfc826177c84)
-export BAO_TOKEN
-DB_USER=$(bao kv get -field=user secret/pjs/database/postgresql)
-DB_PASS=$(bao kv get -field=password secret/pjs/database/postgresql)
+# ── DB creds — docfusion PostgreSQL role ───────────────────────
+DB_USER="docfusion"
+DB_PASS=$(p pjs/docfusion/db-password)
 
 # ── Write .env ─────────────────────────────────────────────────
 cat > "$OUT" <<ENV
@@ -112,7 +107,7 @@ PUSHER_PORT=6001
 # ── Auth (Keycloak — auth.lindela.io) ──────────────────────────
 NEXTAUTH_URL=http://161.97.124.202:3000
 NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-KEYCLOAK_ISSUER=https://auth.lindela.io/realms/pjs
+KEYCLOAK_ISSUER=https://auth.lindela.io/realms/lindela
 KEYCLOAK_CLIENT_ID=${KC_CLIENT_ID}
 KEYCLOAK_CLIENT_SECRET=${KC_CLIENT_SECRET}
 ENV
