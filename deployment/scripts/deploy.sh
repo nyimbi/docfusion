@@ -87,7 +87,7 @@ uv sync --frozen
 echo "── Frontend (npm ci + build) ──"
 cd frontend
 npm ci --prefer-offline --no-audit --no-fund
-npm run build
+NODE_OPTIONS=--max-old-space-size=4096 npm run build
 cd ..
 
 echo "── Build complete ──"
