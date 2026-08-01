@@ -742,7 +742,7 @@ airflow.cfg
 webserver_config.py
 
 # UV
-uv.lock
+# uv.lock intentionally tracked — required for uv sync --frozen in deploy
 .uv-cache/
 .aider*
 
@@ -759,3 +759,4 @@ temp/
 .omx/tmux-hook.json
 .omx/state/*.json
 .serena/
+.env.spare-2
