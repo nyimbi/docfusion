@@ -95,7 +95,7 @@ const RFP_REQUIREMENT_VARCHAR_LIMITS = {
 } as const;
 const RFP_METADATA_FALLBACK_TEXT_LIMIT = 1600;
 
-export function uniqueRfpRequirementNumber(
+function uniqueRfpRequirementNumber(
 	rawRequirementNumber: string | null | undefined,
 	index: number,
 	usedRequirementNumbers: Set<string>,

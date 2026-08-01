@@ -167,9 +167,9 @@ import {
 	processRfpParsingJob,
 	reviewRfpParseConfidence,
 	transitionRfpParseWorkflow,
-	uniqueRfpRequirementNumber,
 } from "@/lib/actions/rfp-parser";
 import { batchExtractRequirements, parseRFPWithAI } from "@/lib/ai/rfp-parser";
+import { uniqueRfpRequirementNumber } from "@/lib/rfp-requirement-utils";
 import { WorkflowAuthorityDeniedError } from "@/lib/workflows/authority-error";
 
 beforeEach(() => {
