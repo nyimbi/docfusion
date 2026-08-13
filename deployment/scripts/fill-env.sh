@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$SCRIPT_DIR/../.env.spare-2"
 
-p() { pass "$1"; }  # shorthand
+p() { pass "$1" | head -n1; }  # first-line-only shorthand (per pass convention)
 
 # ── Helper: generate+store a secret in pass if not present ─────
 # $1 = pass entry, $2 = generator (default: openssl rand -hex 32)
@@ -16,7 +16,7 @@ pass_ensure() {
 	local entry="$1"
 	local generator="${2:-openssl rand -hex 32}"
 	local val
-	val=$(pass "$entry" 2>/dev/null) && { echo "$val"; return; }
+	val=$(pass "$entry" 2>/dev/null | head -n1) && [ -n "$val" ] && { echo "$val"; return; }
 	val=$(eval "$generator")
 	pass insert --echo "$entry" <<< "$val" >/dev/null 2>&1
 	echo "$val"

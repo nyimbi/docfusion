@@ -57,6 +57,10 @@ do_sync() {
         --exclude='/storage/indexes' \
         --exclude='/storage/search' \
         --exclude='intelligence_storage/data' \
+        --exclude='/.env' \
+        --exclude='/.env.*' \
+        --exclude='/deployment/.env.*' \
+        --exclude='/frontend/.env*' \
         -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new" \
         "$LOCAL_ROOT/" "$REMOTE:$APP_DIR/"
     info "Sync complete."

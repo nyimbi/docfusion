@@ -41,12 +41,8 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NoReturn, Optional
+from typing import TYPE_CHECKING, NoReturn, Optional
 
-# Infrastructure clients
-from ..infrastructure.searxng_client import SearXNGClient
-from ..infrastructure.firecrawl_client import FirecrawlClient
-from ..infrastructure.litellm_client import LiteLLMClient
 from ..storage.blob_store import BlobStore, LocalBlobStore, make_blob_store
 
 # Secrets management
@@ -58,26 +54,20 @@ from ..core.database.connection import DatabaseConnection, get_database_connecti
 from ..core.database.session import DatabaseSession, get_database_session
 
 # Core services
-from ..security import SecurityManager, SecurityManagerConfiguration
-from ..storage.secure_storage_service import (
-	SecureStorageService,
-	SecureStorageConfiguration,
-)
-from ..storage.rag_storage_service import RAGStorageConfiguration
-from ..document_engine.secure_document_engine import (
-	SecureDocumentEngine,
-	SecureDocumentEngineConfiguration,
-)
-from ..document_engine.document_engine import DocumentGenerationConfiguration
-
-# Endpoint classes
-from .endpoints.document_endpoints import DocumentEndpoints
-from .endpoints.template_endpoints import TemplateEndpoints
-from .endpoints.search_endpoints import SearchEndpoints
-from .endpoints.batch_endpoints import BatchEndpoints
-from .endpoints.collaboration_endpoints import CollaborationEndpoints
-from .endpoints.webhook_endpoints import WebhookEndpoints
-from .endpoints.websocket_endpoints import WebSocketEndpoints
+if TYPE_CHECKING:
+	from ..document_engine.secure_document_engine import SecureDocumentEngine
+	from ..infrastructure.firecrawl_client import FirecrawlClient
+	from ..infrastructure.litellm_client import LiteLLMClient
+	from ..infrastructure.searxng_client import SearXNGClient
+	from ..security import SecurityManager
+	from ..storage.secure_storage_service import SecureStorageService
+	from .endpoints.batch_endpoints import BatchEndpoints
+	from .endpoints.collaboration_endpoints import CollaborationEndpoints
+	from .endpoints.document_endpoints import DocumentEndpoints
+	from .endpoints.search_endpoints import SearchEndpoints
+	from .endpoints.template_endpoints import TemplateEndpoints
+	from .endpoints.webhook_endpoints import WebhookEndpoints
+	from .endpoints.websocket_endpoints import WebSocketEndpoints
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +75,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Configuration
 # ============================================================================
+
 
 @dataclass
 class ServiceSettings:
@@ -103,7 +94,9 @@ class ServiceSettings:
 	# Document Engine
 	template_path: str = "./templates"
 	output_path: str = "./output"
-	supported_formats: list = field(default_factory=lambda: ["pdf", "docx", "html", "md"])
+	supported_formats: list = field(
+		default_factory=lambda: ["pdf", "docx", "html", "md"]
+	)
 
 	# Collaboration
 	collaboration_storage_path: str = "./data/collaboration"
@@ -118,7 +111,9 @@ class ServiceSettings:
 	litellm_key: str = "sk-pjs-litellm-master-key"
 
 	# CORS
-	cors_allowed_origins: list[str] = field(default_factory=lambda: ["http://localhost:3000"])
+	cors_allowed_origins: list[str] = field(
+		default_factory=lambda: ["http://localhost:3000"]
+	)
 
 
 def load_settings() -> ServiceSettings:
@@ -145,6 +140,7 @@ def load_settings() -> ServiceSettings:
 # ============================================================================
 # Service Container
 # ============================================================================
+
 
 class ServiceContainer:
 	"""
@@ -173,6 +169,9 @@ class ServiceContainer:
 		self.intelligence_service = None
 		self.blob_store: BlobStore = make_blob_store()
 
+		# Cache (Redis) — optional; None when REDIS_URL is unset
+		self.cache_client = None
+
 		# Endpoint instances
 		self.document_endpoints: Optional[DocumentEndpoints] = None
 		self.template_endpoints: Optional[TemplateEndpoints] = None
@@ -194,6 +193,7 @@ class ServiceContainer:
 # Service Initialization
 # ============================================================================
 
+
 async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 	"""
 	Initialize all services in dependency order.
@@ -206,6 +206,21 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 	Returns:
 		ServiceContainer with all initialized services
 	"""
+	from ..document_engine.document_engine import DocumentGenerationConfiguration
+	from ..document_engine.secure_document_engine import (
+		SecureDocumentEngine,
+		SecureDocumentEngineConfiguration,
+	)
+	from ..infrastructure.firecrawl_client import FirecrawlClient
+	from ..infrastructure.litellm_client import LiteLLMClient
+	from ..infrastructure.searxng_client import SearXNGClient
+	from ..security import SecurityManager, SecurityManagerConfiguration
+	from ..storage.rag_storage_service import RAGStorageConfiguration
+	from ..storage.secure_storage_service import (
+		SecureStorageConfiguration,
+		SecureStorageService,
+	)
+
 	container = ServiceContainer.get_instance()
 
 	logger.info("Initializing DocuFusion services...")
@@ -215,13 +230,17 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 		# Set database config from settings
 		db_config = DatabaseConfig(connection_url=settings.database_url)
 		from ..core.database.config import set_database_config
+
 		set_database_config(db_config)
 
 		container.database_connection = await get_database_connection()
 		container.database_session = await get_database_session()
 		logger.info("Database connection initialized")
 	except Exception:
-		logger.error("Failed to initialize database connection — DB-backed features unavailable", exc_info=True)
+		logger.error(
+			"Failed to initialize database connection — DB-backed features unavailable",
+			exc_info=True,
+		)
 		# Degrade gracefully; DB-dependent endpoints will raise 503 at request time
 
 	# 2. Initialize infrastructure clients (no dependencies)
@@ -249,6 +268,26 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 	except Exception as e:
 		logger.warning("Failed to initialize LiteLLM client", exc_info=True)
 
+	# 2b. Initialize cache client (Redis) — optional, no failure if unset
+	redis_url = os.environ.get("REDIS_URL") or os.environ.get("CACHE_URL")
+	if redis_url:
+		try:
+			import redis.asyncio as aioredis
+
+			container.cache_client = aioredis.from_url(
+				redis_url, encoding="utf-8", decode_responses=True
+			)
+			# Fire-and-forget ping to warm connection; failure logs but doesn't abort startup.
+			try:
+				await container.cache_client.ping()
+				logger.info(f"Redis cache initialized: {redis_url}")
+			except Exception as ping_err:
+				logger.warning(
+					f"Redis cache client created but ping failed: {ping_err}"
+				)
+		except Exception:
+			logger.warning("Failed to initialize Redis cache client", exc_info=True)
+
 	# 3. Initialize SecurityManager (no dependencies)
 	try:
 		security_config = SecurityManagerConfiguration(
@@ -267,7 +306,9 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 			await container.security_manager._initialize_system()
 			logger.info("Security manager initialized with defaults")
 		except Exception as e2:
-			logger.error("Failed to initialize security manager with defaults", exc_info=True)
+			logger.error(
+				"Failed to initialize security manager with defaults", exc_info=True
+			)
 
 	# 4. Initialize SecureStorageService (depends on SecurityManager, database)
 	if container.security_manager and container.database_connection:
@@ -277,7 +318,9 @@ async def initialize_services(settings: ServiceSettings) -> ServiceContainer:
 				enable_rag=True,
 				postgresql_connection_string=settings.database_url,
 				embedding_provider="ollama",
-				ollama_base_url=settings.litellm_url.replace(":4000", ":11434"),  # Ollama port
+				ollama_base_url=settings.litellm_url.replace(
+					":4000", ":11434"
+				),  # Ollama port
 			)
 			storage_config = SecureStorageConfiguration(
 				rag_config=rag_config,
@@ -323,10 +366,22 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 	Returns:
 		ServiceContainer with initialized endpoints
 	"""
+	from .endpoints.batch_endpoints import BatchEndpoints
+	from .endpoints.collaboration_endpoints import CollaborationEndpoints
+	from .endpoints.document_endpoints import DocumentEndpoints
+	from .endpoints.search_endpoints import SearchEndpoints
+	from .endpoints.template_endpoints import TemplateEndpoints
+	from .endpoints.webhook_endpoints import WebhookEndpoints
+	from .endpoints.websocket_endpoints import WebSocketEndpoints
+
 	logger.info("Initializing API endpoints...")
 
 	# Initialize DocumentEndpoints
-	if container.storage_service and container.document_engine and container.security_manager:
+	if (
+		container.storage_service
+		and container.document_engine
+		and container.security_manager
+	):
 		try:
 			container.document_endpoints = DocumentEndpoints(
 				storage_service=container.storage_service,
@@ -338,7 +393,11 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			logger.error("Failed to initialize document endpoints", exc_info=True)
 
 	# Initialize TemplateEndpoints (uses same services)
-	if container.storage_service and container.document_engine and container.security_manager:
+	if (
+		container.storage_service
+		and container.document_engine
+		and container.security_manager
+	):
 		try:
 			container.template_endpoints = TemplateEndpoints(
 				storage_service=container.storage_service,
@@ -360,7 +419,11 @@ async def initialize_endpoints(container: ServiceContainer) -> ServiceContainer:
 			logger.error("Failed to initialize search endpoints", exc_info=True)
 
 	# Initialize BatchEndpoints
-	if container.storage_service and container.document_engine and container.security_manager:
+	if (
+		container.storage_service
+		and container.document_engine
+		and container.security_manager
+	):
 		try:
 			container.batch_endpoints = BatchEndpoints(
 				storage_service=container.storage_service,
@@ -424,6 +487,13 @@ async def shutdown_services() -> None:
 	if container.litellm_client:
 		await container.litellm_client.close()
 
+	# Close cache client
+	if container.cache_client is not None:
+		try:
+			await container.cache_client.close()
+		except Exception as e:
+			logger.warning(f"Error closing cache client: {e}")
+
 	# Close database connection
 	if container.database_connection:
 		await container.database_connection.close()
@@ -442,6 +512,7 @@ async def shutdown_services() -> None:
 # Dependency Injection Functions for FastAPI
 # ============================================================================
 
+
 async def get_container() -> ServiceContainer:
 	"""Get the service container (for dependency injection)."""
 	return ServiceContainer.get_instance()
@@ -451,7 +522,9 @@ async def get_searxng() -> SearXNGClient:
 	"""Get SearXNG client (for dependency injection)."""
 	container = await get_container()
 	if container.searxng_client is None:
-		raise RuntimeError("SearXNG client not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"SearXNG client not initialized. Call initialize_services() first."
+		)
 	return container.searxng_client
 
 
@@ -459,7 +532,9 @@ async def get_firecrawl() -> FirecrawlClient:
 	"""Get Firecrawl client (for dependency injection)."""
 	container = await get_container()
 	if container.firecrawl_client is None:
-		raise RuntimeError("Firecrawl client not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"Firecrawl client not initialized. Call initialize_services() first."
+		)
 	return container.firecrawl_client
 
 
@@ -467,7 +542,9 @@ async def get_litellm() -> LiteLLMClient:
 	"""Get LiteLLM client (for dependency injection)."""
 	container = await get_container()
 	if container.litellm_client is None:
-		raise RuntimeError("LiteLLM client not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"LiteLLM client not initialized. Call initialize_services() first."
+		)
 	return container.litellm_client
 
 
@@ -481,7 +558,9 @@ async def get_storage_service():
 	"""Get storage service (for dependency injection)."""
 	container = await get_container()
 	if container.storage_service is None:
-		raise RuntimeError("Storage service not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"Storage service not initialized. Call initialize_services() first."
+		)
 	return container.storage_service
 
 
@@ -489,7 +568,9 @@ async def get_document_engine():
 	"""Get document engine (for dependency injection)."""
 	container = await get_container()
 	if container.document_engine is None:
-		raise RuntimeError("Document engine not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"Document engine not initialized. Call initialize_services() first."
+		)
 	return container.document_engine
 
 
@@ -497,7 +578,9 @@ async def get_collaboration_integrator():
 	"""Get collaboration integrator (for dependency injection)."""
 	container = await get_container()
 	if container.collaboration_integrator is None:
-		raise RuntimeError("Collaboration integrator not initialized. Call initialize_services() first.")
+		raise RuntimeError(
+			"Collaboration integrator not initialized. Call initialize_services() first."
+		)
 	return container.collaboration_integrator
 
 
@@ -506,7 +589,9 @@ async def get_document_endpoints():
 	"""Get document endpoints (for dependency injection)."""
 	container = await get_container()
 	if container.document_endpoints is None:
-		raise RuntimeError("Document endpoints not initialized. Call initialize_endpoints() first.")
+		raise RuntimeError(
+			"Document endpoints not initialized. Call initialize_endpoints() first."
+		)
 	return container.document_endpoints
 
 
@@ -514,7 +599,9 @@ async def get_template_endpoints():
 	"""Get template endpoints (for dependency injection)."""
 	container = await get_container()
 	if container.template_endpoints is None:
-		raise RuntimeError("Template endpoints not initialized. Call initialize_endpoints() first.")
+		raise RuntimeError(
+			"Template endpoints not initialized. Call initialize_endpoints() first."
+		)
 	return container.template_endpoints
 
 
@@ -522,13 +609,16 @@ async def get_search_endpoints():
 	"""Get search endpoints (for dependency injection)."""
 	container = await get_container()
 	if container.search_endpoints is None:
-		raise RuntimeError("Search endpoints not initialized. Call initialize_endpoints() first.")
+		raise RuntimeError(
+			"Search endpoints not initialized. Call initialize_endpoints() first."
+		)
 	return container.search_endpoints
 
 
 # ============================================================================
 # Context Managers
 # ============================================================================
+
 
 @asynccontextmanager
 async def service_context():
@@ -589,7 +679,9 @@ def build_tenant_signature(
 			timestamp,
 		]
 	)
-	return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+	return hmac.new(
+		secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256
+	).hexdigest()
 
 
 def build_signed_tenant_headers(
@@ -622,7 +714,9 @@ def build_signed_tenant_headers(
 
 
 def _reject_invalid_tenant_signature() -> NoReturn:
-	raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid tenant signature")
+	raise HTTPException(
+		status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid tenant signature"
+	)
 
 
 def require_tenant(
@@ -637,7 +731,9 @@ def require_tenant(
 	Raises 401 if user is missing, 403 if user is set but org is missing.
 	"""
 	if not x_docfusion_user_id:
-		raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
+		)
 	if not x_docfusion_organization_id:
 		raise HTTPException(
 			status_code=status.HTTP_403_FORBIDDEN, detail="No organization context"
@@ -647,7 +743,9 @@ def require_tenant(
 
 	secret = os.environ.get(TENANT_SIGNATURE_SECRET_ENV)
 	if not secret:
-		logger.error("%s is required to verify tenant headers", TENANT_SIGNATURE_SECRET_ENV)
+		logger.error(
+			"%s is required to verify tenant headers", TENANT_SIGNATURE_SECRET_ENV
+		)
 		_reject_invalid_tenant_signature()
 
 	try:
