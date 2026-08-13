@@ -94,6 +94,51 @@ echo "── Build complete ──"
 REMOTE
 }
 
+do_migrate() {
+    step "Running DB migrations on $REMOTE"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+export PATH="$HOME/.local/bin:$PATH"
+cd /root/docfusion
+
+# Load DATABASE_URL from .env for drizzle
+if [ -f .env ]; then
+    # shellcheck disable=SC1091
+    set -a; source .env; set +a
+fi
+
+echo "── Alembic upgrade head ──"
+if [ -f alembic.ini ]; then
+    uv run alembic -c alembic.ini upgrade head || echo "⚠  Alembic failed (non-fatal)"
+else
+    echo "⚠  alembic.ini not found; skipping"
+fi
+
+echo "── Drizzle migrations (frontend/drizzle) ──"
+cd frontend
+if [ -d drizzle ] && [ -n "${DATABASE_URL:-}" ]; then
+    DATABASE_URL="$DATABASE_URL" npx drizzle-kit migrate || echo "⚠  drizzle-kit migrate failed"
+else
+    echo "⚠  drizzle dir or DATABASE_URL missing; skipping"
+fi
+cd ..
+
+echo "── Migrations complete ──"
+REMOTE
+}
+
+do_install_redis() {
+    step "Installing Redis on $REMOTE (if missing)"
+    ssh_cmd bash -euo pipefail << 'REMOTE'
+if ! command -v redis-server &>/dev/null; then
+    echo "Installing redis-server..."
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server
+fi
+systemctl enable --now redis-server
+redis-cli ping
+REMOTE
+}
+
 do_install_units() {
     step "Installing systemd units"
     ssh_cmd bash -euo pipefail << 'REMOTE'
@@ -181,7 +226,9 @@ case "$ACTION" in
         check_env
         do_sync
         do_bootstrap_uv
+        do_install_redis
         do_build
+        do_migrate
         do_install_units
         do_enable
         info "Install complete. Run './deploy.sh $SERVER status' to verify." ;;
@@ -189,9 +236,14 @@ case "$ACTION" in
         info "Deploying to $SERVER (${HOST_IP})"
         do_sync
         do_build
+        do_migrate
         do_install_units
         do_restart
         info "Deploy complete. Run './deploy.sh $SERVER status' to verify." ;;
+    migrate)
+        do_migrate ;;
+    redis)
+        do_install_redis ;;
     restart)
         do_restart ;;
     status)
@@ -203,5 +255,5 @@ case "$ACTION" in
     shell)
         do_shell ;;
     *)
-        die "Unknown action '$ACTION'. Valid: sync build install deploy restart status logs timers shell" ;;
+        die "Unknown action '$ACTION'. Valid: sync build install deploy migrate redis restart status logs timers shell" ;;
 esac

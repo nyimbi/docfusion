@@ -1,0 +1,137 @@
+# DocFusion LLM configuration
+# Loaded by src/docfusion/config/llm_config.py (LLMConfigManager)
+# All tasks point at the LiteLLM gateway on ml/vault (62.169.25.77:4000/v1)
+# except direct Ollama-native tasks which point at the same host's Ollama (:11434).
+
+defaults:
+  # Ollama endpoint on ml/vault. LiteLLM speaks OpenAI-compatible; ContentGenerator
+  # uses Ollama-native /api/generate calls so it must hit Ollama directly.
+  base_url: "http://62.169.25.77:11434"
+  timeout: 180.0
+  temperature: 0.2
+  top_p: 0.9
+  num_predict: 1500
+
+features:
+  enable_thinking_tag_filtering: true
+  enable_chain_of_thought: true
+  enable_tree_of_thought: true
+
+environments:
+  production:
+    default_model: "deepseek-r1:32b"
+    default_timeout: 180.0
+    default_num_predict: 2000
+  development:
+    default_model: "llama3.1:8b"
+    default_timeout: 60.0
+
+# ── NLP analysis tasks ──────────────────────────────────────────
+nlp:
+  style_analysis:
+    model: "llama3.1:8b"
+    temperature: 0.1
+    num_predict: 800
+    description: "Extract style patterns from document text"
+  semantic_analysis:
+    model: "deepseek-r1:32b"
+    temperature: 0.2
+    num_predict: 1500
+  coherence_analysis:
+    model: "llama3.1:8b"
+    temperature: 0.15
+  readability_analysis:
+    model: "llama3.1:8b"
+    temperature: 0.1
+    num_predict: 500
+  relationship_extraction:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+
+# ── Content generation tasks ────────────────────────────────────
+content_generation:
+  document_content:
+    model: "deepseek-r1:32b"
+    temperature: 0.3
+    num_predict: 3000
+    max_retries: 2
+    description: "Primary RFP response content generation"
+  executive_summary:
+    model: "deepseek-r1:32b"
+    temperature: 0.25
+    num_predict: 1200
+  technical_specs:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+    num_predict: 2500
+
+# ── Content transformation ──────────────────────────────────────
+content_transformation:
+  style_transformation:
+    model: "llama3.1:8b"
+    temperature: 0.2
+    num_predict: 2000
+  summarization:
+    model: "llama3.1:8b"
+    temperature: 0.15
+    num_predict: 800
+  content_optimization:
+    model: "deepseek-r1:32b"
+    temperature: 0.2
+
+# ── Specialized analysis ────────────────────────────────────────
+specialized_analysis:
+  causal_analysis:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+  context_analysis:
+    model: "llama3.1:8b"
+    temperature: 0.15
+
+# ── Compliance & regulatory ─────────────────────────────────────
+compliance:
+  compliance_analysis:
+    model: "deepseek-r1:32b"
+    temperature: 0.1
+    num_predict: 2000
+  regulatory_validation:
+    model: "deepseek-r1:32b"
+    temperature: 0.05
+    num_predict: 1500
+  evidence_assessment:
+    model: "deepseek-r1:32b"
+    temperature: 0.1
+  risk_assessment:
+    model: "deepseek-r1:32b"
+    temperature: 0.1
+  gap_analysis:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+  violation_analysis:
+    model: "deepseek-r1:32b"
+    temperature: 0.1
+  compliance_reporting:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+    num_predict: 2500
+  regulatory_interpretation:
+    model: "deepseek-r1:32b"
+    temperature: 0.1
+
+model_profiles:
+  reasoning_heavy:
+    model: "deepseek-r1:32b"
+    temperature: 0.15
+    num_predict: 3000
+  creative:
+    model: "llama3.1:8b"
+    temperature: 0.6
+    num_predict: 2000
+  lightweight:
+    model: "llama3.1:8b"
+    temperature: 0.2
+    num_predict: 800
+  precision:
+    model: "deepseek-r1:32b"
+    temperature: 0.05
+    num_predict: 1200

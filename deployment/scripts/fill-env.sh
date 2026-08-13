@@ -11,12 +11,14 @@ OUT="$SCRIPT_DIR/../.env.spare-2"
 p() { pass "$1"; }  # shorthand
 
 # ── Helper: generate+store a secret in pass if not present ─────
+# $1 = pass entry, $2 = generator (default: openssl rand -hex 32)
 pass_ensure() {
 	local entry="$1"
+	local generator="${2:-openssl rand -hex 32}"
 	local val
 	val=$(pass "$entry" 2>/dev/null) && { echo "$val"; return; }
-	val=$(openssl rand -hex 32)
-	printf '%s\n%s' "$val" "$val" | pass insert "$entry" >/dev/null 2>&1
+	val=$(eval "$generator")
+	pass insert --echo "$entry" <<< "$val" >/dev/null 2>&1
 	echo "$val"
 }
 
@@ -34,7 +36,10 @@ SMTP_PASS=$(p pjs/mail/dada-hello-password)
 
 # App secrets — generate once, store in pass for repeatability
 JWT_SECRET=$(pass_ensure pjs/docfusion/jwt-secret)
-ENCRYPTION_KEY=$(pass_ensure pjs/docfusion/encryption-key)
+# MASTER_ENCRYPTION_KEY: base64-encoded 32-byte key read by DataEncryption
+# (src/docfusion/security/encryption/data_encryption.py:589).
+# Must be a base64 string; the Python code will base64-decode it to 32 bytes.
+MASTER_ENCRYPTION_KEY=$(pass_ensure pjs/docfusion/master-encryption-key-b64 "openssl rand -base64 32 | tr -d '\n'")
 NEXTAUTH_SECRET=$(pass_ensure pjs/docfusion/nextauth-secret)
 TENANT_SECRET=$(pass_ensure pjs/docfusion/tenant-header-secret)
 
@@ -61,7 +66,8 @@ ENVIRONMENT=production
 
 # ── Application secrets ────────────────────────────────────────
 JWT_SECRET=${JWT_SECRET}
-ENCRYPTION_KEY=${ENCRYPTION_KEY}
+# Read by src/docfusion/security/encryption/data_encryption.py:589 as MASTER_ENCRYPTION_KEY
+MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY}
 DOCFUSION_TENANT_HEADER_SECRET=${TENANT_SECRET}
 
 # ── Database (db.lindela.io — PostgreSQL 17 PRIMARY) ───────────
@@ -86,6 +92,10 @@ SMTP_PORT=587
 SMTP_USER=hello@datacraft.systems
 SMTP_PASSWORD=${SMTP_PASS}
 SMTP_FROM=hello@datacraft.systems
+
+# ── Cache (local Redis on spare-2) ──────────────────────────────
+REDIS_URL=redis://127.0.0.1:6379/0
+CACHE_URL=redis://127.0.0.1:6379/0
 
 # ── Agent memory ────────────────────────────────────────────────
 MEMORY_TTL_DAYS=30
@@ -117,7 +127,7 @@ echo "Written: $OUT"
 grep -c "SETUP_REQUIRED" "$OUT" > /dev/null 2>&1 && {
 	echo ""
 	echo "⚠  Keycloak client not yet configured. To complete:"
-	echo "   1. https://auth.lindela.io → realm pjs → Clients → Create"
+	echo "   1. https://auth.lindela.io → realm lindela → Clients → Create"
 	echo "      client_id=docfusion, access_type=confidential"
 	echo "      valid_redirect_uris=http://161.97.124.202:3000/*"
 	echo "   2. Copy the generated client secret, then:"
