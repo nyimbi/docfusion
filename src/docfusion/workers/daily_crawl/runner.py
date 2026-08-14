@@ -60,16 +60,26 @@ _log = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+
 def _env_int(name: str, default: int, minimum: int = 1, maximum: int = 100_000) -> int:
 	raw = os.environ.get(name, "")
 	try:
 		val = int(raw)
 	except (ValueError, TypeError):
 		if raw:
-			_log.warning("Invalid integer for %s=%r, using default %d", name, raw, default)
+			_log.warning(
+				"Invalid integer for %s=%r, using default %d", name, raw, default
+			)
 		return default
 	if not (minimum <= val <= maximum):
-		_log.warning("%s=%d is out of range [%d, %d], using default %d", name, val, minimum, maximum, default)
+		_log.warning(
+			"%s=%d is out of range [%d, %d], using default %d",
+			name,
+			val,
+			minimum,
+			maximum,
+			default,
+		)
 		return default
 	return val
 
@@ -90,6 +100,7 @@ _HEADERS = {
 # ---------------------------------------------------------------------------
 # Result model
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Opportunity:
@@ -127,8 +138,10 @@ class Opportunity:
 # Retry / backoff helper
 # ---------------------------------------------------------------------------
 
-async def _retry(coro_fn, *, attempts: int = 3, base_delay: float = 1.0,
-				 label: str = "") -> Any:
+
+async def _retry(
+	coro_fn, *, attempts: int = 3, base_delay: float = 1.0, label: str = ""
+) -> Any:
 	"""Run coro_fn() with exponential backoff. Raises on final failure."""
 	last_exc: Exception | None = None
 	for attempt in range(1, attempts + 1):
@@ -138,8 +151,14 @@ async def _retry(coro_fn, *, attempts: int = 3, base_delay: float = 1.0,
 			last_exc = exc
 			if attempt < attempts:
 				delay = base_delay * (2 ** (attempt - 1))
-				_log.warning("[%s] attempt %d/%d failed (%s) — retrying in %.1fs",
-							 label, attempt, attempts, type(exc).__name__, delay)
+				_log.warning(
+					"[%s] attempt %d/%d failed (%s) — retrying in %.1fs",
+					label,
+					attempt,
+					attempts,
+					type(exc).__name__,
+					delay,
+				)
 				await asyncio.sleep(delay)
 			else:
 				_log.error("[%s] all %d attempts failed: %s", label, attempts, exc)
@@ -151,14 +170,18 @@ def _text(value: Any) -> str:
 	if value is None:
 		return ""
 	if isinstance(value, list):
-		return " ".join(part for part in (_text(item) for item in value) if part).strip()
+		return " ".join(
+			part for part in (_text(item) for item in value) if part
+		).strip()
 	if isinstance(value, dict):
 		for key in ("value", "text", "label", "name", "en"):
 			if key in value:
 				text = _text(value.get(key))
 				if text:
 					return text
-		return " ".join(part for part in (_text(item) for item in value.values()) if part).strip()
+		return " ".join(
+			part for part in (_text(item) for item in value.values()) if part
+		).strip()
 	return str(value).strip()
 
 
@@ -166,76 +189,158 @@ def _text(value: Any) -> str:
 # Discovery path 1 — SearXNG metasearch
 # ---------------------------------------------------------------------------
 
+# Site-scoped queries only. Generic marketing queries ("RFP health Africa 2026")
+# are removed — they return dictionaries, Wikipedia, and consulting firm homepages.
+# Every query below either:
+#   (a) is a `site:` search restricted to a known tender/grant portal, or
+#   (b) contains a full multi-word procurement phrase like "request for proposal"
+# The structured API paths (grants.gov, worldbank, sam.gov, UNGM, TED, USAID,
+# AfDB, ADB) remain the primary source; SearXNG is a backfill for portals
+# that lack a clean API.
 SEARXNG_QUERIES = [
-	"RFP health systems strengthening Africa 2026",
-	"tender primary healthcare supply chain 2026",
-	"RFP ICT digital transformation government Africa 2026",
-	"tender education curriculum learning management 2026",
-	"RFP water sanitation WASH infrastructure 2026",
-	"tender agriculture food security smallholder 2026",
-	"RFP climate change adaptation resilience 2026",
-	"tender renewable energy solar off-grid 2026",
-	"RFP security governance rule of law 2026",
-	"tender infrastructure roads urban development 2026",
-	"RFP humanitarian aid emergency response 2026",
-	"call for proposals gender equality women empowerment 2026",
-	"tender financial inclusion microfinance 2026",
-	"RFP monitoring evaluation M&E consultancy 2026",
-	"tender capacity building training technical assistance 2026",
-	"USAID RFP request for proposal 2026",
-	"USAID RFQ request for quotation 2026",
-	"EU European Commission call for proposals 2026",
-	"GIZ tender consultancy Africa 2026",
-	"FCDO UK Aid tender 2026",
-	"African Development Bank tender procurement 2026",
-	"Asian Development Bank ADB tender 2026",
-	"World Bank IDA procurement Africa 2026",
-	"UNDP call for proposals 2026",
-	"UNICEF supply tender 2026",
-	"WFP World Food Programme tender 2026",
-	"FAO tender consultancy 2026",
-	"Global Fund procurement grant 2026",
-	"MCC Millennium Challenge tender 2026",
-	"AIIB Asian Infrastructure tender 2026",
-	"IFC World Bank Group RFP 2026",
-	"IADB Inter-American Development Bank tender 2026",
-	"tender Kenya Uganda Tanzania East Africa 2026",
-	"tender West Africa Nigeria Ghana Ivory Coast 2026",
-	"tender Southern Africa Zambia Zimbabwe Mozambique 2026",
-	"tender Horn of Africa Ethiopia Somalia 2026",
-	"tender Francophone Africa Sahel 2026",
-	"Pacific Islands development tender 2026",
-	"Caribbean development bank tender 2026",
+	# Site-scoped: real tender portals
+	'site:reliefweb.int "request for proposals"',
+	'site:reliefweb.int "expression of interest"',
+	'site:devex.com "request for proposal"',
+	'site:devex.com "invitation to tender"',
+	'site:ungm.org "notice"',
+	'site:ted.europa.eu "contract notice"',
+	'site:sam.gov "opportunity"',
+	'site:grants.gov "opportunity"',
+	'site:afdb.org "procurement notice"',
+	'site:iadb.org "procurement notice"',
+	'site:worldbank.org "procurement notice"',
+	'site:adb.org "procurement notice"',
+	'site:ifc.org "expression of interest"',
+	'site:undp.org "call for proposals"',
+	'site:unicef.org "invitation to bid"',
+	'site:wfp.org "request for proposals"',
+	'site:fao.org "call for proposals"',
+	'site:who.int "call for proposals"',
+	'site:mcc.gov "solicitation"',
+	# African national procurement portals
+	"site:tenders.go.ke",
+	"site:etenders.gov.za",
+	"site:ppda.go.ug",
+	"site:ppra.go.tz",
+	"site:bpp.gov.ng",
+	"site:ppa.gov.gh",
+	"site:rppa.gov.rw",
+	# Phrase-scoped (must appear verbatim in title/snippet — cuts most noise)
+	'"request for proposals" 2026 africa',
+	'"invitation to tender" 2026 africa',
+	'"expression of interest" 2026 africa',
+	'"call for proposals" 2026 africa',
 ]
 
 # Domains that never contain actual procurement opportunities
-_JUNK_DOMAINS: frozenset[str] = frozenset({
-	"wikipedia.org", "wiktionary.org", "wikimedia.org", "wikivoyage.org",
-	"wordreference.com", "merriam-webster.com", "dictionary.com",
-	"thefreedictionary.com", "collinsdictionary.com", "larousse.fr",
-	"answers.com", "quora.com", "reddit.com",
-	"youtube.com", "youtu.be", "facebook.com", "twitter.com", "x.com",
-	"linkedin.com", "instagram.com", "pinterest.com", "tiktok.com",
-})
+_JUNK_DOMAINS: frozenset[str] = frozenset(
+	{
+		"wikipedia.org",
+		"wiktionary.org",
+		"wikimedia.org",
+		"wikivoyage.org",
+		"wordreference.com",
+		"merriam-webster.com",
+		"dictionary.com",
+		"thefreedictionary.com",
+		"collinsdictionary.com",
+		"larousse.fr",
+		"answers.com",
+		"quora.com",
+		"reddit.com",
+		"youtube.com",
+		"youtu.be",
+		"facebook.com",
+		"twitter.com",
+		"x.com",
+		"linkedin.com",
+		"instagram.com",
+		"pinterest.com",
+		"tiktok.com",
+	}
+)
 
-# Token substrings that, if found in the title (lowercase), mark the result as non-procurement
-_JUNK_TITLE_TOKENS: frozenset[str] = frozenset({
-	"wikipedia", "wiktionary", "encyclop", "wikimedia",
-	"dictionary", "définition", "definition", "traduction",
-	"wikivoyage", "wikibooks", "wikisource",
-})
+# Token substrings that, if found in the title (lowercase), mark the result as non-procurement.
+# Includes accented / French unicode variants — "wikipédia" (é) does NOT match "wikipedia" (e).
+_JUNK_TITLE_TOKENS: frozenset[str] = frozenset(
+	{
+		"wikipedia",
+		"wikipédia",
+		"wiktionary",
+		"wiktionnaire",
+		"encyclop",
+		"wikimedia",
+		"wikivoyage",
+		"wikibooks",
+		"wikisource",
+		"dictionary",
+		"dictionnaire",
+		"definition",
+		"définition",
+		"traduction",
+		"translation",
+		"reverso",
+		"linguee",
+		"wordreference",
+		# Common non-opportunity content
+		"blog post",
+		"news article",
+		"case study",
+		"white paper",
+		"webinar",
+		"podcast",
+		"how to",
+		"guide to",
+		"top 10",
+		"top ten",
+		"list of",
+		"opinion",
+		"op-ed",
+		"hiring",
+		"vacancy",
+	}
+)
 
 # Domains known to host real procurement content — URL from these earns a quality bonus
-BONUS_DOMAINS: frozenset[str] = frozenset({
-	"ungm.org", "ted.europa.eu", "usaid.gov", "afdb.org", "adb.org",
-	"iadb.org", "giz.de", "devex.com", "reliefweb.int", "phap.org",
-	"mcc.gov", "ifc.org", "worldbank.org", "projects.worldbank.org",
-	"undp.org", "unicef.org", "wfp.org", "fao.org", "who.int",
-	"globalfund.org", "tenders.go.ke", "etenders.gov.za", "ppda.go.ug",
-	"ppra.go.tz", "bpp.gov.ng", "ppa.gov.gh", "rppa.gov.rw",
-	"unops.org", "grants.gov", "sam.gov", "reporter.nih.gov",
-	"gatesfoundation.org", "rockefellerfoundation.org", "aiib.org",
-})
+BONUS_DOMAINS: frozenset[str] = frozenset(
+	{
+		"ungm.org",
+		"ted.europa.eu",
+		"usaid.gov",
+		"afdb.org",
+		"adb.org",
+		"iadb.org",
+		"giz.de",
+		"devex.com",
+		"reliefweb.int",
+		"phap.org",
+		"mcc.gov",
+		"ifc.org",
+		"worldbank.org",
+		"projects.worldbank.org",
+		"undp.org",
+		"unicef.org",
+		"wfp.org",
+		"fao.org",
+		"who.int",
+		"globalfund.org",
+		"tenders.go.ke",
+		"etenders.gov.za",
+		"ppda.go.ug",
+		"ppra.go.tz",
+		"bpp.gov.ng",
+		"ppa.gov.gh",
+		"rppa.gov.rw",
+		"unops.org",
+		"grants.gov",
+		"sam.gov",
+		"reporter.nih.gov",
+		"gatesfoundation.org",
+		"rockefellerfoundation.org",
+		"aiib.org",
+	}
+)
 _PROCUREMENT_DOMAINS = BONUS_DOMAINS
 
 
@@ -245,6 +350,7 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 
 	for query in SEARXNG_QUERIES:
 		try:
+
 			async def fetch(q=query):
 				r = await client.get(
 					f"{SEARXNG_URL.rstrip('/')}/search",
@@ -260,13 +366,15 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 				title = item.get("title") or ""
 				if not url or not title:
 					continue
-				results.append(Opportunity(
-					title=title,
-					source_url=url,
-					source=f"searxng:{item.get('engine', 'unknown')}",
-					description=(item.get("content") or "")[:300],
-					tags=["searxng"],
-				))
+				results.append(
+					Opportunity(
+						title=title,
+						source_url=url,
+						source=f"searxng:{item.get('engine', 'unknown')}",
+						description=(item.get("content") or "")[:300],
+						tags=["searxng"],
+					)
+				)
 		except Exception as exc:
 			_log.warning("[searxng] query '%s' failed: %s", query[:40], exc)
 
@@ -281,7 +389,12 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 GRANTS_GOV_QUERIES = [
 	{"keyword": "", "oppStatuses": "posted", "rows": 50, "startRecordNum": 0},
 	{"keyword": "Africa", "oppStatuses": "posted", "rows": 25, "startRecordNum": 0},
-	{"keyword": "international development", "oppStatuses": "posted", "rows": 25, "startRecordNum": 0},
+	{
+		"keyword": "international development",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
 ]
 
 
@@ -289,29 +402,34 @@ async def _path_grants_gov(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 	for body in GRANTS_GOV_QUERIES:
 		try:
+
 			async def fetch(b=body):
 				r = await client.post(
 					"https://apply07.grants.gov/grantsws/rest/opportunities/search/",
-					json=b, headers=_HEADERS, timeout=CALL_TIMEOUT,
+					json=b,
+					headers=_HEADERS,
+					timeout=CALL_TIMEOUT,
 				)
 				r.raise_for_status()
 				return r.json()
 
 			data = await _retry(fetch, label="grants.gov")
-			for item in (data.get("oppHits") or []):
+			for item in data.get("oppHits") or []:
 				opp_id = str(item.get("id", ""))
 				title = str(item.get("title") or "").strip()
 				if not title:
 					continue
-				results.append(Opportunity(
-					title=title,
-					source_url=f"https://www.grants.gov/search-results-detail/{opp_id}",
-					source="grants.gov",
-					organization=str(item.get("agency") or ""),
-					deadline=str(item.get("closeDate") or ""),
-					reference=str(item.get("number") or ""),
-					tags=["grant", "us-federal"],
-				))
+				results.append(
+					Opportunity(
+						title=title,
+						source_url=f"https://www.grants.gov/search-results-detail/{opp_id}",
+						source="grants.gov",
+						organization=str(item.get("agency") or ""),
+						deadline=str(item.get("closeDate") or ""),
+						reference=str(item.get("number") or ""),
+						tags=["grant", "us-federal"],
+					)
+				)
 		except Exception as exc:
 			_log.warning("[grants.gov] query failed: %s", exc)
 
@@ -343,7 +461,9 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 			async def fetch(p=params):
 				r = await client.get(
 					"https://search.worldbank.org/api/v2/projects",
-					params=p, headers=_HEADERS, timeout=CALL_TIMEOUT,
+					params=p,
+					headers=_HEADERS,
+					timeout=CALL_TIMEOUT,
 				)
 				r.raise_for_status()
 				return r.json()
@@ -357,15 +477,17 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 				title = str(item.get("project_name") or "").strip()
 				if not title or not proj_id:
 					continue
-				results.append(Opportunity(
-					title=title,
-					source_url=f"https://projects.worldbank.org/en/projects-operations/project-detail/{proj_id}",
-					source="worldbank",
-					organization=str(item.get("countryname") or ""),
-					deadline=str(item.get("boardapprovaldate") or ""),
-					reference=proj_id,
-					tags=["project", "world-bank", "development"],
-				))
+				results.append(
+					Opportunity(
+						title=title,
+						source_url=f"https://projects.worldbank.org/en/projects-operations/project-detail/{proj_id}",
+						source="worldbank",
+						organization=str(item.get("countryname") or ""),
+						deadline=str(item.get("boardapprovaldate") or ""),
+						reference=proj_id,
+						tags=["project", "world-bank", "development"],
+					)
+				)
 		except Exception as exc:
 			_log.warning("[worldbank] query failed: %s", exc)
 
@@ -377,11 +499,13 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 # Discovery path 4 — SAM.gov + additional US federal sources
 # ---------------------------------------------------------------------------
 
+
 async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 
 	# SAM.gov opportunity search via their published REST API (no key, DEMO_KEY deprecated)
 	try:
+
 		async def fetch_sam():
 			r = await client.get(
 				"https://api.sam.gov/opportunities/v2/search",
@@ -399,35 +523,49 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 
 		data = await _retry(fetch_sam, label="sam.gov")
 		# SAM.gov public search returns hits under "_embedded.results" or "hits.hits"
-		hits = (data.get("_embedded", {}).get("results")
-				or data.get("hits", {}).get("hits")
-				or data.get("opportunitiesData")
-				or [])
+		hits = (
+			data.get("_embedded", {}).get("results")
+			or data.get("hits", {}).get("hits")
+			or data.get("opportunitiesData")
+			or []
+		)
 		for item in hits:
 			src = item.get("_source", item)
 			title = str(src.get("title") or src.get("opportunityTitle") or "").strip()
 			notice_id = str(src.get("noticeId") or src.get("opportunityId") or "")
 			if not title:
 				continue
-			results.append(Opportunity(
-				title=title,
-				source_url=f"https://sam.gov/opp/{notice_id}/view" if notice_id else "https://sam.gov/",
-				source="sam.gov",
-				organization=str(src.get("organizationName") or src.get("department") or ""),
-				deadline=str(src.get("responseDeadLine") or src.get("archiveDate") or ""),
-				reference=notice_id,
-				tags=["contract", "us-federal", "sam.gov"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=f"https://sam.gov/opp/{notice_id}/view"
+					if notice_id
+					else "https://sam.gov/",
+					source="sam.gov",
+					organization=str(
+						src.get("organizationName") or src.get("department") or ""
+					),
+					deadline=str(
+						src.get("responseDeadLine") or src.get("archiveDate") or ""
+					),
+					reference=notice_id,
+					tags=["contract", "us-federal", "sam.gov"],
+				)
+			)
 	except Exception as exc:
 		_log.warning("[sam.gov] failed: %s", exc)
 
 	# NIH grants (confirmed API)
 	try:
+
 		async def fetch_nih():
 			r = await client.post(
 				"https://api.reporter.nih.gov/v2/projects/search",
-				json={"criteria": {"fiscal_years": [2026], "project_nums": []},
-					  "offset": 0, "limit": 25},
+				json={
+					"criteria": {"fiscal_years": [2026], "project_nums": []},
+					"offset": 0,
+					"limit": 25,
+				},
 				headers={**_HEADERS, "Content-Type": "application/json"},
 				timeout=CALL_TIMEOUT,
 			)
@@ -435,20 +573,24 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 			return r.json()
 
 		data = await _retry(fetch_nih, label="nih.reporter")
-		for item in (data.get("results") or []):
+		for item in data.get("results") or []:
 			title = str(item.get("project_title") or "").strip()
 			appl_id = str(item.get("appl_id") or "")
 			if not title:
 				continue
-			results.append(Opportunity(
-				title=title,
-				source_url=f"https://reporter.nih.gov/project-details/{appl_id}",
-				source="nih.reporter",
-				organization=str(item.get("organization", {}).get("org_name") or ""),
-				deadline="",
-				reference=str(item.get("project_num") or ""),
-				tags=["grant", "nih", "health-research"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=f"https://reporter.nih.gov/project-details/{appl_id}",
+					source="nih.reporter",
+					organization=str(
+						item.get("organization", {}).get("org_name") or ""
+					),
+					deadline="",
+					reference=str(item.get("project_num") or ""),
+					tags=["grant", "nih", "health-research"],
+				)
+			)
 	except Exception as exc:
 		_log.warning("[nih.reporter] failed: %s", exc)
 
@@ -460,9 +602,11 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # Discovery paths 5-8 — additional structured procurement sources
 # ---------------------------------------------------------------------------
 
+
 async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 	try:
+
 		async def fetch():
 			r = await client.get(
 				"https://www.ungm.org/Public/Notice",
@@ -474,25 +618,39 @@ async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
 			return r.json()
 
 		data = await _retry(fetch, label="ungm")
-		items = data if isinstance(data, list) else (
-			data.get("data") or data.get("items") or data.get("results") or data.get("notices") or []
+		items = (
+			data
+			if isinstance(data, list)
+			else (
+				data.get("data")
+				or data.get("items")
+				or data.get("results")
+				or data.get("notices")
+				or []
+			)
 		)
 		for item in items[:50] if isinstance(items, list) else []:
 			title = _text(item.get("Title") or item.get("title"))
-			notice_id = _text(item.get("NoticeId") or item.get("noticeId") or item.get("id"))
+			notice_id = _text(
+				item.get("NoticeId") or item.get("noticeId") or item.get("id")
+			)
 			if not title or not notice_id:
 				continue
 			published = _text(item.get("PublishedOn") or item.get("publishedOn"))
-			results.append(Opportunity(
-				title=title,
-				source_url=f"https://www.ungm.org/Public/Notice/{notice_id}",
-				source="ungm",
-				organization=_text(item.get("OrganizationName") or item.get("organizationName")),
-				deadline=_text(item.get("Deadline") or item.get("deadline")),
-				reference=notice_id,
-				description=f"Published: {published}" if published else "",
-				tags=["ungm", "un", "procurement"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=f"https://www.ungm.org/Public/Notice/{notice_id}",
+					source="ungm",
+					organization=_text(
+						item.get("OrganizationName") or item.get("organizationName")
+					),
+					deadline=_text(item.get("Deadline") or item.get("deadline")),
+					reference=notice_id,
+					description=f"Published: {published}" if published else "",
+					tags=["ungm", "un", "procurement"],
+				)
+			)
 	except Exception as exc:
 		_log.warning("[ungm] failed: %s", exc)
 
@@ -503,6 +661,7 @@ async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
 async def _path_ted_eu(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 	try:
+
 		async def fetch():
 			r = await client.get(
 				"https://ted.europa.eu/api/v3.0/notices/search",
@@ -519,23 +678,35 @@ async def _path_ted_eu(client: httpx.AsyncClient) -> list[Opportunity]:
 			return r.json()
 
 		data = await _retry(fetch, label="ted.europa.eu")
-		items = data if isinstance(data, list) else (
-			data.get("results") or data.get("notices") or data.get("data") or data.get("items") or []
+		items = (
+			data
+			if isinstance(data, list)
+			else (
+				data.get("results")
+				or data.get("notices")
+				or data.get("data")
+				or data.get("items")
+				or []
+			)
 		)
 		for item in items[:50] if isinstance(items, list) else []:
-			notice_no = _text(item.get("ND") or item.get("noticeNumber") or item.get("notice_number"))
+			notice_no = _text(
+				item.get("ND") or item.get("noticeNumber") or item.get("notice_number")
+			)
 			title = _text(item.get("TI") or item.get("title"))
 			if not notice_no or not title:
 				continue
-			results.append(Opportunity(
-				title=title,
-				source_url=f"https://ted.europa.eu/en/notice/{notice_no}",
-				source="ted.europa.eu",
-				organization=_text(item.get("AU") or item.get("authority")),
-				deadline=_text(item.get("DT") or item.get("deadline")),
-				reference=notice_no,
-				tags=["ted", "eu", "procurement"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=f"https://ted.europa.eu/en/notice/{notice_no}",
+					source="ted.europa.eu",
+					organization=_text(item.get("AU") or item.get("authority")),
+					deadline=_text(item.get("DT") or item.get("deadline")),
+					reference=notice_no,
+					tags=["ted", "eu", "procurement"],
+				)
+			)
 	except Exception as exc:
 		_log.warning("[ted.europa.eu] failed: %s", exc)
 
@@ -547,7 +718,12 @@ async def _firecrawl_markdown(client: httpx.AsyncClient, url: str, label: str) -
 	async def scrape():
 		r = await client.post(
 			f"{FIRECRAWL_URL.rstrip('/')}/v1/scrape",
-			json={"url": url, "formats": ["markdown"], "waitFor": 2000, "timeout": 60000},
+			json={
+				"url": url,
+				"formats": ["markdown"],
+				"waitFor": 2000,
+				"timeout": 60000,
+			},
 			timeout=90,
 		)
 		r.raise_for_status()
@@ -562,6 +738,7 @@ async def _firecrawl_markdown(client: httpx.AsyncClient, url: str, label: str) -
 async def _path_usaid(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 	try:
+
 		async def fetch():
 			r = await client.get(
 				"https://www.usaid.gov/api/procurement-notices.json",
@@ -572,27 +749,42 @@ async def _path_usaid(client: httpx.AsyncClient) -> list[Opportunity]:
 			return r.json()
 
 		data = await _retry(fetch, label="usaid")
-		items = data if isinstance(data, list) else (
-			data.get("items") or data.get("data") or data.get("results") or data.get("notices") or []
+		items = (
+			data
+			if isinstance(data, list)
+			else (
+				data.get("items")
+				or data.get("data")
+				or data.get("results")
+				or data.get("notices")
+				or []
+			)
 		)
 		for item in items[:50] if isinstance(items, list) else []:
 			title = _text(item.get("title"))
 			url = _text(item.get("url"))
 			if not title or not url:
 				continue
-			results.append(Opportunity(
-				title=title,
-				source_url=urljoin("https://www.usaid.gov/", url),
-				source="usaid",
-				deadline=_text(item.get("close_date")),
-				reference=_text(item.get("id") or item.get("nid") or item.get("number")),
-				description=f"Posted: {_text(item.get('posted_date'))}" if item.get("posted_date") else "",
-				tags=["usaid", "procurement"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=urljoin("https://www.usaid.gov/", url),
+					source="usaid",
+					deadline=_text(item.get("close_date")),
+					reference=_text(
+						item.get("id") or item.get("nid") or item.get("number")
+					),
+					description=f"Posted: {_text(item.get('posted_date'))}"
+					if item.get("posted_date")
+					else "",
+					tags=["usaid", "procurement"],
+				)
+			)
 	except Exception as exc:
 		_log.warning("[usaid] API failed: %s — falling back to Firecrawl", exc)
 		try:
 			import re
+
 			url = "https://www.usaid.gov/work-usaid/partner-with-us/business-forecast"
 			markdown = await _firecrawl_markdown(client, url, "usaid-business-forecast")
 			seen: set[str] = set()
@@ -600,24 +792,38 @@ async def _path_usaid(client: httpx.AsyncClient) -> list[Opportunity]:
 				title = re.sub(r"\s+", " ", match.group(1)).strip()
 				href = urljoin(url, match.group(2).strip())
 				title_lc = title.lower()
-				if href in seen or not any(k in title_lc for k in (
-					"forecast", "rfp", "rfq", "solicitation", "procurement",
-					"tender", "grant", "contract", "call",
-				)):
+				if href in seen or not any(
+					k in title_lc
+					for k in (
+						"forecast",
+						"rfp",
+						"rfq",
+						"solicitation",
+						"procurement",
+						"tender",
+						"grant",
+						"contract",
+						"call",
+					)
+				):
 					continue
 				seen.add(href)
-				window = markdown[max(0, match.start() - 300):match.end() + 300]
+				window = markdown[max(0, match.start() - 300) : match.end() + 300]
 				deadline_match = re.search(
 					r"(?i)(?:close(?: date)?|deadline|response due)[:\s|,-]+([A-Za-z0-9, /:-]{6,40})",
 					window,
 				)
-				results.append(Opportunity(
-					title=title,
-					source_url=href,
-					source="usaid",
-					deadline=deadline_match.group(1).strip(" .|-") if deadline_match else "",
-					tags=["usaid", "firecrawl", "business-forecast"],
-				))
+				results.append(
+					Opportunity(
+						title=title,
+						source_url=href,
+						source="usaid",
+						deadline=deadline_match.group(1).strip(" .|-")
+						if deadline_match
+						else "",
+						tags=["usaid", "firecrawl", "business-forecast"],
+					)
+				)
 				if len(results) >= 50:
 					break
 		except Exception as fallback_exc:
@@ -629,6 +835,7 @@ async def _path_usaid(client: httpx.AsyncClient) -> list[Opportunity]:
 
 async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
 	import re
+
 	results: list[Opportunity] = []
 	url = "https://www.afdb.org/en/projects-and-operations/procurement/procurement-notices?tid=All&field_notice_type_value=All&page=0"
 	try:
@@ -639,17 +846,29 @@ async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
 			title_lc = title.lower()
 			if title_lc in {"procurement notices", "list of tenders"}:
 				continue
-			if not any(k in title_lc for k in (
-				"tender", "procurement", "expression of interest", "eoi",
-				"request for proposal", "rfp", "bid", "consultancy", "consultant",
-				"goods", "works", "services",
-			)):
+			if not any(
+				k in title_lc
+				for k in (
+					"tender",
+					"procurement",
+					"expression of interest",
+					"eoi",
+					"request for proposal",
+					"rfp",
+					"bid",
+					"consultancy",
+					"consultant",
+					"goods",
+					"works",
+					"services",
+				)
+			):
 				continue
 			item_url = urljoin(url, match.group(2).strip())
 			if item_url in seen:
 				continue
 			seen.add(item_url)
-			window = markdown[max(0, match.start() - 400):match.end() + 500]
+			window = markdown[max(0, match.start() - 400) : match.end() + 500]
 			ref_match = re.search(
 				r"(?i)(?:reference(?: number)?|ref(?:erence)?\.?|project id|loan no\.?)[:\s#-]+([A-Z0-9][A-Z0-9/()._-]{3,40})",
 				window,
@@ -658,14 +877,18 @@ async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
 				r"(?i)(?:closing date|deadline|submission deadline|closing)[:\s|,-]+([A-Za-z0-9, /:-]{6,40})",
 				window,
 			)
-			results.append(Opportunity(
-				title=title,
-				source_url=item_url,
-				source="afdb",
-				deadline=deadline_match.group(1).strip(" .|-") if deadline_match else "",
-				reference=ref_match.group(1).strip(" .|-") if ref_match else "",
-				tags=["afdb", "firecrawl", "procurement"],
-			))
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=item_url,
+					source="afdb",
+					deadline=deadline_match.group(1).strip(" .|-")
+					if deadline_match
+					else "",
+					reference=ref_match.group(1).strip(" .|-") if ref_match else "",
+					tags=["afdb", "firecrawl", "procurement"],
+				)
+			)
 			if len(results) >= 50:
 				break
 	except Exception as exc:
@@ -682,7 +905,10 @@ async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
 RSS_FEEDS: list[tuple[str, str]] = [
 	("devex", "https://www.devex.com/rss/procurement.rss"),
 	("ungm-rss", "https://www.ungm.org/rss/notices"),
-	("reliefweb-funding", "https://reliefweb.int/updates/rss.xml?tag=Funding+opportunity"),
+	(
+		"reliefweb-funding",
+		"https://reliefweb.int/updates/rss.xml?tag=Funding+opportunity",
+	),
 	("phap-opportunities", "https://phap.org/opportunities/feed"),
 ]
 
@@ -694,9 +920,11 @@ async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 
 	for feed_source, url in RSS_FEEDS:
 		try:
+
 			async def fetch(u=url):
-				r = await client.get(u, headers=_HEADERS, timeout=CALL_TIMEOUT,
-									 follow_redirects=True)
+				r = await client.get(
+					u, headers=_HEADERS, timeout=CALL_TIMEOUT, follow_redirects=True
+				)
 				r.raise_for_status()
 				return r
 
@@ -706,36 +934,52 @@ async def _path_rss_feeds(client: httpx.AsyncClient) -> list[Opportunity]:
 			if "json" in content_type or url.endswith(".json") or "api." in url:
 				# JSON API (e.g. ReliefWeb)
 				data = resp.json()
-				items_raw = data.get("data") or data.get("results") or data.get("items") or []
+				items_raw = (
+					data.get("data") or data.get("results") or data.get("items") or []
+				)
 				for item in items_raw[:20]:
 					fields = item.get("fields", item)
 					title = str(fields.get("title") or "").strip()
-					item_url = str(fields.get("url") or fields.get("link") or "").strip()
+					item_url = str(
+						fields.get("url") or fields.get("link") or ""
+					).strip()
 					if not title or not item_url:
 						continue
-					results.append(Opportunity(
-						title=title, source_url=item_url, source=feed_source,
-						tags=["api-feed", feed_source],
-					))
+					results.append(
+						Opportunity(
+							title=title,
+							source_url=item_url,
+							source=feed_source,
+							tags=["api-feed", feed_source],
+						)
+					)
 			else:
 				# XML/RSS
 				xml = resp.text
 				items_xml = re.findall(r"<item[^>]*>(.*?)</item>", xml, re.DOTALL)
 				for item_xml in items_xml[:20]:
+
 					def _tag(name: str, ix=item_xml) -> str:
 						m = re.search(
 							rf"<{name}[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{name}>",
-							ix, re.DOTALL)
+							ix,
+							re.DOTALL,
+						)
 						return (m.group(1) or "").strip() if m else ""
+
 					title = _tag("title")
 					link = _tag("link") or _tag("guid")
 					if not title or not link:
 						continue
-					results.append(Opportunity(
-						title=title, source_url=link.strip(), source=feed_source,
-						description=_tag("description")[:300],
-						tags=["rss", feed_source],
-					))
+					results.append(
+						Opportunity(
+							title=title,
+							source_url=link.strip(),
+							source=feed_source,
+							description=_tag("description")[:300],
+							tags=["rss", feed_source],
+						)
+					)
 		except Exception as exc:
 			_log.warning("[rss:%s] failed: %s", feed_source, exc)
 
@@ -755,14 +999,20 @@ FIRECRAWL_TARGETS = [
 	("UNOPS tenders", "https://www.unops.org/business/procurement"),
 	("UNICEF tenders", "https://www.unicef.org/supply/procurement-services"),
 	# Development banks
-	("AfDB tenders", "https://www.afdb.org/en/projects-and-operations/procurement/list-of-tenders"),
+	(
+		"AfDB tenders",
+		"https://www.afdb.org/en/projects-and-operations/procurement/list-of-tenders",
+	),
 	("ADB procurement", "https://www.adb.org/business/opportunities/consulting"),
 	# African government portals with confirmed content
 	("SA eTenders", "https://www.etenders.gov.za/content/advertised-tenders"),
 	("Kenya tenders", "https://www.tenders.go.ke/"),
 	("Rwanda RPPA", "https://www.rppa.gov.rw/"),
 	# Foundation grant portals
-	("Gates Foundation grants", "https://www.gatesfoundation.org/about/how-we-work/grants-and-investments"),
+	(
+		"Gates Foundation grants",
+		"https://www.gatesfoundation.org/about/how-we-work/grants-and-investments",
+	),
 	("Rockefeller grants", "https://www.rockefellerfoundation.org/grants/"),
 ]
 
@@ -770,8 +1020,11 @@ FIRECRAWL_TARGETS = [
 async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 	"""Scrape high-value portals via Firecrawl with waitFor for JS-heavy pages."""
 	import re
+
 	results: list[Opportunity] = []
-	litellm_url = os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1").rstrip("/")
+	litellm_url = os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1").rstrip(
+		"/"
+	)
 	litellm_api_key = (
 		os.environ.get("LITELLM_API_KEY")
 		or os.environ.get("LITELLM_KEY")
@@ -781,10 +1034,16 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 
 	for name, url in FIRECRAWL_TARGETS:
 		try:
+
 			async def scrape(u=url):
 				r = await client.post(
 					f"{FIRECRAWL_URL}/v1/scrape",
-					json={"url": u, "formats": ["markdown"], "waitFor": 2000, "timeout": 60000},
+					json={
+						"url": u,
+						"formats": ["markdown"],
+						"waitFor": 2000,
+						"timeout": 60000,
+					},
 					timeout=90,
 				)
 				r.raise_for_status()
@@ -793,7 +1052,9 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 					raise RuntimeError(f"Firecrawl returned success=false for {u}")
 				return (d.get("data") or {}).get("markdown", "")
 
-			markdown = await _retry(scrape, attempts=2, base_delay=3.0, label=f"firecrawl:{name}")
+			markdown = await _retry(
+				scrape, attempts=2, base_delay=3.0, label=f"firecrawl:{name}"
+			)
 			if len(markdown) < 300:
 				continue
 
@@ -804,34 +1065,46 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 					headers={"Authorization": f"Bearer {litellm_api_key}"},
 					json={
 						"model": litellm_model,
-						"messages": [{"role": "user", "content": (
-							f"Extract tenders/grants from this procurement page ({n}). "
-							"Return ONLY JSON array: "
-							'[{"title":str,"reference":str,"deadline":str,"url":str}] '
-							f"up to 10 items, or [] if none found.\n\n{md[:4000]}"
-						)}],
-						"temperature": 0.0, "max_tokens": 800,
+						"messages": [
+							{
+								"role": "user",
+								"content": (
+									f"Extract tenders/grants from this procurement page ({n}). "
+									"Return ONLY JSON array: "
+									'[{"title":str,"reference":str,"deadline":str,"url":str}] '
+									f"up to 10 items, or [] if none found.\n\n{md[:4000]}"
+								),
+							}
+						],
+						"temperature": 0.0,
+						"max_tokens": 800,
 					},
 					timeout=25,
 				)
 				r.raise_for_status()
-				raw = re.sub(r"```(?:json)?", "", r.json()["choices"][0]["message"]["content"]).strip()
+				raw = re.sub(
+					r"```(?:json)?", "", r.json()["choices"][0]["message"]["content"]
+				).strip()
 				return json.loads(raw)
 
-			items = await _retry(extract, attempts=2, base_delay=1.0, label=f"litellm:{name}")
-			for item in (items if isinstance(items, list) else []):
+			items = await _retry(
+				extract, attempts=2, base_delay=1.0, label=f"litellm:{name}"
+			)
+			for item in items if isinstance(items, list) else []:
 				title = str(item.get("title") or "").strip()
 				item_url = str(item.get("url") or url).strip()
 				if not title:
 					continue
-				results.append(Opportunity(
-					title=title,
-					source_url=item_url,
-					source=f"firecrawl:{name}",
-					deadline=str(item.get("deadline") or ""),
-					reference=str(item.get("reference") or ""),
-					tags=["firecrawl", "direct-scrape"],
-				))
+				results.append(
+					Opportunity(
+						title=title,
+						source_url=item_url,
+						source=f"firecrawl:{name}",
+						deadline=str(item.get("deadline") or ""),
+						reference=str(item.get("reference") or ""),
+						tags=["firecrawl", "direct-scrape"],
+					)
+				)
 		except Exception as exc:
 			_log.warning("[firecrawl:%s] failed: %s", name, exc)
 
@@ -842,6 +1115,7 @@ async def _path_firecrawl(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 # Validation and deduplication
 # ---------------------------------------------------------------------------
+
 
 def _domain(url: str) -> str:
 	"""Return the bare domain (no www.) from a URL, or '' on failure."""
@@ -881,8 +1155,16 @@ def _validate(opp: Opportunity) -> bool:
 		return False
 	title_lc = opp.title.lower()
 	# Error pages
-	if any(t in title_lc for t in ("404", "page not found", "access denied",
-								   "login required", "javascript required")):
+	if any(
+		t in title_lc
+		for t in (
+			"404",
+			"page not found",
+			"access denied",
+			"login required",
+			"javascript required",
+		)
+	):
 		return False
 	if len(opp.title) < 10:
 		return False
@@ -911,13 +1193,18 @@ def _load_seen_keys(storage_dir: Path, lookback_days: int) -> set[str]:
 					if url:
 						seen.add(hashlib.sha256(url.encode()).hexdigest()[:16])
 		except Exception:
-			_log.warning("Failed to read seen-keys from %s — duplicates may appear for that date", path, exc_info=True)
+			_log.warning(
+				"Failed to read seen-keys from %s — duplicates may appear for that date",
+				path,
+				exc_info=True,
+			)
 	return seen
 
 
 # ---------------------------------------------------------------------------
 # Atomic write helpers
 # ---------------------------------------------------------------------------
+
 
 def _atomic_write(path: Path, data: list[dict]) -> None:
 	"""Write data to path atomically (crash-safe, disk-full aware)."""
@@ -930,8 +1217,11 @@ def _atomic_write(path: Path, data: list[dict]) -> None:
 	except OSError as exc:
 		# errno 28 = ENOSPC (No space left on device)
 		import errno as _errno
+
 		if exc.errno == _errno.ENOSPC:
-			_log.critical("DISK FULL — could not write %s. Free disk space immediately.", path)
+			_log.critical(
+				"DISK FULL — could not write %s. Free disk space immediately.", path
+			)
 		tmp.unlink(missing_ok=True)
 		raise
 
@@ -948,6 +1238,7 @@ def _write_heartbeat(storage_dir: Path) -> None:
 # Main crawl orchestrator
 # ---------------------------------------------------------------------------
 
+
 async def run_crawl(date_str: str | None = None) -> int:
 	"""Run all discovery paths in parallel, aggregate, deduplicate, persist."""
 	t0 = time.monotonic()
@@ -960,8 +1251,9 @@ async def run_crawl(date_str: str | None = None) -> int:
 	_log.info("Loaded %d seen keys from prior %d days", len(seen_prior), LOOKBACK_DAYS)
 
 	# Run all paths concurrently — failures in one don't affect others
-	async with httpx.AsyncClient(timeout=CALL_TIMEOUT, verify=False,
-								 follow_redirects=True) as client:
+	async with httpx.AsyncClient(
+		timeout=CALL_TIMEOUT, verify=False, follow_redirects=True
+	) as client:
 		path_results = await asyncio.gather(
 			_path_searxng(client, CRAWL_LIMIT),
 			_path_grants_gov(client),
@@ -977,8 +1269,16 @@ async def run_crawl(date_str: str | None = None) -> int:
 		)
 
 	path_names = [
-		"searxng", "grants.gov", "worldbank", "us-federal",
-		"ungm", "ted.europa.eu", "usaid", "afdb", "rss", "firecrawl",
+		"searxng",
+		"grants.gov",
+		"worldbank",
+		"us-federal",
+		"ungm",
+		"ted.europa.eu",
+		"usaid",
+		"afdb",
+		"rss",
+		"firecrawl",
 	]
 	all_opps: list[Opportunity] = []
 	path_counts: dict[str, int] = {}
@@ -996,8 +1296,11 @@ async def run_crawl(date_str: str | None = None) -> int:
 		else:
 			path_counts[name] = 0
 
-	_log.info("Raw collection by path: %s — total %d",
-			  {k: v for k, v in path_counts.items() if v > 0}, len(all_opps))
+	_log.info(
+		"Raw collection by path: %s — total %d",
+		{k: v for k, v in path_counts.items() if v > 0},
+		len(all_opps),
+	)
 
 	# Deduplicate within this run (by URL)
 	seen_this_run: set[str] = set()
@@ -1010,8 +1313,12 @@ async def run_crawl(date_str: str | None = None) -> int:
 
 	# Deduplicate against prior days
 	new_opps = [o for o in deduped if o.key() not in seen_prior]
-	_log.info("After dedup: %d unique this run → %d new (not seen in %d days)",
-			  len(deduped), len(new_opps), LOOKBACK_DAYS)
+	_log.info(
+		"After dedup: %d unique this run → %d new (not seen in %d days)",
+		len(deduped),
+		len(new_opps),
+		LOOKBACK_DAYS,
+	)
 
 	# Sort best opportunities first so the digest sees them at the top
 	new_opps.sort(key=lambda o: o.quality_score, reverse=True)
@@ -1021,7 +1328,8 @@ async def run_crawl(date_str: str | None = None) -> int:
 		_log.warning(
 			"WARNING: only %d new opportunities found (threshold=%d). "
 			"Check SearXNG engines, Firecrawl, and API connectivity.",
-			len(new_opps), MIN_RESULTS_THRESHOLD,
+			len(new_opps),
+			MIN_RESULTS_THRESHOLD,
 		)
 
 	# Persist (atomic write)
@@ -1032,7 +1340,9 @@ async def run_crawl(date_str: str | None = None) -> int:
 	elapsed = time.monotonic() - t0
 	_log.info(
 		"=== Crawl complete: %d new opportunities → %s (%.1fs) ===",
-		len(new_opps), out_path.name, elapsed,
+		len(new_opps),
+		out_path.name,
+		elapsed,
 	)
 	return len(new_opps)
 
@@ -1040,6 +1350,7 @@ async def run_crawl(date_str: str | None = None) -> int:
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
 	logging.basicConfig(

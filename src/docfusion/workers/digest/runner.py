@@ -39,27 +39,224 @@ DEFAULT_TO_NAME = os.environ.get("DIGEST_TO_NAME", "Team")
 # Quality filtering
 # ---------------------------------------------------------------------------
 
-BONUS_DOMAINS: frozenset[str] = frozenset({
-	"ungm.org", "ted.europa.eu", "usaid.gov", "afdb.org", "adb.org",
-	"iadb.org", "giz.de", "devex.com", "reliefweb.int", "phap.org",
-	"mcc.gov", "ifc.org", "worldbank.org", "projects.worldbank.org",
-	"undp.org", "unicef.org", "wfp.org", "fao.org", "who.int",
-	"globalfund.org", "tenders.go.ke", "etenders.gov.za", "ppda.go.ug",
-	"ppra.go.tz", "bpp.gov.ng", "ppa.gov.gh", "rppa.gov.rw",
-	"unops.org", "grants.gov", "sam.gov", "reporter.nih.gov",
-	"gatesfoundation.org", "rockefellerfoundation.org", "aiib.org",
-})
+BONUS_DOMAINS: frozenset[str] = frozenset(
+	{
+		"ungm.org",
+		"ted.europa.eu",
+		"usaid.gov",
+		"afdb.org",
+		"adb.org",
+		"iadb.org",
+		"giz.de",
+		"devex.com",
+		"reliefweb.int",
+		"phap.org",
+		"mcc.gov",
+		"ifc.org",
+		"worldbank.org",
+		"projects.worldbank.org",
+		"undp.org",
+		"unicef.org",
+		"wfp.org",
+		"fao.org",
+		"who.int",
+		"globalfund.org",
+		"tenders.go.ke",
+		"etenders.gov.za",
+		"ppda.go.ug",
+		"ppra.go.tz",
+		"bpp.gov.ng",
+		"ppa.gov.gh",
+		"rppa.gov.rw",
+		"unops.org",
+		"grants.gov",
+		"sam.gov",
+		"reporter.nih.gov",
+		"gatesfoundation.org",
+		"rockefellerfoundation.org",
+		"aiib.org",
+		# Additional tender/procurement portals
+		"eu-supply.com",
+		"tenderselectric.com",
+		"reliefweb.int",
+		"grants.nih.gov",
+		"eur-lex.europa.eu",
+		"state.gov",
+		"treasury.gov",
+		"eiopa.europa.eu",
+		"ebrd.com",
+	}
+)
+
+# Strong procurement phrases \u2014 require multi-word context so we don't match
+# "grant Thornton", "Ulysses S. Grant Wikipedia", "services page", etc.
+TITLE_PHRASES: tuple[str, ...] = (
+	"request for proposal",
+	"request for proposals",
+	"request for quotation",
+	"request for quotations",
+	"request for information",
+	"request for tender",
+	"call for proposal",
+	"call for proposals",
+	"call for tender",
+	"call for tenders",
+	"call for expression of interest",
+	"invitation to bid",
+	"invitation to tender",
+	"invitation for bid",
+	"expression of interest",
+	"expressions of interest",
+	"notice of tender",
+	"notice of procurement",
+	"procurement notice",
+	"tender notice",
+	"tender opportunity",
+	"prior information notice",
+	"contract notice",
+	"contract opportunity",
+	"solicitation notice",
+	"grant opportunity",
+	"funding opportunity",
+	"grant application",
+	"grant call",
+	"consultancy opportunity",
+)
+
+# Bare tokens still counted, but any-token-alone is not enough on its own \u2014
+# scoring keeps the searxng threshold high so token-only matches lose.
 TITLE_KEYWORDS: tuple[str, ...] = (
-	"rfp", "tender", "procurement", "call for proposals",
-	"bid", "grant", "consultancy", "services",
+	"rfp",
+	"rfq",
+	"rfi",
+	"tender",
+	"procurement",
+	"solicitation",
 )
+
+# Anything with these substrings in the title is dropped outright.
+# Includes unicode variants ("wikip\u00e9dia") and common non-opportunity content.
 NEGATIVE_TITLE_KEYWORDS: tuple[str, ...] = (
-	"wikipedia", "blog", "news", "article", "training course",
+	# Reference / dictionary content
+	"wikipedia",
+	"wikip\u00e9dia",
+	"wiktionary",
+	"wiktionnaire",
+	"dictionary",
+	"dictionnaire",
+	"definition",
+	"d\u00e9finition",
+	"traduction",
+	"translation",
+	"encyclop",
+	"wikimedia",
+	"wikivoyage",
+	# Editorial / marketing
+	"blog",
+	"news article",
+	"op-ed",
+	"opinion piece",
+	"podcast",
+	"webinar recording",
+	"case study",
+	"white paper",
+	"e-book",
+	"press release",
+	"how to",
+	"guide to",
+	"top 10",
+	"top ten",
+	"top 5",
+	"top five",
+	"list of",
+	"best practices",
+	# Training / courses
+	"training course",
+	"online course",
+	"certification",
+	"workshop",
+	# Recruitment / careers
+	"career",
+	"job opening",
+	"hiring",
+	"we are hiring",
+	"vacancy",
+	"recruitment",
+	# Corporate marketing
+	"our services",
+	"we offer",
+	"consulting firm",
+	"company profile",
+	"our team",
+	"meet the team",
+	"about us",
 )
-BUDGET_RE = re.compile(r"\$[\d,]+|\u20ac[\d,]+|\b(?:USD|EUR|GBP)\b", re.IGNORECASE)
+
+# Positive URL-path signals \u2014 presence of any of these in the path strongly
+# suggests an actual procurement notice.
+URL_PATH_SIGNALS: tuple[str, ...] = (
+	"/tender",
+	"/tenders",
+	"/procurement",
+	"/procure",
+	"/rfp",
+	"/rfq",
+	"/rfi",
+	"/eoi",
+	"/bid",
+	"/bids",
+	"/notice",
+	"/notices",
+	"/opportunit",
+	"/solicitation",
+	"/contract",
+	"/proposal",
+	"/grants/view",
+)
+
+# Negative URL patterns \u2014 dictionaries, wikis, social, marketing
+URL_JUNK_SUBSTRINGS: tuple[str, ...] = (
+	"wikipedia.org",
+	"wiktionary.org",
+	"wikimedia.org",
+	"wordreference.com",
+	"reverso.net",
+	"linguee",
+	"dictionary.com",
+	"merriam-webster.com",
+	"collinsdictionary.com",
+	"larousse.fr",
+	"thefreedictionary.com",
+	"youtube.com",
+	"youtu.be",
+	"reddit.com",
+	"quora.com",
+	"linkedin.com",
+	"twitter.com",
+	"facebook.com",
+	"instagram.com",
+	"lemonde.fr",
+	"nytimes.com",
+	"bbc.co.uk",
+	"bbc.com",
+	"medium.com",
+	"substack.com",
+)
+
+BUDGET_RE = re.compile(
+	r"\$[\d,]+|\u20ac[\d,]+|\bUSD\s*[\d,]+|\bEUR\s*[\d,]+|\bGBP\s*[\d,]+", re.IGNORECASE
+)
 STRUCTURED_SOURCES: tuple[str, ...] = (
-	"grants.gov", "worldbank", "worldbank.org", "sam.gov",
-	"ungm", "ungm.org", "afdb", "afdb.org", "ted.europa.eu",
+	"grants.gov",
+	"worldbank",
+	"worldbank.org",
+	"sam.gov",
+	"ungm",
+	"ungm.org",
+	"afdb",
+	"afdb.org",
+	"ted.europa.eu",
+	"reporter.nih.gov",
 )
 
 
@@ -83,11 +280,40 @@ def _source_domain(opp: dict) -> str:
 
 
 def _domain_in_bonus(domain: str) -> bool:
-	return bool(domain) and any(domain == d or domain.endswith("." + d) for d in BONUS_DOMAINS)
+	return bool(domain) and any(
+		domain == d or domain.endswith("." + d) for d in BONUS_DOMAINS
+	)
 
 
 def _has_title_keyword(title_lc: str) -> bool:
-	return any(keyword in title_lc for keyword in TITLE_KEYWORDS)
+	"""True if the title contains a procurement keyword as a whole word."""
+	return any(
+		re.search(rf"\b{re.escape(keyword)}\b", title_lc) for keyword in TITLE_KEYWORDS
+	)
+
+
+def _has_title_phrase(title_lc: str) -> bool:
+	"""True if the title contains a strong multi-word procurement phrase."""
+	return any(phrase in title_lc for phrase in TITLE_PHRASES)
+
+
+def _url_has_procurement_path(url: str) -> bool:
+	"""True if the URL path contains a procurement/tender path marker."""
+	try:
+		path = urlparse(url).path.lower()
+	except Exception:
+		return False
+	return any(sig in path for sig in URL_PATH_SIGNALS)
+
+
+def _url_is_junk(url: str) -> bool:
+	"""True if the URL matches a known non-opportunity destination (wiki, dict, social)."""
+	url_lc = (url or "").lower()
+	return any(sig in url_lc for sig in URL_JUNK_SUBSTRINGS)
+
+
+def _title_has_negative(title_lc: str) -> bool:
+	return any(neg in title_lc for neg in NEGATIVE_TITLE_KEYWORDS)
 
 
 def _deadline_in_future(deadline: object) -> bool:
@@ -106,8 +332,15 @@ def _deadline_in_future(deadline: object) -> bool:
 			return dt > datetime.now(timezone.utc)
 		except ValueError:
 			pass
-	for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%m/%d/%Y",
-				"%d %b %Y", "%d %B %Y", "%B %d, %Y"):
+	for fmt in (
+		"%Y-%m-%d",
+		"%Y/%m/%d",
+		"%d/%m/%Y",
+		"%m/%d/%Y",
+		"%d %b %Y",
+		"%d %B %Y",
+		"%B %d, %Y",
+	):
 		try:
 			dt = datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
 			return dt > datetime.now(timezone.utc)
@@ -130,38 +363,84 @@ def _is_structured_source(opp: dict, domain: str) -> bool:
 def _quality_score(opp: dict) -> int:
 	title = str(opp.get("title") or "")
 	title_lc = title.lower()
-	description = " ".join(str(opp.get(field) or "") for field in ("description", "summary"))
+	description = " ".join(
+		str(opp.get(field) or "") for field in ("description", "summary")
+	)
 	source = str(opp.get("source") or "").lower()
+	url = str(opp.get("source_url") or opp.get("url") or "")
 	domain = _source_domain(opp)
-	has_title_keyword = _has_title_keyword(title_lc)
+
+	has_phrase = _has_title_phrase(title_lc)
+	has_keyword = _has_title_keyword(title_lc)
+	in_bonus = _domain_in_bonus(domain)
+	on_procurement_path = _url_has_procurement_path(url)
 
 	score = 0
-	if _domain_in_bonus(domain):
+	if in_bonus:
 		score += 3
-	if has_title_keyword:
+	if has_phrase:
+		score += 4  # Strong signal: "request for proposal" beats bare "rfp"
+	elif has_keyword:
+		score += 1  # Weaker: whole-word "tender" alone
+	if on_procurement_path:
 		score += 2
-	if BUDGET_RE.search(description):
+	if BUDGET_RE.search(description) or BUDGET_RE.search(title):
 		score += 2
 	if opp.get("deadline") and _deadline_in_future(opp.get("deadline")):
-		score += 2
-	if any(keyword in title_lc for keyword in NEGATIVE_TITLE_KEYWORDS):
-		score -= 2
-	if source.startswith("searxng:"):
-		if not _domain_in_bonus(domain) and not has_title_keyword:
-			score -= 3
+		score += 3  # Future deadline is the strongest single positive signal
+	if opp.get("organization"):
+		score += 1
+	if opp.get("reference"):
+		score += 1
+	# Strong penalties
+	if _title_has_negative(title_lc):
+		score -= 6
+	if _url_is_junk(url):
+		score -= 6
+	# SearXNG is the noisiest path; it must earn its place.
+	if source.startswith("searxng:") and not (
+		has_phrase or on_procurement_path or in_bonus
+	):
+		score -= 4
 	return score
 
 
 def _filter_quality(opportunities: list[dict]) -> list[dict]:
+	"""
+	Keep only genuinely actionable procurement opportunities.
+
+	Hard rejects (regardless of score):
+	  - Negative title token present (wikipedia, blog, how to, our services, ...)
+	  - Junk URL host (dictionaries, wikis, social)
+	  - Title shorter than 15 chars
+	  - No URL
+
+	Score thresholds:
+	  - Structured sources (grants.gov, worldbank, sam.gov, ...): score >= 2
+	    Structured feeds are trustworthy but score >= 2 forces at least one
+	    positive signal beyond the domain bonus (e.g. deadline, org, phrase).
+	  - Other paths (searxng, firecrawl-derived): score >= 5
+	    Non-structured must combine multiple signals: bonus domain + phrase,
+	    or procurement path + budget + deadline.
+	"""
+
 	def is_actionable(opp: dict) -> bool:
+		title = str(opp.get("title") or "").strip()
+		title_lc = title.lower()
+		url = str(opp.get("source_url") or opp.get("url") or "").strip()
+		if len(title) < 15 or not url:
+			return False
+		if _title_has_negative(title_lc):
+			return False
+		if _url_is_junk(url):
+			return False
+
 		source = str(opp.get("source") or "").lower()
 		domain = _source_domain(opp)
 		score = _quality_score(opp)
 		if _is_structured_source(opp, domain):
-			return score >= 0
-		if source.startswith("searxng:"):
-			return score >= 1
-		return score >= 1
+			return score >= 2
+		return score >= 5
 
 	filtered = [o for o in opportunities if is_actionable(o)]
 	filtered.sort(key=_quality_score, reverse=True)
@@ -169,9 +448,32 @@ def _filter_quality(opportunities: list[dict]) -> list[dict]:
 
 
 SECTOR_KEYWORDS: dict[str, list[str]] = {
-	"Health": ["health", "medical", "hospital", "pharmaceutical", "hiv", "malaria", "nutrition"],
-	"Education": ["education", "school", "curriculum", "learning", "training", "capacity"],
-	"Infrastructure": ["road", "bridge", "construction", "urban", "water", "sanitation", "wash"],
+	"Health": [
+		"health",
+		"medical",
+		"hospital",
+		"pharmaceutical",
+		"hiv",
+		"malaria",
+		"nutrition",
+	],
+	"Education": [
+		"education",
+		"school",
+		"curriculum",
+		"learning",
+		"training",
+		"capacity",
+	],
+	"Infrastructure": [
+		"road",
+		"bridge",
+		"construction",
+		"urban",
+		"water",
+		"sanitation",
+		"wash",
+	],
 	"ICT & Digital": ["ict", "digital", "technology", "software", "data", "cyber"],
 	"Agriculture": ["agriculture", "food security", "farm", "livestock", "crop"],
 	"Governance": ["governance", "rule of law", "security", "justice", "public sector"],
@@ -194,9 +496,11 @@ def classify_sector(title: str) -> str:
 # HTML digest builder
 # ---------------------------------------------------------------------------
 
+
 def _source_breakdown(opportunities: list[dict]) -> str:
 	"""Return a compact string like 'grants.gov (45) · worldbank (30) · firecrawl (12)'."""
 	from collections import Counter
+
 	# Normalise source names: strip the engine suffix from searxng:bing → searxng
 	def norm(src: str) -> str:
 		if src.startswith("searxng:"):
@@ -204,11 +508,16 @@ def _source_breakdown(opportunities: list[dict]) -> str:
 		if src.startswith("firecrawl:"):
 			return "firecrawl"
 		return src
-	counts: Counter[str] = Counter(norm(o.get("source", "unknown")) for o in opportunities)
+
+	counts: Counter[str] = Counter(
+		norm(o.get("source", "unknown")) for o in opportunities
+	)
 	return " · ".join(f"{src} ({n})" for src, n in counts.most_common())
 
 
-def _html_digest(opportunities: list[dict], date_str: str, summary: str, total_crawled: int) -> str:
+def _html_digest(
+	opportunities: list[dict], date_str: str, summary: str, total_crawled: int
+) -> str:
 	rows = ""
 	shown_opportunities = opportunities[:40]
 	grouped: dict[str, list[dict]] = {sector: [] for sector in SECTOR_KEYWORDS}
@@ -229,7 +538,7 @@ def _html_digest(opportunities: list[dict], date_str: str, summary: str, total_c
 			source = str(opp.get("source") or "")
 			# Normalise source label for display
 			if source.startswith("firecrawl:"):
-				source_label = source[len("firecrawl:"):]
+				source_label = source[len("firecrawl:") :]
 			elif source.startswith("searxng:"):
 				source_label = "web search"
 			else:
@@ -286,14 +595,17 @@ def _html_digest(opportunities: list[dict], date_str: str, summary: str, total_c
 async def _summarise(opportunities: list[dict]) -> str:
 	"""Generate a 2-sentence AI summary of today's opportunities."""
 	import httpx
-	litellm_url = os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1").rstrip("/")
+
+	litellm_url = os.environ.get("LITELLM_URL", "http://62.169.25.77:4000/v1").rstrip(
+		"/"
+	)
 	litellm_api_key = (
 		os.environ.get("LITELLM_API_KEY")
 		or os.environ.get("LITELLM_KEY")
 		or "sk-pjs-litellm-master-key"
 	)
 	litellm_model = os.environ.get("LLM_MODEL", "gpt-4o")
-	titles = "\n".join(f"- {o.get('title','')}" for o in opportunities[:20])
+	titles = "\n".join(f"- {o.get('title', '')}" for o in opportunities[:20])
 	prompt = (
 		"Write a 2-sentence executive summary of these new procurement opportunities "
 		"discovered today. Focus on themes, sectors, and geographic coverage. "
@@ -301,14 +613,29 @@ async def _summarise(opportunities: list[dict]) -> str:
 	)
 	try:
 		async with httpx.AsyncClient(timeout=20) as c:
-			r = await c.post(f"{litellm_url}/chat/completions", headers={"Authorization": f"Bearer {litellm_api_key}"},
-				json={"model": litellm_model, "messages": [{"role": "user", "content": prompt}],
-					  "temperature": 0.3, "max_tokens": 150})
-			return r.json()["choices"][0]["message"]["content"].strip()
+			r = await c.post(
+				f"{litellm_url}/chat/completions",
+				headers={"Authorization": f"Bearer {litellm_api_key}"},
+				json={
+					"model": litellm_model,
+					"messages": [{"role": "user", "content": prompt}],
+					"temperature": 0.3,
+					"max_tokens": 150,
+				},
+			)
+			if r.status_code >= 400:
+				raise RuntimeError(f"LiteLLM returned {r.status_code}: {r.text[:200]}")
+			body = r.json()
+			choices = body.get("choices") or []
+			if not choices:
+				raise RuntimeError(f"LiteLLM response has no choices: {body}")
+			return (choices[0].get("message") or {}).get("content", "").strip()
 	except (KeyboardInterrupt, SystemExit):
 		raise
 	except Exception:
-		_log.warning("AI summary generation failed — using fallback text", exc_info=True)
+		_log.warning(
+			"AI summary generation failed — using fallback text", exc_info=True
+		)
 		sources = set(o.get("source", "") for o in opportunities if o.get("source"))
 		return (
 			f"Today's digest contains {len(opportunities)} new procurement opportunities "
@@ -358,7 +685,10 @@ def _send_email(to_email: str, to_name: str, subject: str, html: str) -> bool:
 # Main digest logic
 # ---------------------------------------------------------------------------
 
-async def run_digest(date_str: str | None = None, to_email: str = "", to_name: str = "") -> int:
+
+async def run_digest(
+	date_str: str | None = None, to_email: str = "", to_name: str = ""
+) -> int:
 	"""Load opportunities for date, quality-filter, summarise, email. Returns count sent."""
 	today = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 	path = STORAGE_DIR / f"{today}.json"
@@ -382,18 +712,24 @@ async def run_digest(date_str: str | None = None, to_email: str = "", to_name: s
 	dropped = total_crawled - len(opportunities)
 	_log.info(
 		"Quality filter: %d kept, %d dropped (%.0f%% noise removed)",
-		len(opportunities), dropped,
+		len(opportunities),
+		dropped,
 		100 * dropped / total_crawled if total_crawled else 0,
 	)
 
 	if not opportunities:
-		_log.warning("All %d crawled items failed quality filter — skipping digest", total_crawled)
+		_log.warning(
+			"All %d crawled items failed quality filter — skipping digest",
+			total_crawled,
+		)
 		return 0
 
 	summary = await _summarise(opportunities)
 	html = _html_digest(opportunities, today, summary, total_crawled)
 
-	recipients = [e.strip() for e in (to_email or DEFAULT_TO_EMAIL).split(",") if e.strip()]
+	recipients = [
+		e.strip() for e in (to_email or DEFAULT_TO_EMAIL).split(",") if e.strip()
+	]
 	if not recipients:
 		out = STORAGE_DIR / f"{today}-digest.html"
 		out.write_text(html, encoding="utf-8")
@@ -419,7 +755,9 @@ def main() -> int:
 	)
 	parser = argparse.ArgumentParser(description="Send daily opportunity digest email")
 	parser.add_argument("--date", help="Date to digest (YYYY-MM-DD, defaults to today)")
-	parser.add_argument("--to", help="Recipient email (overrides DIGEST_TO_EMAIL env var)")
+	parser.add_argument(
+		"--to", help="Recipient email (overrides DIGEST_TO_EMAIL env var)"
+	)
 	parser.add_argument("--name", help="Recipient name", default="")
 	args = parser.parse_args()
 
