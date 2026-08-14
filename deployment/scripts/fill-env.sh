@@ -31,8 +31,11 @@ MINIO_SECRET=$(p pjs/linode/object-storage-secret-key)
 SOKETI_KEY=$(p pjs/search/soketi-app-key)
 SOKETI_SECRET=$(p pjs/search/soketi-app-secret)
 
-# SMTP — use hello@datacraft.systems (Stalwart)
-SMTP_PASS=$(p pjs/mail/dada-hello-password)
+# SMTP — tender-info@datacraft.co.ke (Stalwart account: tender-info-datacraft)
+# Stalwart authenticates by ACCOUNT NAME, not by email address.
+SMTP_PASS=$(p pjs/mail/stalwart-tender-info-datacraft)
+SMTP_AUTH_USER="tender-info-datacraft"
+SMTP_FROM_ADDR="tender-info@datacraft.co.ke"
 
 # App secrets — generate once, store in pass for repeatability
 JWT_SECRET=$(pass_ensure pjs/docfusion/jwt-secret)
@@ -89,9 +92,11 @@ DOCLING_URL=http://84.247.181.100:3600
 DIGEST_TO_EMAIL=nyimbi@gmail.com
 SMTP_HOST=mail.lindela.io
 SMTP_PORT=587
-SMTP_USER=hello@datacraft.systems
+# Stalwart authenticates by ACCOUNT NAME (not email); SMTP_FROM stays as address.
+SMTP_USER=${SMTP_AUTH_USER}
 SMTP_PASSWORD=${SMTP_PASS}
-SMTP_FROM=hello@datacraft.systems
+SMTP_FROM=${SMTP_FROM_ADDR}
+SMTP_FROM_NAME="DocFusion Tender Intel"
 
 # ── Cache (local Redis on spare-2) ──────────────────────────────
 REDIS_URL=redis://127.0.0.1:6379/0
