@@ -44,6 +44,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -86,7 +87,7 @@ def _env_int(name: str, default: int, minimum: int = 1, maximum: int = 100_000) 
 
 STORAGE_DIR = Path(os.environ.get("OPPORTUNITY_STORAGE_DIR", "./storage/opportunities"))
 LOOKBACK_DAYS = _env_int("CRAWL_LOOKBACK_DAYS", 30, 1, 365)
-CRAWL_LIMIT = _env_int("CRAWL_LIMIT", 300, 1, 10_000)
+CRAWL_LIMIT = _env_int("CRAWL_LIMIT", 600, 1, 10_000)
 MIN_RESULTS_THRESHOLD = _env_int("MIN_RESULTS_THRESHOLD", 5, 0, 1_000)
 CALL_TIMEOUT = _env_int("CRAWL_TIMEOUT", 20, 5, 300)
 FIRECRAWL_URL = os.environ.get("FIRECRAWL_URL", "http://62.169.25.77:3002")
@@ -386,11 +387,61 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 # Discovery path 2 — grants.gov REST API
 # ---------------------------------------------------------------------------
 
+# The broad empty-keyword pull stays for recall — LLM triage in the digest
+# demotes irrelevant items rather than us guessing at the source.
 GRANTS_GOV_QUERIES = [
 	{"keyword": "", "oppStatuses": "posted", "rows": 50, "startRecordNum": 0},
 	{"keyword": "Africa", "oppStatuses": "posted", "rows": 25, "startRecordNum": 0},
 	{
 		"keyword": "international development",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "digital health",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "health systems",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "monitoring and evaluation",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "food security",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "water sanitation",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "education technology",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "climate resilience",
+		"oppStatuses": "posted",
+		"rows": 25,
+		"startRecordNum": 0,
+	},
+	{
+		"keyword": "capacity building",
 		"oppStatuses": "posted",
 		"rows": 25,
 		"startRecordNum": 0,
@@ -441,55 +492,108 @@ async def _path_grants_gov(client: httpx.AsyncClient) -> list[Opportunity]:
 # Discovery path 3 — World Bank Projects API
 # ---------------------------------------------------------------------------
 
-WORLDBANK_QUERIES = [
-	{"fq": 'regionname_exact:("Africa") AND status:("Active")', "rows": 50},
-	{"fq": 'regionname_exact:("Latin America") AND status:("Active")', "rows": 25},
-	{"fq": 'regionname_exact:("South Asia") AND status:("Active")', "rows": 25},
-]
+
+def _parse_procnotices(data: dict) -> list[Opportunity]:
+	"""Parse the World Bank v2 procnotices payload (schema curl-verified 2026-08)."""
+	results: list[Opportunity] = []
+	notices = data.get("procnotices") or []
+	if isinstance(notices, dict):
+		notices = list(notices.values())
+	for item in notices:
+		notice_id = str(item.get("id") or "")
+		title = str(item.get("bid_description") or "").strip()
+		if not title or not notice_id:
+			continue
+		notice_type = str(item.get("notice_type") or "")
+		method = str(item.get("procurement_method_name") or "")
+		desc_bits = [
+			b for b in (notice_type, method, str(item.get("project_name") or "")) if b
+		]
+		results.append(
+			Opportunity(
+				title=title,
+				source_url=f"https://projects.worldbank.org/en/projects-operations/procurement-detail/{notice_id}",
+				source="worldbank-procurement",
+				organization=str(item.get("project_ctry_name") or ""),
+				deadline=str(item.get("submission_deadline_date") or ""),
+				reference=str(
+					item.get("bid_reference_no") or item.get("project_id") or ""
+				),
+				description=" · ".join(desc_bits)[:300],
+				tags=["world-bank", "procurement-notice"],
+			)
+		)
+	return results
 
 
 async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
+	"""World Bank procurement notices (actual tenders) + a small project-pipeline feed."""
 	results: list[Opportunity] = []
-	for params_extra in WORLDBANK_QUERIES:
-		try:
-			params = {
-				"fl": "id,project_name,boardapprovaldate,countryname,sector_exact,status",
-				"format": "json",
-				**params_extra,
-			}
 
-			async def fetch(p=params):
-				r = await client.get(
-					"https://search.worldbank.org/api/v2/projects",
-					params=p,
-					headers=_HEADERS,
-					timeout=CALL_TIMEOUT,
-				)
-				r.raise_for_status()
-				return r.json()
+	# Primary: procurement notices — actual open solicitations.
+	try:
 
-			data = await _retry(fetch, label="worldbank")
-			projects = data.get("projects") or {}
-			if isinstance(projects, dict):
-				projects = list(projects.values())
-			for item in projects:
-				proj_id = str(item.get("id") or "")
-				title = str(item.get("project_name") or "").strip()
-				if not title or not proj_id:
-					continue
-				results.append(
-					Opportunity(
-						title=title,
-						source_url=f"https://projects.worldbank.org/en/projects-operations/project-detail/{proj_id}",
-						source="worldbank",
-						organization=str(item.get("countryname") or ""),
-						deadline=str(item.get("boardapprovaldate") or ""),
-						reference=proj_id,
-						tags=["project", "world-bank", "development"],
-					)
+		async def fetch_notices():
+			r = await client.get(
+				"https://search.worldbank.org/api/v2/procnotices",
+				params={
+					"format": "json",
+					"rows": 100,
+					"srt": "noticedate",
+					"order": "desc",
+				},
+				headers=_HEADERS,
+				timeout=CALL_TIMEOUT,
+			)
+			r.raise_for_status()
+			return r.json()
+
+		data = await _retry(fetch_notices, label="worldbank-procurement")
+		results.extend(_parse_procnotices(data))
+	except Exception as exc:
+		_log.warning("[worldbank-procurement] query failed: %s", exc)
+
+	# Secondary: Africa project pipeline for context (Tier-C material).
+	try:
+		params = {
+			"fl": "id,project_name,boardapprovaldate,countryname,sector_exact,status",
+			"format": "json",
+			"fq": 'regionname_exact:("Africa") AND status:("Active")',
+			"rows": 25,
+		}
+
+		async def fetch_projects(p=params):
+			r = await client.get(
+				"https://search.worldbank.org/api/v2/projects",
+				params=p,
+				headers=_HEADERS,
+				timeout=CALL_TIMEOUT,
+			)
+			r.raise_for_status()
+			return r.json()
+
+		data = await _retry(fetch_projects, label="worldbank-projects")
+		projects = data.get("projects") or {}
+		if isinstance(projects, dict):
+			projects = list(projects.values())
+		for item in projects:
+			proj_id = str(item.get("id") or "")
+			title = str(item.get("project_name") or "").strip()
+			if not title or not proj_id:
+				continue
+			results.append(
+				Opportunity(
+					title=title,
+					source_url=f"https://projects.worldbank.org/en/projects-operations/project-detail/{proj_id}",
+					source="worldbank",
+					organization=str(item.get("countryname") or ""),
+					deadline="",
+					reference=proj_id,
+					tags=["world-bank", "project-pipeline"],
 				)
-		except Exception as exc:
-			_log.warning("[worldbank] query failed: %s", exc)
+			)
+	except Exception as exc:
+		_log.warning("[worldbank-projects] query failed: %s", exc)
 
 	_log.info("[worldbank] collected %d results", len(results))
 	return results
@@ -503,21 +607,32 @@ async def _path_worldbank(client: httpx.AsyncClient) -> list[Opportunity]:
 async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 
-	# SAM.gov opportunity search via their published REST API (no key, DEMO_KEY deprecated)
+	# SAM.gov opportunity search. DEMO_KEY is limited to ~30 req/day/IP and
+	# degraded results; set SAM_API_KEY (free registration at sam.gov) for
+	# full coverage.
 	try:
+		sam_key = os.environ.get("SAM_API_KEY", "").strip() or "DEMO_KEY"
+		posted_from = (datetime.now(timezone.utc) - timedelta(days=14)).strftime(
+			"%m/%d/%Y"
+		)
 
 		async def fetch_sam():
 			r = await client.get(
 				"https://api.sam.gov/opportunities/v2/search",
 				params={
-					"limit": "25",
-					"postedFrom": "01/01/2026",
-					"api_key": "DEMO_KEY",
+					"limit": "100" if sam_key != "DEMO_KEY" else "25",
+					"postedFrom": posted_from,
+					"postedTo": datetime.now(timezone.utc).strftime("%m/%d/%Y"),
+					"api_key": sam_key,
 					"ptype": "o,k,u,r,s,g",
 				},
 				headers={**_HEADERS, "Accept": "application/json"},
 				timeout=CALL_TIMEOUT,
 			)
+			if r.status_code == 429 and sam_key == "DEMO_KEY":
+				_log.warning(
+					"[sam.gov] DEMO_KEY rate-limited (429) — set SAM_API_KEY for full coverage"
+				)
 			r.raise_for_status()
 			return r.json()
 
@@ -588,7 +703,7 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 					),
 					deadline="",
 					reference=str(item.get("project_num") or ""),
-					tags=["grant", "nih", "health-research"],
+					tags=["grant", "nih", "research-project"],
 				)
 			)
 	except Exception as exc:
@@ -603,54 +718,84 @@ async def _path_us_federal(client: httpx.AsyncClient) -> list[Opportunity]:
 # ---------------------------------------------------------------------------
 
 
+# UNGM search returns HTML table rows (no JSON API); anonymous POST works.
+# Row anatomy curl-verified 2026-08: data-noticeid carries the id, cells hold
+# title / deadline / published / agency / type / reference / country in order.
+_UNGM_ROW_RE = re.compile(r'data-noticeid="(\d+)"', re.DOTALL)
+_UNGM_TITLE_RE = re.compile(
+	r'class="ungm-title ungm-title--small">\s*(.*?)\s*</span>', re.DOTALL
+)
+_UNGM_DEADLINE_RE = re.compile(
+	r'data-description="Deadline">\s*<span>\s*(.*?)\s*</span>', re.DOTALL
+)
+_UNGM_AGENCY_RE = re.compile(
+	r'class="tableCell resultAgency">\s*<span>(.*?)</span>', re.DOTALL
+)
+_UNGM_REFERENCE_RE = re.compile(
+	r'data-description="Reference">\s*<span>(.*?)</span>', re.DOTALL
+)
+_UNGM_TYPE_RE = re.compile(r"<label for='[^']*'>(.*?)</label>", re.DOTALL)
+
+
+def _parse_ungm_rows(html: str) -> list[Opportunity]:
+	results: list[Opportunity] = []
+	# Split on row starts; first chunk is preamble.
+	chunks = _UNGM_ROW_RE.split(html)
+	for i in range(1, len(chunks) - 1, 2):
+		notice_id = chunks[i]
+		row_html = chunks[i + 1]
+		title_m = _UNGM_TITLE_RE.search(row_html)
+		if not title_m:
+			continue
+		title = re.sub(r"\s+", " ", title_m.group(1)).strip()
+		if not title:
+			continue
+		deadline_m = _UNGM_DEADLINE_RE.search(row_html)
+		deadline = ""
+		if deadline_m:
+			# e.g. "07-Sep-2026 15:00 (GMT 13.00)" — keep the date part.
+			date_m = re.search(r"(\d{2}-\w{3}-\d{4})", deadline_m.group(1))
+			deadline = date_m.group(1) if date_m else ""
+		agency_m = _UNGM_AGENCY_RE.search(row_html)
+		ref_m = _UNGM_REFERENCE_RE.search(row_html)
+		type_m = _UNGM_TYPE_RE.search(row_html)
+		results.append(
+			Opportunity(
+				title=title,
+				source_url=f"https://www.ungm.org/Public/Notice/{notice_id}",
+				source="ungm",
+				organization=agency_m.group(1).strip() if agency_m else "",
+				deadline=deadline,
+				reference=ref_m.group(1).strip() if ref_m else notice_id,
+				description=type_m.group(1).strip() if type_m else "",
+				tags=["ungm", "un", "procurement"],
+			)
+		)
+	return results
+
+
 async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
 	results: list[Opportunity] = []
 	try:
 
 		async def fetch():
-			r = await client.get(
-				"https://www.ungm.org/Public/Notice",
-				params={"noticeType": 0, "noticeStatus": 0, "limit": 50},
-				headers=_HEADERS,
+			r = await client.post(
+				"https://www.ungm.org/Public/Notice/Search",
+				json={
+					"PageIndex": 0,
+					"PageSize": 100,
+					"NoticeTypeIds": [],
+					"SortField": "DatePublished",
+					"SortAscending": False,
+				},
+				headers={**_HEADERS, "Content-Type": "application/json"},
 				timeout=CALL_TIMEOUT,
 			)
 			r.raise_for_status()
-			return r.json()
+			return r.text
 
-		data = await _retry(fetch, label="ungm")
-		items = (
-			data
-			if isinstance(data, list)
-			else (
-				data.get("data")
-				or data.get("items")
-				or data.get("results")
-				or data.get("notices")
-				or []
-			)
-		)
-		for item in items[:50] if isinstance(items, list) else []:
-			title = _text(item.get("Title") or item.get("title"))
-			notice_id = _text(
-				item.get("NoticeId") or item.get("noticeId") or item.get("id")
-			)
-			if not title or not notice_id:
-				continue
-			published = _text(item.get("PublishedOn") or item.get("publishedOn"))
-			results.append(
-				Opportunity(
-					title=title,
-					source_url=f"https://www.ungm.org/Public/Notice/{notice_id}",
-					source="ungm",
-					organization=_text(
-						item.get("OrganizationName") or item.get("organizationName")
-					),
-					deadline=_text(item.get("Deadline") or item.get("deadline")),
-					reference=notice_id,
-					description=f"Published: {published}" if published else "",
-					tags=["ungm", "un", "procurement"],
-				)
-			)
+		html = await _retry(fetch, label="ungm")
+		results = _parse_ungm_rows(html)
 	except Exception as exc:
 		_log.warning("[ungm] failed: %s", exc)
 

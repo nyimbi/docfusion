@@ -102,6 +102,15 @@ SMTP_FROM_NAME="DocFusion Tender Intel"
 REDIS_URL=redis://127.0.0.1:6379/0
 CACHE_URL=redis://127.0.0.1:6379/0
 
+# ── Opportunity digest triage ───────────────────────────────────
+OPPORTUNITY_PROFILE_PATH=/root/docfusion/config/opportunity_profile.yaml
+TRIAGE_ENABLED=1
+TRIAGE_BATCH_SIZE=25
+CLOSING_SOON_DAYS=14
+ENRICH_LIMIT=15
+CRAWL_LIMIT=600
+# SAM_API_KEY unset — DEMO_KEY fallback (register free key at sam.gov for full US coverage)
+
 # ── Agent memory ────────────────────────────────────────────────
 MEMORY_TTL_DAYS=30
 

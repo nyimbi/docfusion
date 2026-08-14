@@ -1,0 +1,91 @@
+# DocFusion opportunity relevance profile
+# Consumed by src/docfusion/workers/digest/triage.py to rank (never drop)
+# crawled opportunities against the business. Edit freely — the digest
+# re-scores everything when this file's hash changes.
+version: 1
+company: Datacraft
+positioning: >
+  Africa-focused development consultancy delivering technical assistance,
+  digital systems, and monitoring & evaluation for governments,
+  multilaterals, and donors.
+
+sectors:
+  - name: "Health Systems"
+    hints: [health, hiv, malaria, nutrition, "digital health", pharmaceutical, "supply chain"]
+  - name: "ICT & Digital"
+    hints: [ict, digital, software, data, platform, e-government, cyber, "information system", ai]
+  - name: "Education"
+    hints: [education, school, curriculum, tvet, learning, teacher]
+  - name: "WASH"
+    hints: [water, sanitation, wash, hygiene]
+  - name: "Agriculture & Food Security"
+    hints: [agriculture, "food security", livestock, agri, smallholder]
+  - name: "Governance & MEL"
+    hints: [governance, "monitoring and evaluation", "m&e", mel, "public sector", pfm, justice, elections]
+  - name: "Climate & Energy"
+    hints: [climate, renewable, solar, energy, resilience, adaptation]
+
+geographies:
+  primary:
+    - Kenya
+    - Uganda
+    - Tanzania
+    - Rwanda
+    - Ethiopia
+    - Nigeria
+    - Ghana
+    - South Africa
+    - Sub-Saharan Africa
+    - East Africa
+    - West Africa
+  secondary:
+    - multi-country
+    - global
+    - MENA
+    - South Asia
+
+client_types:
+  - World Bank
+  - AfDB
+  - UN agencies (UNDP/UNICEF/WFP/UNOPS/WHO/FAO)
+  - USAID
+  - FCDO
+  - GIZ
+  - EU
+  - Global Fund
+  - foundations
+  - African national governments
+
+delivery_models:
+  - consultancy
+  - technical assistance
+  - M&E / evaluation
+  - software & data platforms
+  - capacity building
+  - research
+  - feasibility studies
+
+# Poor fits — demoted to the long-tail tier, never dropped from the digest.
+exclusions:
+  - clinical trials / biomedical research
+  - US-domestic-only services
+  - construction works / civil works
+  - goods supply only (vehicles, equipment)
+
+keyword_boost:
+  - africa
+  - expression of interest
+  - consultancy
+  - technical assistance
+  - digital
+  - evaluation
+
+keyword_demote:
+  - R01
+  - R21
+  - R03
+  - SBIR
+  - clinical trial
+  - phase iii
+  - veterans affairs
+  - domestic

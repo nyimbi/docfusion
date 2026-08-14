@@ -10,4 +10,4 @@ EnvironmentFile=/root/docfusion/.env
 ExecStart=/root/docfusion/.venv/bin/python -m docfusion.workers.digest
 StandardOutput=journal
 StandardError=journal
-TimeoutSec=300
+TimeoutSec=900
