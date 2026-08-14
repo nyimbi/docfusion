@@ -239,7 +239,7 @@ def _profile_prompt(profile: dict) -> str:
 _SYSTEM_PROMPT = (
 	"You score procurement/grant opportunities for relevance to a specific "
 	"consultancy. Return ONLY JSON of the form "
-	'{"items":[{"id":<int>,"relevance":<0-100>,"why":"<one line>",'
+	'{"items":[{"id":<int>,"relevance":<0-100>,"why":"<max 12 words>",'
 	'"sector":"<one of the listed sectors or Other>",'
 	'"geography":"<country/region or unknown>",'
 	'"deadline":"<YYYY-MM-DD or empty string>"}]}. '
@@ -292,7 +292,9 @@ async def _score_batch(
 				"model": model,
 				"messages": messages,
 				"temperature": 0,
-				"max_tokens": 2500,
+				# deepseek-v4-flash has 1M context; generous output budget so a
+				# batch's JSON can never truncate mid-item.
+				"max_tokens": 32000,
 				"response_format": {"type": "json_object"},
 			},
 			timeout=60,

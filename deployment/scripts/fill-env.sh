@@ -79,8 +79,10 @@ DATABASE_URL=postgresql://${DB_USER}:${DB_PASS}@db.lindela.io:5432/docfusion
 # ── LiteLLM gateway (ml/vault — 62.169.25.77) ──────────────────
 LITELLM_URL=http://62.169.25.77:4000/v1
 LITELLM_KEY=${LITELLM_KEY}
-LLM_MODEL=gpt-4o
-LLM_FAST_MODEL=gpt-4o-mini
+# deepseek-v4-flash on Ollama cloud via LiteLLM — fast, JSON-reliable
+LLM_MODEL=deepseek-v4-flash:0731-cloud
+LLM_FAST_MODEL=deepseek-v4-flash:0731-cloud
+TRIAGE_MODEL=deepseek-v4-flash:0731-cloud
 LLM_EMBEDDING_MODEL=text-embedding-ada-002
 
 # ── Discovery services (search — 84.247.181.100) ───────────────
