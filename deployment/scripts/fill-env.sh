@@ -91,7 +91,7 @@ FIRECRAWL_URL=http://84.247.181.100:3002
 DOCLING_URL=http://84.247.181.100:3600
 
 # ── Notifications (Stalwart SMTP — mail.lindela.io) ────────────
-DIGEST_TO_EMAIL=nyimbi@gmail.com
+DIGEST_TO_EMAIL=nyimbi@gmail.com,nyimbi@datacraft.co.ke,skahinga@datacraft.co.ke
 SMTP_HOST=mail.lindela.io
 SMTP_PORT=587
 # Stalwart authenticates by ACCOUNT NAME (not email); SMTP_FROM stays as address.
