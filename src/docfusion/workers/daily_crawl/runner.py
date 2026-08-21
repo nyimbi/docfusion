@@ -432,47 +432,58 @@ BONUS_DOMAINS: frozenset[str] = frozenset(
 		"greenclimate.fund",
 		"developmentaid.org",
 		"enabel.be",
-	# African election commissions (added 2026-08-22)
-	"iebc.or.ke",
-	"ec.or.ug",
-	"nec.go.tz",
-	"nec.gov.rw",
-	"nebe.org.et",
-	"inecnigeria.org",
-	"ec.gov.gh",
-	"elections.org.za",
-	"elections.org.zm",
-	"zec.org.zw",
-	"mec.org.mw",
-	"iec.gov.bw",
-	"ecn.na",
-	"iec.org.ls",
-	"cne.ao",
-	"ceni.cd",
-	"elecam.cm",
-	"cena.sn",
-	"ceni.bf",
-	"cei.ci",
-	"cena.bj",
-	"necliberia.org",
-	"ec.gov.sl",
-	"iec.gm",
-	"isie.tn",
-	"hnec.ly",
-	"ceni-madagascar.mg",
-	"ecs.sc",
-	"ceni.bi",
-	"ceni.mr",
+		# African election commissions (added 2026-08-22)
+		"iebc.or.ke",
+		"ec.or.ug",
+		"nec.go.tz",
+		"nec.gov.rw",
+		"nebe.org.et",
+		"inecnigeria.org",
+		"ec.gov.gh",
+		"elections.org.za",
+		"elections.org.zm",
+		"zec.org.zw",
+		"mec.org.mw",
+		"iec.gov.bw",
+		"ecn.na",
+		"iec.org.ls",
+		"cne.ao",
+		"ceni.cd",
+		"elecam.cm",
+		"cena.sn",
+		"ceni.bf",
+		"cei.ci",
+		"cena.bj",
+		"necliberia.org",
+		"ec.gov.sl",
+		"iec.gm",
+		"isie.tn",
+		"hnec.ly",
+		"ceni-madagascar.mg",
+		"ecs.sc",
+		"ceni.bi",
+		"ceni.mr",
 	}
 )
 _PROCUREMENT_DOMAINS = BONUS_DOMAINS
 
 
 async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportunity]:
+	"""SearXNG sweep with pacing.
+
+	98 back-to-back queries read as abuse to upstream engines — they suspend
+	with 429/CAPTCHA and every query silently returns 0. SEARXNG_QUERY_DELAY
+	(default 2s) spaces requests so engines rotate within their limits; the
+	suspension telemetry from the last response is logged so an engine
+	blackout is visible instead of masquerading as a quiet news day.
+	"""
 	results: list[Opportunity] = []
 	per_query = max(10, limit // len(SEARXNG_QUERIES))
+	delay = float(os.environ.get("SEARXNG_QUERY_DELAY", "2.0"))
+	unresponsive: list = []
+	empty_queries = 0
 
-	for query in SEARXNG_QUERIES:
+	for i, query in enumerate(SEARXNG_QUERIES):
 		try:
 
 			async def fetch(q=query):
@@ -485,7 +496,11 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 				return r.json()
 
 			data = await _retry(fetch, label=f"searxng:{query[:30]}")
-			for item in (data.get("results") or [])[:per_query]:
+			items = data.get("results") or []
+			if not items:
+				empty_queries += 1
+				unresponsive = data.get("unresponsive_engines") or unresponsive
+			for item in items[:per_query]:
 				url = item.get("url") or ""
 				title = item.get("title") or ""
 				if not url or not title:
@@ -501,7 +516,17 @@ async def _path_searxng(client: httpx.AsyncClient, limit: int) -> list[Opportuni
 				)
 		except Exception as exc:
 			_log.warning("[searxng] query '%s' failed: %s", query[:40], exc)
+		if delay > 0 and i < len(SEARXNG_QUERIES) - 1:
+			await asyncio.sleep(delay)
 
+	if empty_queries > len(SEARXNG_QUERIES) // 2:
+		_log.warning(
+			"[searxng] %d/%d queries returned nothing — engines likely "
+			"rate-limited. Last unresponsive_engines: %s",
+			empty_queries,
+			len(SEARXNG_QUERIES),
+			unresponsive,
+		)
 	_log.info("[searxng] collected %d results", len(results))
 	return results
 
