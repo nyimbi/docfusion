@@ -254,6 +254,43 @@ SEARXNG_QUERIES = [
 	"site:dbsa.org tender",  # Development Bank of Southern Africa
 	"site:caribank.org procurement",  # Caribbean Development Bank
 	"site:caf.com procurement",  # CAF — Latin America
+	# African election commissions (EMBs) — tenders for voter registration,
+	# biometrics, ICT, voter education. Site-scoped where the EMB has a stable
+	# domain; the election phrase queries below catch the rest.
+	"site:iebc.or.ke",  # Kenya
+	"site:ec.or.ug",  # Uganda
+	"site:nec.go.tz",  # Tanzania
+	"site:nec.gov.rw",  # Rwanda
+	"site:nebe.org.et",  # Ethiopia
+	"site:inecnigeria.org",  # Nigeria
+	"site:ec.gov.gh",  # Ghana
+	"site:elections.org.za",  # South Africa
+	"site:elections.org.zm",  # Zambia
+	"site:zec.org.zw",  # Zimbabwe
+	"site:mec.org.mw",  # Malawi
+	"site:iec.gov.bw",  # Botswana
+	"site:ecn.na",  # Namibia
+	"site:iec.org.ls",  # Lesotho
+	"site:cne.ao",  # Angola
+	"site:ceni.cd",  # DR Congo
+	"site:elecam.cm",  # Cameroon
+	"site:cena.sn",  # Senegal
+	"site:ceni.bf",  # Burkina Faso
+	"site:cei.ci",  # Côte d'Ivoire
+	"site:cena.bj",  # Benin
+	"site:necliberia.org",  # Liberia
+	"site:ec.gov.sl",  # Sierra Leone
+	"site:iec.gm",  # Gambia
+	"site:isie.tn",  # Tunisia
+	"site:hnec.ly",  # Libya
+	"site:ceni-madagascar.mg",  # Madagascar
+	"site:ecs.sc",  # Seychelles
+	"site:ceni.bi",  # Burundi
+	"site:ceni.mr",  # Mauritania
+	# Election-procurement phrase queries — catch EMBs without stable domains
+	'"electoral commission" tender 2026',
+	'"election commission" procurement 2026 africa',
+	'"biometric voter registration" tender',
 	# Bilateral donors
 	"site:giz.de tender international",
 	"site:enabel.be tender",
@@ -379,22 +416,53 @@ BONUS_DOMAINS: frozenset[str] = frozenset(
 		"gatesfoundation.org",
 		"rockefellerfoundation.org",
 		"aiib.org",
-	# Development banks (added 2026-08-22)
-	"isdb.org",
-	"ndb.int",
-	"opecfund.org",
-	"badea.org",
-	"tdbgroup.org",
-	"afreximbank.com",
-	"bidc-ebid.org",
-	"eadb.org",
-	"boad.org",
-	"dbsa.org",
-	"caribank.org",
-	"caf.com",
-	"greenclimate.fund",
-	"developmentaid.org",
-	"enabel.be",
+		# Development banks (added 2026-08-22)
+		"isdb.org",
+		"ndb.int",
+		"opecfund.org",
+		"badea.org",
+		"tdbgroup.org",
+		"afreximbank.com",
+		"bidc-ebid.org",
+		"eadb.org",
+		"boad.org",
+		"dbsa.org",
+		"caribank.org",
+		"caf.com",
+		"greenclimate.fund",
+		"developmentaid.org",
+		"enabel.be",
+	# African election commissions (added 2026-08-22)
+	"iebc.or.ke",
+	"ec.or.ug",
+	"nec.go.tz",
+	"nec.gov.rw",
+	"nebe.org.et",
+	"inecnigeria.org",
+	"ec.gov.gh",
+	"elections.org.za",
+	"elections.org.zm",
+	"zec.org.zw",
+	"mec.org.mw",
+	"iec.gov.bw",
+	"ecn.na",
+	"iec.org.ls",
+	"cne.ao",
+	"ceni.cd",
+	"elecam.cm",
+	"cena.sn",
+	"ceni.bf",
+	"cei.ci",
+	"cena.bj",
+	"necliberia.org",
+	"ec.gov.sl",
+	"iec.gm",
+	"isie.tn",
+	"hnec.ly",
+	"ceni-madagascar.mg",
+	"ecs.sc",
+	"ceni.bi",
+	"ceni.mr",
 	}
 )
 _PROCUREMENT_DOMAINS = BONUS_DOMAINS
