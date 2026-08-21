@@ -227,11 +227,50 @@ SEARXNG_QUERIES = [
 	"site:bpp.gov.ng",
 	"site:ppa.gov.gh",
 	"site:rppa.gov.rw",
+	# Portals that block direct scraping (403) — search engines index them for us
+	'site:afdb.org "expression of interest"',
+	'site:afdb.org "procurement notice"',
+	'site:adb.org "invitation for bids"',
+	'site:adb.org "consulting services"',
+	'site:iadb.org "procurement notice"',
+	'site:ebrd.com "procurement notice"',
+	"site:globalfund.org tender",
+	'site:eib.org "procurement notice"',
+	"site:aiib.org procurement",
+	"site:greenclimate.fund procurement",
+	'site:unops.org "request for"',
+	'site:gatesfoundation.org "request for proposals"',
+	"site:developmentaid.org tenders",
+	# Development banks — global + regional (AfDB/ADB/IADB/EBRD/EIB/AIIB above)
+	"site:isdb.org procurement",  # Islamic Development Bank
+	"site:ndb.int procurement",  # New Development Bank (BRICS)
+	"site:opecfund.org procurement",
+	"site:badea.org tender",  # Arab Bank for Economic Dev. in Africa
+	"site:tdbgroup.org procurement",  # Trade & Development Bank (East Africa)
+	"site:afreximbank.com tender",
+	"site:bidc-ebid.org procurement",  # ECOWAS Bank (EBID)
+	"site:eadb.org procurement",  # East African Development Bank
+	"site:boad.org marches",  # West African Development Bank (BOAD)
+	"site:dbsa.org tender",  # Development Bank of Southern Africa
+	"site:caribank.org procurement",  # Caribbean Development Bank
+	"site:caf.com procurement",  # CAF — Latin America
+	# Bilateral donors
+	"site:giz.de tender international",
+	"site:enabel.be tender",
+	"site:sida.se procurement",
 	# Phrase-scoped (must appear verbatim in title/snippet — cuts most noise)
 	'"request for proposals" 2026 africa',
 	'"invitation to tender" 2026 africa',
 	'"expression of interest" 2026 africa',
 	'"call for proposals" 2026 africa',
+	'"procurement notice" 2026 africa',
+	'"invitation for bids" 2026 africa',
+	'"terms of reference" consultancy 2026 africa',
+	'"request for quotations" 2026 africa',
+	# Francophone Africa
+	'"appel d\'offres" 2026 afrique',
+	'"avis de marché" 2026',
+	'"manifestation d\'intérêt" 2026 afrique',
 ]
 
 # Domains that never contain actual procurement opportunities
@@ -340,6 +379,22 @@ BONUS_DOMAINS: frozenset[str] = frozenset(
 		"gatesfoundation.org",
 		"rockefellerfoundation.org",
 		"aiib.org",
+	# Development banks (added 2026-08-22)
+	"isdb.org",
+	"ndb.int",
+	"opecfund.org",
+	"badea.org",
+	"tdbgroup.org",
+	"afreximbank.com",
+	"bidc-ebid.org",
+	"eadb.org",
+	"boad.org",
+	"dbsa.org",
+	"caribank.org",
+	"caf.com",
+	"greenclimate.fund",
+	"developmentaid.org",
+	"enabel.be",
 	}
 )
 _PROCUREMENT_DOMAINS = BONUS_DOMAINS
@@ -803,55 +858,80 @@ async def _path_ungm(client: httpx.AsyncClient) -> list[Opportunity]:
 	return results
 
 
+def _ted_lang_text(value: object, prefer: str = "eng") -> str:
+	"""TED v3 returns multilingual dicts: {lang: str | [str]}. Prefer English."""
+	if isinstance(value, str):
+		return value.strip()
+	if isinstance(value, dict) and value:
+		chosen = value.get(prefer) or next(iter(value.values()))
+		if isinstance(chosen, list):
+			chosen = chosen[0] if chosen else ""
+		return str(chosen).strip()
+	return ""
+
+
+def _parse_ted_notices(data: dict) -> list[Opportunity]:
+	"""Parse the TED v3 search payload (schema curl-verified 2026-08)."""
+	results: list[Opportunity] = []
+	for item in data.get("notices") or []:
+		pub_no = str(item.get("publication-number") or "")
+		title = _ted_lang_text(item.get("notice-title"))
+		if not pub_no or not title:
+			continue
+		deadlines = item.get("deadline-receipt-tender-date-lot") or []
+		deadline = str(deadlines[0]).split("+")[0] if deadlines else ""
+		places = item.get("place-of-performance") or []
+		place = places[0] if places else ""
+		results.append(
+			Opportunity(
+				title=title,
+				source_url=f"https://ted.europa.eu/en/notice/{pub_no}",
+				source="ted.europa.eu",
+				organization=_ted_lang_text(item.get("buyer-name")),
+				deadline=deadline,
+				reference=pub_no,
+				description=f"Place of performance: {place}" if place else "",
+				tags=["ted", "eu", "procurement"],
+			)
+		)
+	return results
+
+
 async def _path_ted_eu(client: httpx.AsyncClient) -> list[Opportunity]:
+	"""TED v3 API (POST + expert query — the old v3.0 GET endpoint returns 405).
+
+	CPV classes: 72 IT, 73 research, 79 business services, 80 education,
+	85 health, 90 environment — the consultancy-relevant slice of TED.
+	"""
 	results: list[Opportunity] = []
 	try:
 
 		async def fetch():
-			r = await client.get(
-				"https://ted.europa.eu/api/v3.0/notices/search",
-				params={
-					"q": "scope:INT",
-					"fields": "ND,TI,PC,DT,AU",
-					"pageSize": 50,
-					"page": 1,
+			r = await client.post(
+				"https://api.ted.europa.eu/v3/notices/search",
+				json={
+					"query": (
+						"classification-cpv IN (72000000 73000000 79000000 "
+						"80000000 85000000 90000000) SORT BY publication-date DESC"
+					),
+					"fields": [
+						"publication-number",
+						"notice-title",
+						"buyer-name",
+						"deadline-receipt-tender-date-lot",
+						"place-of-performance",
+						"publication-date",
+					],
+					"limit": 100,
 				},
-				headers=_HEADERS,
+				headers={**_HEADERS, "Content-Type": "application/json"},
 				timeout=CALL_TIMEOUT,
 			)
 			r.raise_for_status()
 			return r.json()
 
 		data = await _retry(fetch, label="ted.europa.eu")
-		items = (
-			data
-			if isinstance(data, list)
-			else (
-				data.get("results")
-				or data.get("notices")
-				or data.get("data")
-				or data.get("items")
-				or []
-			)
-		)
-		for item in items[:50] if isinstance(items, list) else []:
-			notice_no = _text(
-				item.get("ND") or item.get("noticeNumber") or item.get("notice_number")
-			)
-			title = _text(item.get("TI") or item.get("title"))
-			if not notice_no or not title:
-				continue
-			results.append(
-				Opportunity(
-					title=title,
-					source_url=f"https://ted.europa.eu/en/notice/{notice_no}",
-					source="ted.europa.eu",
-					organization=_text(item.get("AU") or item.get("authority")),
-					deadline=_text(item.get("DT") or item.get("deadline")),
-					reference=notice_no,
-					tags=["ted", "eu", "procurement"],
-				)
-			)
+		results = _parse_ted_notices(data)
 	except Exception as exc:
 		_log.warning("[ted.europa.eu] failed: %s", exc)
 
@@ -1047,14 +1127,14 @@ async def _path_afdb(client: httpx.AsyncClient) -> list[Opportunity]:
 # Discovery path 9 — XML/RSS feeds
 # ---------------------------------------------------------------------------
 
+# Probed 2026-08-22: devex procurement.rss, ungm.org/rss/notices → 404;
+# phap.org DNS gone. ReliefWeb is the one reliable RSS publisher left —
+# the other portals are covered via SearXNG site-scoped queries.
 RSS_FEEDS: list[tuple[str, str]] = [
-	("devex", "https://www.devex.com/rss/procurement.rss"),
-	("ungm-rss", "https://www.ungm.org/rss/notices"),
 	(
 		"reliefweb-funding",
 		"https://reliefweb.int/updates/rss.xml?tag=Funding+opportunity",
 	),
-	("phap-opportunities", "https://phap.org/opportunities/feed"),
 ]
 
 
@@ -1399,6 +1479,8 @@ async def run_crawl(date_str: str | None = None) -> int:
 	async with httpx.AsyncClient(
 		timeout=CALL_TIMEOUT, verify=False, follow_redirects=True
 	) as client:
+		# usaid path retired 2026-08-22: its JSON API is a permanent 404 (agency
+		# reorg); USAID-descended solicitations flow through sam.gov/grants.gov.
 		path_results = await asyncio.gather(
 			_path_searxng(client, CRAWL_LIMIT),
 			_path_grants_gov(client),
@@ -1406,7 +1488,6 @@ async def run_crawl(date_str: str | None = None) -> int:
 			_path_us_federal(client),
 			_path_ungm(client),
 			_path_ted_eu(client),
-			_path_usaid(client),
 			_path_afdb(client),
 			_path_rss_feeds(client),
 			_path_firecrawl(client),
@@ -1420,7 +1501,6 @@ async def run_crawl(date_str: str | None = None) -> int:
 		"us-federal",
 		"ungm",
 		"ted.europa.eu",
-		"usaid",
 		"afdb",
 		"rss",
 		"firecrawl",
