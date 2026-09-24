@@ -32,7 +32,7 @@ from ..config.secrets import SecretsManager
 SMTP_HOST = SecretsManager.get_smtp_host()
 SMTP_PORT = SecretsManager.get_smtp_port()
 SMTP_USER = SecretsManager.get_smtp_user()
-SMTP_PASS = SecretsManager.get_smtp_password()
+SMTP_PASSWORD = SecretsManager.get_smtp_password()
 SMTP_FROM = SecretsManager.get_smtp_from_address()
 
 
@@ -101,7 +101,7 @@ class EmailService:
 		host: str = SMTP_HOST,
 		port: int = SMTP_PORT,
 		user: str = SMTP_USER,
-		password: str = SMTP_PASS,
+		password: str = SMTP_PASSWORD,
 		from_addr: str = SMTP_FROM,
 	):
 		self.host = host

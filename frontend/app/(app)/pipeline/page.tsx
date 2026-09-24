@@ -9,6 +9,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,7 @@ import type { CapturePipeline, CaptureActivity, GateReview } from "@/lib/db/sche
 import type { PipelineStage } from "@/lib/types/pipeline";
 
 export default function PipelinePage() {
+	const router = useRouter();
 	const [activeTab, setActiveTab] = React.useState("board");
 	const [selectedPipeline, setSelectedPipeline] = useState<CapturePipeline | null>(null);
 	const [pipelines, setPipelines] = useState<CapturePipeline[]>([]);
@@ -193,7 +195,7 @@ export default function PipelinePage() {
 							<Download className="h-4 w-4 mr-2" />
 							Export
 						</Button>
-						<Button onClick={() => window.location.href = "/opportunities"}>
+						<Button onClick={() => router.push("/opportunities")}>
 							<Plus className="h-4 w-4 mr-2" />
 							New Opportunity
 						</Button>
@@ -255,7 +257,7 @@ export default function PipelinePage() {
 									opportunities={opportunitiesMap}
 									onCardClick={handlePipelineClick}
 									onStageChange={handleStageChange}
-									onAddCapture={() => window.location.href = "/opportunities"}
+									onAddCapture={() => router.push("/opportunities")}
 									isLoading={isLoading}
 								/>
 							) : (
@@ -276,10 +278,14 @@ export default function PipelinePage() {
 							) : (
 								<div className="flex flex-col items-center justify-center h-64 text-center">
 									<Calendar className="h-12 w-12 text-muted-foreground/30 mb-4" />
-									<h3 className="text-lg font-medium mb-2">Select an Opportunity</h3>
-									<p className="text-sm text-muted-foreground max-w-md">
+									<h3 className="text-lg font-medium mb-2">No opportunity selected</h3>
+									<p className="text-sm text-muted-foreground max-w-md mb-4">
 										Select an opportunity from the Pipeline Board to view and manage its gate reviews.
 									</p>
+									<Button variant="outline" onClick={() => setActiveTab("board")}>
+										<Kanban className="h-4 w-4 mr-2" />
+										Go to Pipeline Board
+									</Button>
 								</div>
 							)}
 						</TabsContent>
@@ -289,7 +295,7 @@ export default function PipelinePage() {
 
 			{/* Side Panel for Selected Pipeline */}
 			{selectedPipeline && (
-				<div className="fixed right-0 top-0 h-full w-[450px] bg-background border-l shadow-xl z-50 overflow-y-auto">
+				<div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-[450px] bg-background border-l shadow-xl z-50 overflow-y-auto">
 					<CaptureDetailPanel
 						pipeline={selectedPipeline}
 						opportunityInfo={opportunitiesMap.get(selectedPipeline.id)}
@@ -319,16 +325,17 @@ function QuickStat({ label, count, color }: { label: string; count: number; colo
 }
 
 function EmptyPipelineState() {
+	const router = useRouter();
 	return (
 		<div className="flex flex-col items-center justify-center h-64 text-center">
 			<Kanban className="h-12 w-12 text-muted-foreground/30 mb-4" />
 			<h3 className="text-lg font-medium mb-2">No Pipeline Items</h3>
 			<p className="text-sm text-muted-foreground max-w-md mb-4">
-				Create an opportunity to start building your capture pipeline.
+				Go to Opportunities to qualify an RFP for your pipeline.
 			</p>
-			<Button onClick={() => window.location.href = "/opportunities"}>
+			<Button onClick={() => router.push("/opportunities")}>
 				<Plus className="h-4 w-4 mr-2" />
-				Create Opportunity
+				Go to Opportunities
 			</Button>
 		</div>
 	);

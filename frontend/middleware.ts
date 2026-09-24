@@ -144,7 +144,7 @@ export async function middleware(request: NextRequest) {
 		if (!PUBLIC_API_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
 			const token = await getToken({
 				req: request,
-				secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+				secret: process.env.NEXTAUTH_SECRET,
 			});
 
 			if (!token) {
@@ -181,7 +181,7 @@ export async function middleware(request: NextRequest) {
 	// Check for Next-Auth JWT token in cookies
 	const token = await getToken({
 		req: request,
-		secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+		secret: process.env.NEXTAUTH_SECRET,
 	});
 	const isAuthenticated = !!token;
 

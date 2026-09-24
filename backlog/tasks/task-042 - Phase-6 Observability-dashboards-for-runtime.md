@@ -1,10 +1,11 @@
 ---
 id: task-042
 title: "Phase 6: Observability dashboards for runtime"
-status: To Do
+status: Done
 phase: 6
 gap_ids: [master-plan-§6.5]
 priority: Medium
+updated_date: '2026-07-11 05:31'
 ---
 
 # task-042 - Phase 6: Observability dashboards for runtime
@@ -137,3 +138,9 @@ git commit -m "feat(ops): Prometheus + Grafana observability stack [master-plan-
 - Alert destinations (Slack, PagerDuty) are a separate task. This one only defines the rules.
 - Do NOT commit Grafana admin credentials. Use `GRAFANA_ADMIN_PASSWORD` env var.
 - If LiteLLM does not expose `/metrics`, skip that scrape job and note the limitation; we can add an exporter later.
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Dashboard JSON + Promtail config created under monitoring/. Deploy instructions in monitoring/README.md.
+<!-- SECTION:NOTES:END -->

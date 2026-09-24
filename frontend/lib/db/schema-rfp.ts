@@ -234,6 +234,7 @@ export const rfpRequirements = pgTable(
 		index("rfp_reqs_assigned_idx").on(table.assignedTo),
 		index("rfp_reqs_risk_idx").on(table.riskLevel),
 		uniqueIndex("rfp_reqs_number_doc_idx").on(table.rfpDocumentId, table.requirementNumber),
+		uniqueIndex("rfp_reqs_rfp_text_idx").on(table.rfpDocumentId, table.requirementText),
 		index("rfp_reqs_org_idx").on(table.organizationId),
 		index("rfp_reqs_org_doc_idx").on(table.organizationId, table.rfpDocumentId),
 	]

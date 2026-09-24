@@ -67,7 +67,7 @@ function SortableHeader({ field, label, currentSort, onSort }: SortableHeaderPro
 				onClick={() => onSort(field)}
 				className={cn(
 					"flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors",
-					isActive ? "text-[var(--accent-400)]" : "text-[var(--ink-500)] hover:text-[var(--ink-300)]"
+					isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
 				)}
 			>
 				{label}
@@ -93,8 +93,8 @@ function OpportunityRow({
 	return (
 		<tr
 			className={cn(
-				"border-b border-[var(--ink-800)]/30 transition-colors",
-				isSelected ? "bg-[var(--accent-500)]/5" : "hover:bg-[var(--ink-800)]/30",
+				"border-b border-border/30 transition-colors",
+				isSelected ? "bg-primary/5" : "hover:bg-muted/30",
 				"opacity-0 animate-fade-up"
 			)}
 			style={{
@@ -110,8 +110,8 @@ function OpportunityRow({
 						"w-5 h-5 rounded-md flex items-center justify-center",
 						"border-2 transition-all duration-150",
 						isSelected
-							? "bg-[var(--accent-500)] border-[var(--accent-500)] text-white"
-							: "border-[var(--ink-600)] hover:border-[var(--accent-500)]"
+							? "bg-primary border-primary text-white"
+							: "border-input hover:border-primary"
 					)}
 				>
 					{isSelected && <Check className="w-3 h-3" />}
@@ -120,34 +120,34 @@ function OpportunityRow({
 			<td className="px-4 py-3">
 				<Link
 					href={`/opportunities/${opportunity.id}`}
-					className="text-[var(--ink-200)] font-medium hover:text-[var(--accent-400)] transition-colors line-clamp-1"
+					className="text-foreground font-medium hover:text-primary transition-colors line-clamp-1"
 				>
 					{opportunity.title}
 				</Link>
 				{opportunity.category && (
-					<div className="text-xs text-[var(--ink-500)] mt-0.5">{opportunity.category}</div>
+					<div className="text-xs text-muted-foreground mt-0.5">{opportunity.category}</div>
 				)}
 			</td>
-			<td className="px-4 py-3 text-sm text-[var(--ink-400)]">
+			<td className="px-4 py-3 text-sm text-muted-foreground">
 				{opportunity.organization || "\u2014"}
 			</td>
-			<td className="px-4 py-3 text-sm text-[var(--ink-400)]">
+			<td className="px-4 py-3 text-sm text-muted-foreground">
 				{opportunity.countryRegion || "\u2014"}
 			</td>
 			<td className="px-4 py-3 text-sm">
 				{opportunity.deadline ? (
-					<div className={cn(opportunity.isExpired && "text-[var(--error-400)]")}>
+					<div className={cn(opportunity.isExpired && "text-destructive")}>
 						{new Date(opportunity.deadline).toLocaleDateString()}
 						{opportunity.daysLeft !== null && opportunity.daysLeft > 0 && (
-							<div className="text-xs text-[var(--ink-500)]">{opportunity.daysLeft}d</div>
+							<div className="text-xs text-muted-foreground">{opportunity.daysLeft}d</div>
 						)}
 						{opportunity.isExpired && <div className="text-xs text-red-500">Expired</div>}
 					</div>
 				) : (
-					<span className="text-[var(--ink-500)]">{"\u2014"}</span>
+					<span className="text-muted-foreground">{"\u2014"}</span>
 				)}
 			</td>
-			<td className="px-4 py-3 text-sm text-[var(--ink-400)]">
+			<td className="px-4 py-3 text-sm text-muted-foreground">
 				{opportunity.budgetValue || "\u2014"}
 			</td>
 			<td className="px-4 py-3">
@@ -158,8 +158,8 @@ function OpportunityRow({
 							className={cn(
 								"w-3 h-3",
 								i < opportunity.priorityRank
-									? "fill-[var(--accent-400)] text-[var(--accent-400)]"
-									: "text-[var(--ink-700)]"
+									? "fill-primary text-primary"
+									: "text-muted-foreground/40"
 							)}
 						/>
 					))}
@@ -183,19 +183,19 @@ function OpportunityRow({
 			<td className="px-4 py-3">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<button className="p-1.5 rounded-lg text-[var(--ink-500)] hover:text-[var(--ink-300)] hover:bg-[var(--ink-800)]/50 transition-all">
+						<button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all">
 							<MoreHorizontal className="w-4 h-4" />
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" className="bg-[var(--ink-900)] border-[var(--ink-700)]">
-						<DropdownMenuItem asChild className="text-[var(--ink-300)]">
+					<DropdownMenuContent align="end" className="bg-card border-border">
+						<DropdownMenuItem asChild className="text-foreground">
 							<Link href={`/opportunities/${opportunity.id}`}>
 								<Eye className="w-4 h-4 mr-2" />
 								View Details
 							</Link>
 						</DropdownMenuItem>
 						{(opportunity as { rfpLink?: string }).rfpLink && (
-							<DropdownMenuItem asChild className="text-[var(--ink-300)]">
+							<DropdownMenuItem asChild className="text-foreground">
 								<a
 									href={(opportunity as { rfpLink?: string }).rfpLink!}
 									target="_blank"
@@ -206,7 +206,7 @@ function OpportunityRow({
 								</a>
 							</DropdownMenuItem>
 						)}
-						<DropdownMenuItem asChild className="text-[var(--ink-300)]">
+						<DropdownMenuItem asChild className="text-foreground">
 							<a
 								href={`https://www.google.com/search?q=${encodeURIComponent(
 									`${opportunity.title} ${opportunity.organization || ""} RFP`
@@ -219,15 +219,15 @@ function OpportunityRow({
 							</a>
 						</DropdownMenuItem>
 						{opportunity.tags.length > 0 && (
-							<DropdownMenuItem asChild className="text-[var(--ink-300)]">
+							<DropdownMenuItem asChild className="text-foreground">
 								<a href={opportunity.tags[0]} target="_blank" rel="noopener noreferrer">
 									<ExternalLink className="w-4 h-4 mr-2" />
 									Open Link
 								</a>
 							</DropdownMenuItem>
 						)}
-						<DropdownMenuSeparator className="bg-[var(--ink-800)]" />
-						<DropdownMenuItem className="text-[var(--error-400)]">
+						<DropdownMenuSeparator />
+						<DropdownMenuItem className="text-destructive">
 							<Trash2 className="w-4 h-4 mr-2" />
 							Delete
 						</DropdownMenuItem>
@@ -254,11 +254,11 @@ export const OpportunityTable = React.memo(function OpportunityTable({
 	const allSelected = selectedIds.size === opportunities.length && opportunities.length > 0;
 
 	return (
-		<div className="border border-[var(--ink-800)]/50 rounded-xl overflow-hidden bg-[var(--ink-900)]/20">
+		<div className="border border-border/50 rounded-xl overflow-hidden bg-card">
 			<div className="overflow-x-auto">
 				<table className="w-full">
 					<thead>
-						<tr className="border-b border-[var(--ink-800)]/50 bg-[var(--ink-900)]/50">
+						<tr className="border-b border-border/50 bg-muted/50">
 							<th className="w-12 px-4 py-3">
 								<button
 									type="button"
@@ -267,8 +267,8 @@ export const OpportunityTable = React.memo(function OpportunityTable({
 										"w-5 h-5 rounded-md flex items-center justify-center",
 										"border-2 transition-all duration-150",
 										allSelected
-											? "bg-[var(--accent-500)] border-[var(--accent-500)] text-white"
-											: "border-[var(--ink-600)] hover:border-[var(--accent-500)]"
+											? "bg-primary border-primary text-white"
+											: "border-input hover:border-primary"
 									)}
 								>
 									{allSelected && <Check className="w-3 h-3" />}
@@ -280,10 +280,10 @@ export const OpportunityTable = React.memo(function OpportunityTable({
 							<SortableHeader field="deadline" label="Deadline" currentSort={sort} onSort={onSort} />
 							<SortableHeader field="budgetNumeric" label="Budget" currentSort={sort} onSort={onSort} />
 							<SortableHeader field="priorityRank" label="Priority" currentSort={sort} onSort={onSort} />
-							<th className="px-4 py-3 text-left text-xs font-medium text-[var(--ink-500)] uppercase tracking-wider">
+							<th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 								Status
 							</th>
-							<th className="px-4 py-3 text-left text-xs font-medium text-[var(--ink-500)] uppercase tracking-wider">
+							<th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 								Vote Status
 							</th>
 							<th className="w-12 px-4 py-3" />

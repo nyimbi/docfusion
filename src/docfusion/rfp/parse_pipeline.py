@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import text
@@ -48,7 +49,13 @@ from .rfp_analyzer import RFPAnalyzer
 
 logger = logging.getLogger(__name__)
 
-_default_blob_store = LocalBlobStore()
+_LOCAL_STORAGE_ROOT = Path("./storage/rfp")
+
+
+def _local_storage_path(key: str) -> Path:
+	"""Resolve a storage key under the local RFP storage root."""
+	relative = key[len("orgs/"):] if key.startswith("orgs/") else key
+	return _LOCAL_STORAGE_ROOT / relative
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +306,7 @@ async def execute_parse_pipeline(
 
 	storage_path = row["storage_path"]
 	file_type = (row["file_type"] or "").lower()
-	store = blob_store if blob_store is not None else _default_blob_store
+	store = blob_store if blob_store is not None else LocalBlobStore(root=_LOCAL_STORAGE_ROOT)
 	contents = await store.retrieve(storage_path)
 
 	if contents is None:
@@ -372,6 +379,7 @@ async def execute_parse_pipeline(
 					CAST('[]' AS JSONB), CAST('[]' AS JSONB),
 					:created_at, :updated_at
 				)
+				ON CONFLICT (rfp_document_id, requirement_text) DO NOTHING
 				"""
 			),
 			{

@@ -1487,19 +1487,27 @@ class StructureBuilder:
 		self,
 		structure: DocumentStructure,
 		content_blocks: list[ContentBlock],
-	) -> float | None:
-		"""Measure input-content coverage by structure assignment.
+	) -> float:
+		"""Measure section completeness and penalize underfilled sections."""
+		blocks_by_id = {block.block_id: block for block in content_blocks}
+		total_sections = len(structure.sections)
+		sections_with_nonempty_content = 0
+		short_sections = 0
 
-		This intentionally ignores hierarchy depth and TOC generation. Those
-		are product-weighted judgments; the current honest metric is only:
-		unique input content blocks mapped to a section / input content blocks.
-		"""
-		if not content_blocks:
-			return None
+		for section in structure.sections:
+			section_text = " ".join(
+				blocks_by_id[block_id].content
+				for block_id in section.content_block_ids
+				if block_id in blocks_by_id and blocks_by_id[block_id].content
+			).strip()
+			if section_text:
+				sections_with_nonempty_content += 1
+			if len(section_text) < 50:
+				short_sections += 1
 
-		input_block_ids = {block.block_id for block in content_blocks}
-		mapped_block_ids = input_block_ids.intersection(structure.content_block_mapping)
-		return len(mapped_block_ids) / len(input_block_ids)
+		score = sections_with_nonempty_content / max(total_sections, 1)
+		score -= short_sections * 0.1
+		return max(0.0, min(1.0, score))
 	
 	async def generate_table_of_contents(
 		self,

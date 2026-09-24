@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocFusion — Technical Platform Specification</title>
+<style>
+/* ─── Token system ─────────────────────────────────── */
+:root {
+  --clr-bg:          #0D1424;
+  --clr-surface:     #151E33;
+  --clr-surface-2:   #1C2842;
+  --clr-border:      #253352;
+  --clr-text:        #E4EAF7;
+  --clr-text-muted:  #7A8BAD;
+  --clr-accent:      #C5962A;
+  --clr-accent-dim:  #8C6A1C;
+  --clr-blue:        #4B7FCC;
+  --clr-blue-dim:    #2A5090;
+  --clr-green:       #2ECC8A;
+  --clr-red:         #E05555;
+  --clr-amber:       #E09A30;
+  --radius:          6px;
+  --font-display:    Georgia, 'Times New Roman', serif;
+  --font-body:       -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono:       'Courier New', Courier, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --clr-bg:         #F0F2F8;
+    --clr-surface:    #FFFFFF;
+    --clr-surface-2:  #E8EBF5;
+    --clr-border:     #C8CEDF;
+    --clr-text:       #0F1E3A;
+    --clr-text-muted: #5A6A8E;
+    --clr-accent:     #A87A18;
+    --clr-accent-dim: #D4A840;
+    --clr-blue:       #2A5FBB;
+    --clr-blue-dim:   #5585D8;
+    --clr-green:      #1A9A60;
+    --clr-red:        #CC3333;
+    --clr-amber:      #CC7A00;
+  }
+}
+:root[data-theme="light"] {
+  --clr-bg:         #F0F2F8;
+  --clr-surface:    #FFFFFF;
+  --clr-surface-2:  #E8EBF5;
+  --clr-border:     #C8CEDF;
+  --clr-text:       #0F1E3A;
+  --clr-text-muted: #5A6A8E;
+  --clr-accent:     #A87A18;
+  --clr-accent-dim: #D4A840;
+  --clr-blue:       #2A5FBB;
+  --clr-blue-dim:   #5585D8;
+  --clr-green:      #1A9A60;
+  --clr-red:        #CC3333;
+  --clr-amber:      #CC7A00;
+}
+:root[data-theme="dark"] {
+  --clr-bg:          #0D1424;
+  --clr-surface:     #151E33;
+  --clr-surface-2:   #1C2842;
+  --clr-border:      #253352;
+  --clr-text:        #E4EAF7;
+  --clr-text-muted:  #7A8BAD;
+  --clr-accent:      #C5962A;
+  --clr-accent-dim:  #8C6A1C;
+  --clr-blue:        #4B7FCC;
+  --clr-blue-dim:    #2A5090;
+  --clr-green:       #2ECC8A;
+  --clr-red:         #E05555;
+  --clr-amber:       #E09A30;
+}
+
+/* ─── Reset & base ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--clr-bg);
+  color: var(--clr-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--clr-blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible { outline: 2px solid var(--clr-accent); outline-offset: 2px; }
+
+/* ─── Layout ───────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+.topbar {
+  grid-column: 1 / -1;
+  background: var(--clr-surface);
+  border-bottom: 1px solid var(--clr-border);
+  padding: 0 28px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: normal;
+  color: var(--clr-text);
+  letter-spacing: -0.02em;
+}
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--clr-accent);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0D1424;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: var(--font-body);
+  letter-spacing: 0;
+}
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--clr-text-muted);
+}
+.badge {
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+}
+.badge-accent {
+  background: color-mix(in srgb, var(--clr-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--clr-accent) 40%, transparent);
+  color: var(--clr-accent);
+}
+#theme-btn {
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+}
+#theme-btn:hover { color: var(--clr-text); }
+
+/* ─── Sidebar ──────────────────────────────────────── */
+.sidebar {
+  background: var(--clr-surface);
+  border-right: 1px solid var(--clr-border);
+  padding: 24px 0;
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--clr-border); border-radius: 2px; }
+.nav-label {
+  padding: 0 20px 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+  font-weight: 600;
+}
+.nav-group { margin-bottom: 20px; }
+.nav-item {
+  display: block;
+  padding: 6px 20px 6px 20px;
+  font-size: 13px;
+  color: var(--clr-text-muted);
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-item:hover {
+  color: var(--clr-text);
+  text-decoration: none;
+  border-left-color: var(--clr-border);
+}
+.nav-item.active {
+  color: var(--clr-accent);
+  border-left-color: var(--clr-accent);
+  background: color-mix(in srgb, var(--clr-accent) 6%, transparent);
+}
+.nav-sub {
+  display: block;
+  padding: 4px 20px 4px 32px;
+  font-size: 12px;
+  color: var(--clr-text-muted);
+}
+.nav-sub:hover { color: var(--clr-text); text-decoration: none; }
+
+/* ─── Main content ─────────────────────────────────── */
+.main {
+  padding: 48px 64px 80px;
+  max-width: 900px;
+}
+
+/* ─── Section headers ──────────────────────────────── */
+.section {
+  margin-bottom: 64px;
+  scroll-margin-top: 72px;
+}
+.section-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--clr-accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: normal;
+  text-wrap: balance;
+  color: var(--clr-text);
+}
+h1 { font-size: 40px; line-height: 1.15; letter-spacing: -0.025em; margin-bottom: 20px; }
+h2 { font-size: 28px; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 12px; }
+h3 { font-size: 18px; line-height: 1.3; letter-spacing: -0.01em; margin-bottom: 10px; margin-top: 32px; }
+h4 { font-size: 14px; letter-spacing: 0.02em; margin-bottom: 6px; margin-top: 20px;
+     color: var(--clr-text-muted); text-transform: uppercase; font-family: var(--font-body);
+     font-weight: 600; }
+p { max-width: 68ch; margin-bottom: 14px; color: var(--clr-text); }
+p + p { margin-top: 0; }
+.lead {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--clr-text-muted);
+  max-width: 60ch;
+  margin-bottom: 28px;
+}
+
+/* ─── Cover section ────────────────────────────────── */
+.cover {
+  padding: 56px 64px 48px;
+  border-bottom: 1px solid var(--clr-border);
+  background: linear-gradient(160deg, var(--clr-surface) 0%, transparent 70%);
+  margin-bottom: 0;
+}
+.cover-meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+.cover-stat {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+}
+.cover-stat .val {
+  font-size: 28px;
+  font-family: var(--font-display);
+  color: var(--clr-accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.cover-stat .lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--clr-text-muted);
+  margin-top: 4px;
+}
+
+/* ─── Cards ────────────────────────────────────────── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+.card {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+}
+.card h3 { margin-top: 0; font-size: 15px; margin-bottom: 6px; }
+.card p { font-size: 13px; color: var(--clr-text-muted); margin-bottom: 0; max-width: none; }
+
+/* ─── Feature list ─────────────────────────────────── */
+.feature-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.feature-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--clr-text);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--clr-border);
+}
+.feature-list li:last-child { border-bottom: none; }
+.feature-list li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--clr-accent);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+/* ─── Tables ────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin: 20px 0; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+th {
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  padding: 8px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+  font-family: var(--font-body);
+}
+td {
+  border: 1px solid var(--clr-border);
+  padding: 9px 14px;
+  color: var(--clr-text);
+  vertical-align: top;
+}
+tr:hover td { background: color-mix(in srgb, var(--clr-surface-2) 50%, transparent); }
+.td-good { color: var(--clr-green); font-weight: 600; }
+.td-na   { color: var(--clr-text-muted); }
+.td-warn { color: var(--clr-amber); }
+
+/* ─── Code blocks ──────────────────────────────────── */
+.code-block {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-top: 2px solid var(--clr-blue);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+.code-block pre {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--clr-text);
+  white-space: pre;
+}
+.code-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--clr-blue);
+  margin-bottom: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+
+/* ─── Architecture diagram ─────────────────────────── */
+.arch-diagram {
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 24px 0;
+  background: var(--clr-surface);
+}
+.arch-layer {
+  border-bottom: 1px solid var(--clr-border);
+  padding: 0;
+}
+.arch-layer:last-child { border-bottom: none; }
+.arch-layer-label {
+  background: var(--clr-surface-2);
+  border-right: 1px solid var(--clr-border);
+  padding: 10px 14px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+  font-weight: 600;
+  writing-mode: horizontal-tb;
+  width: 120px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.arch-layer-inner {
+  display: flex;
+  align-items: stretch;
+}
+.arch-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  flex: 1;
+}
+.arch-node {
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--clr-text);
+  white-space: nowrap;
+}
+.arch-node.accent {
+  border-color: var(--clr-accent);
+  color: var(--clr-accent);
+  background: color-mix(in srgb, var(--clr-accent) 10%, transparent);
+}
+.arch-node.blue {
+  border-color: var(--clr-blue);
+  color: var(--clr-blue);
+  background: color-mix(in srgb, var(--clr-blue) 10%, transparent);
+}
+.arch-node.green {
+  border-color: var(--clr-green);
+  color: var(--clr-green);
+  background: color-mix(in srgb, var(--clr-green) 10%, transparent);
+}
+
+/* ─── Pipeline viz ─────────────────────────────────── */
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 20px 0;
+  overflow-x: auto;
+}
+.pipeline-step {
+  flex: 1;
+  min-width: 110px;
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-right: none;
+  padding: 14px 12px;
+  position: relative;
+  text-align: center;
+}
+.pipeline-step:last-child { border-right: 1px solid var(--clr-border); border-radius: 0 var(--radius) var(--radius) 0; }
+.pipeline-step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.pipeline-step::after {
+  content: '→';
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--clr-accent);
+  font-size: 14px;
+  z-index: 1;
+}
+.pipeline-step:last-child::after { display: none; }
+.pipeline-step .step-num {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--clr-accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.pipeline-step .step-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--clr-text);
+  margin-bottom: 4px;
+}
+.pipeline-step .step-desc {
+  font-size: 11px;
+  color: var(--clr-text-muted);
+  line-height: 1.4;
+}
+
+/* ─── Callouts ─────────────────────────────────────── */
+.callout {
+  border: 1px solid color-mix(in srgb, var(--clr-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--clr-accent) 6%, transparent);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 20px 0;
+  font-size: 14px;
+}
+.callout::before {
+  content: '◆ ';
+  color: var(--clr-accent);
+  font-size: 8px;
+  vertical-align: 2px;
+  letter-spacing: 0.05em;
+}
+.callout-blue {
+  border-color: color-mix(in srgb, var(--clr-blue) 35%, transparent);
+  background: color-mix(in srgb, var(--clr-blue) 6%, transparent);
+}
+.callout-blue::before { color: var(--clr-blue); }
+.callout-green {
+  border-color: color-mix(in srgb, var(--clr-green) 35%, transparent);
+  background: color-mix(in srgb, var(--clr-green) 6%, transparent);
+}
+.callout-green::before { color: var(--clr-green); }
+.callout strong { color: var(--clr-accent); }
+.callout-blue strong { color: var(--clr-blue); }
+.callout-green strong { color: var(--clr-green); }
+
+/* ─── Metric rows ──────────────────────────────────── */
+.metric-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.metric-box {
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-top: 2px solid var(--clr-accent);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  min-width: 130px;
+}
+.metric-box .mval {
+  font-size: 30px;
+  font-family: var(--font-display);
+  color: var(--clr-accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.metric-box .mlbl {
+  font-size: 11px;
+  color: var(--clr-text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ─── Endpoint list ────────────────────────────────── */
+.endpoint {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+}
+.method {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 3px;
+  min-width: 44px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.method-get  { background: color-mix(in srgb, var(--clr-blue) 20%, transparent); color: var(--clr-blue); }
+.method-post { background: color-mix(in srgb, var(--clr-green) 20%, transparent); color: var(--clr-green); }
+.method-put  { background: color-mix(in srgb, var(--clr-amber) 20%, transparent); color: var(--clr-amber); }
+.method-del  { background: color-mix(in srgb, var(--clr-red) 20%, transparent); color: var(--clr-red); }
+.endpoint-path { font-family: var(--font-mono); font-size: 12.5px; color: var(--clr-text); }
+.endpoint-desc { font-size: 12px; color: var(--clr-text-muted); margin-left: auto; }
+
+/* ─── Two-col ──────────────────────────────────────── */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 20px 0;
+}
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ─── Tags ─────────────────────────────────────────── */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag {
+  background: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--clr-text-muted);
+  letter-spacing: 0.03em;
+}
+
+/* ─── Responsive sidebar collapse ─────────────────── */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { padding: 32px 24px 60px; }
+  .cover { padding: 36px 24px 32px; }
+}
+
+/* ─── Divider ──────────────────────────────────────── */
+hr {
+  border: none;
+  border-top: 1px solid var(--clr-border);
+  margin: 40px 0;
+}
+
+/* ─── Version watermark ────────────────────────────── */
+.doc-version {
+  font-size: 11px;
+  color: var(--clr-text-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 16px;
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- ─── Top bar ──────────────────────────────────────── -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-mark">DF</div>
+    DocFusion
+  </div>
+  <div class="topbar-meta">
+    <span class="badge">v1.0 · July 2026</span>
+    <span class="badge badge-accent">Technical Specification</span>
+    <button id="theme-btn" onclick="toggleTheme()">Toggle theme</button>
+  </div>
+</header>
+
+<!-- ─── Sidebar ──────────────────────────────────────── -->
+<nav class="sidebar" aria-label="Document sections">
+  <div class="nav-group">
+    <div class="nav-label">Overview</div>
+    <a class="nav-item active" href="#overview">Platform Summary</a>
+    <a class="nav-item" href="#value-prop">Value Proposition</a>
+    <a class="nav-item" href="#business-case">Business Case</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Architecture</div>
+    <a class="nav-item" href="#architecture">System Architecture</a>
+    <a class="nav-item" href="#tech-stack">Technology Stack</a>
+    <a class="nav-item" href="#infrastructure">Infrastructure</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Core Modules</div>
+    <a class="nav-item" href="#opportunity-discovery">Opportunity Discovery</a>
+    <a class="nav-sub" href="#crawl-engine">Crawl Engine</a>
+    <a class="nav-sub" href="#scoring">Relevance Scoring</a>
+    <a class="nav-item" href="#rfp-analysis">RFP Analysis Engine</a>
+    <a class="nav-sub" href="#requirement-extraction">Requirement Extraction</a>
+    <a class="nav-sub" href="#compliance-matrix">Compliance Matrix</a>
+    <a class="nav-item" href="#document-engine">Document Engine</a>
+    <a class="nav-sub" href="#latex-arch">Git+LaTeX Architecture</a>
+    <a class="nav-item" href="#agent-system">Agent Orchestration</a>
+    <a class="nav-item" href="#knowledge-base">Knowledge Base & RAG</a>
+    <a class="nav-item" href="#workflows">Workflow Automation</a>
+    <a class="nav-item" href="#collaboration">Collaboration Layer</a>
+    <a class="nav-item" href="#notifications">Notifications</a>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Platform</div>
+    <a class="nav-item" href="#api">REST API</a>
+    <a class="nav-item" href="#integrations">Integrations</a>
+    <a class="nav-item" href="#security">Security</a>
+    <a class="nav-item" href="#performance">Performance & SLAs</a>
+    <a class="nav-item" href="#competitive">Competitive Positioning</a>
+    <a class="nav-item" href="#roadmap">Roadmap</a>
+  </div>
+</nav>
+
+<!-- ─── Content ──────────────────────────────────────── -->
+<div>
+
+<!-- Cover -->
+<div class="cover section" id="overview">
+  <div class="doc-version">CONFIDENTIAL · DocFusion Platform Specification · July 2026 · Rev 1.0</div>
+  <div class="section-eyebrow">Platform Overview</div>
+  <h1>DocFusion: AI-Powered RFP Response Automation &amp; Document Intelligence</h1>
+  <p class="lead">DocFusion transforms how organizations identify, respond to, and win competitive solicitations, collapsing what once took weeks of manual research, writing, and compliance review into a structured, AI-augmented workflow that runs around the clock.</p>
+
+  <div class="cover-meta">
+    <div class="cover-stat"><div class="val">60%</div><div class="lbl">Faster RFP Response</div></div>
+    <div class="cover-stat"><div class="val">40+</div><div class="lbl">Discovery Sources</div></div>
+    <div class="cover-stat"><div class="val">99.9%</div><div class="lbl">Compliance Coverage</div></div>
+    <div class="cover-stat"><div class="val">25–40%</div><div class="lbl">Win Rate Lift</div></div>
+    <div class="cover-stat"><div class="val">85%</div><div class="lbl">Content Reuse Increase</div></div>
+  </div>
+</div>
+
+<main class="main">
+
+<!-- ─── Value Proposition ─────────────────────────── -->
+<section class="section" id="value-prop">
+  <div class="section-eyebrow">Value Proposition</div>
+  <h2>What DocFusion Solves</h2>
+  <p>Organizations pursuing government contracts, grants, and institutional RFPs face a structural problem: the workflow is labor-intensive, deadline-driven, and analytically complex. Three failure modes dominate:</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">⏱</div>
+      <h3>Missed Opportunities</h3>
+      <p>48% of relevant solicitations go undiscovered because monitoring hundreds of portals manually is not tractable. Discovery happens too late to mount a competitive response.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚠</div>
+      <h3>Compliance Failures</h3>
+      <p>63% of proposal rejections cite technical non-compliance: missed sections, expired certifications, or requirements not explicitly addressed in the response.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">💸</div>
+      <h3>Resource Drain</h3>
+      <p>Average cost per RFP response runs $15,000–$50,000 in staff time. Teams burn capacity on boilerplate that should be automated, leaving strategy under-resourced.</p>
+    </div>
+  </div>
+
+  <p>DocFusion addresses all three with a unified platform: continuous opportunity monitoring, AI-powered requirement analysis, generative response drafting, and automated compliance validation, connected end-to-end rather than bolted together from point tools.</p>
+</section>
+
+<!-- ─── Business Case ─────────────────────────────── -->
+<section class="section" id="business-case">
+  <div class="section-eyebrow">Business Case</div>
+  <h2>Measurable Outcomes</h2>
+
+  <div class="metric-row">
+    <div class="metric-box"><div class="mval">50–70%</div><div class="mlbl">Faster preparation</div></div>
+    <div class="metric-box"><div class="mval">3×</div><div class="mlbl">Faster review cycles</div></div>
+    <div class="metric-box"><div class="mval">85%</div><div class="mlbl">Content reuse lift</div></div>
+    <div class="metric-box"><div class="mval">25–40%</div><div class="mlbl">Higher win rates</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Before DocFusion</th>
+          <th>With DocFusion</th>
+          <th>Business Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Opportunity discovery coverage</td>
+          <td class="td-warn">5–10 portals, manually</td>
+          <td class="td-good">200+ sources, automated</td>
+          <td>42% more relevant opportunities identified</td>
+        </tr>
+        <tr>
+          <td>Time to first draft</td>
+          <td class="td-warn">3–5 days</td>
+          <td class="td-good">&lt; 5 hours (AI-assisted)</td>
+          <td>Meet more deadlines with existing headcount</td>
+        </tr>
+        <tr>
+          <td>Compliance coverage</td>
+          <td class="td-warn">~75% (manual)</td>
+          <td class="td-good">99.9% (automated matrix)</td>
+          <td>Eliminate disqualification risk</td>
+        </tr>
+        <tr>
+          <td>Content reuse rate</td>
+          <td class="td-warn">&lt; 20%</td>
+          <td class="td-good">85%+</td>
+          <td>Leverage institutional knowledge at scale</td>
+        </tr>
+        <tr>
+          <td>Review cycles</td>
+          <td class="td-warn">4–6 rounds</td>
+          <td class="td-good">1–2 rounds</td>
+          <td>Accelerate decision velocity</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout-green callout">
+    <strong>ROI frame:</strong> A team responding to 20 RFPs per year at $15k cost each (~$300k annual spend) typically captures 3–4 wins. With DocFusion's 40% win-rate lift and 60% cost reduction, the same team can pursue 35 RFPs, win 7–8, at roughly $120k operational cost, for the same headcount.
+  </div>
+</section>
+
+<!-- ─── Architecture ───────────────────────────────── -->
+<section class="section" id="architecture">
+  <div class="section-eyebrow">Architecture</div>
+  <h2>System Architecture</h2>
+
+  <p>DocFusion is a layered platform where each tier has a single responsibility. The frontend is a Next.js 14 App Router application. The backend is a FastAPI async Python service. The intelligence layer is a collection of specialized AI agents coordinated by an orchestration engine, all routing LLM calls through a centralized gateway.</p>
+
+  <div class="arch-diagram">
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">Client Layer</div>
+        <div class="arch-nodes">
+          <div class="arch-node blue">Next.js 14 App Router</div>
+          <div class="arch-node">React Server Components</div>
+          <div class="arch-node">TypeScript</div>
+          <div class="arch-node">Tailwind CSS</div>
+          <div class="arch-node">Shadcn/UI</div>
+          <div class="arch-node">WebSocket client</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">API Layer</div>
+        <div class="arch-nodes">
+          <div class="arch-node blue">FastAPI (async)</div>
+          <div class="arch-node">REST /api/v1/*</div>
+          <div class="arch-node">WebSocket /ws</div>
+          <div class="arch-node">Auth middleware</div>
+          <div class="arch-node">Rate limiting</div>
+          <div class="arch-node">Webhook endpoints</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">Intelligence Layer</div>
+        <div class="arch-nodes">
+          <div class="arch-node accent">RFP Analyzer</div>
+          <div class="arch-node accent">Requirement Extractor</div>
+          <div class="arch-node accent">Compliance Matrix</div>
+          <div class="arch-node accent">Stakeholder Mapper</div>
+          <div class="arch-node accent">Document Engine</div>
+          <div class="arch-node accent">Agent Orchestrator</div>
+          <div class="arch-node accent">RAG Pipeline</div>
+          <div class="arch-node accent">Win Predictor</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">AI Gateway</div>
+        <div class="arch-nodes">
+          <div class="arch-node blue">LiteLLM Gateway (62.169.25.77:4000)</div>
+          <div class="arch-node">Claude (Anthropic)</div>
+          <div class="arch-node">GPT-4o (OpenAI)</div>
+          <div class="arch-node">Ollama (local models)</div>
+          <div class="arch-node">NLLB-200 (translation)</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">Data Layer</div>
+        <div class="arch-nodes">
+          <div class="arch-node green">PostgreSQL 17 (primary)</div>
+          <div class="arch-node green">PG hot standby</div>
+          <div class="arch-node green">pgvector (embeddings)</div>
+          <div class="arch-node green">Redis (sessions/cache)</div>
+          <div class="arch-node green">Object storage (documents)</div>
+          <div class="arch-node green">Git (LaTeX versioning)</div>
+        </div>
+      </div>
+    </div>
+    <div class="arch-layer">
+      <div class="arch-layer-inner">
+        <div class="arch-layer-label">Discovery Infra</div>
+        <div class="arch-nodes">
+          <div class="arch-node">SearXNG (100+ engines)</div>
+          <div class="arch-node">Firecrawl (JS scraping)</div>
+          <div class="arch-node">Playwright stealth browser</div>
+          <div class="arch-node">Docling (doc parsing)</div>
+          <div class="arch-node">RSS aggregator</div>
+          <div class="arch-node">Systemd timers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-blue">
+    <strong>Design principle:</strong> All LLM calls route through a single LiteLLM gateway. Never call upstream provider endpoints directly. This enforces cost tracking, rate limiting, model aliasing, and makes model swaps transparent to application code.
+  </div>
+</section>
+
+<!-- ─── Tech Stack ─────────────────────────────────── -->
+<section class="section" id="tech-stack">
+  <div class="section-eyebrow">Technology</div>
+  <h2>Technology Stack</h2>
+
+  <div class="two-col">
+    <div>
+      <h3>Backend</h3>
+      <ul class="feature-list">
+        <li>Python 3.12+, fully async (asyncio)</li>
+        <li>FastAPI with Pydantic v2 models</li>
+        <li>UV package manager, Ruff linter, MyPy types</li>
+        <li>SQLAlchemy async ORM + Alembic migrations</li>
+        <li>PostgreSQL 17 with pgvector extension</li>
+        <li>UUID7 IDs (time-ordered, globally unique)</li>
+        <li>Structured JSON logging with request tracing</li>
+        <li>Celery + Redis for async task queue</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Frontend</h3>
+      <ul class="feature-list">
+        <li>Next.js 14 App Router, TypeScript strict mode</li>
+        <li>React Server Components for data fetching</li>
+        <li>Tailwind CSS + Shadcn/UI component library</li>
+        <li>Server Actions for form mutations</li>
+        <li>WebSocket client for real-time collaboration</li>
+        <li>Drizzle ORM for typed DB queries from edge</li>
+        <li>Recharts for analytics dashboards</li>
+        <li>end-to-end Playwright test suite</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Document Engine</h3>
+      <ul class="feature-list">
+        <li>Git + LaTeX architecture (decided, implemented)</li>
+        <li>Each content block = versioned .tex file</li>
+        <li>Assembly via <code>\input{}</code> / <code>\include{}</code></li>
+        <li>LaTeX compiler pipeline (pdflatex + latexmk)</li>
+        <li>DOCX/HTML renderers for non-PDF output</li>
+        <li>Brand formatter with logo and style injection</li>
+        <li>Cross-reference manager for traceability links</li>
+      </ul>
+    </div>
+    <div>
+      <h3>AI & ML</h3>
+      <ul class="feature-list">
+        <li>LiteLLM gateway for model-agnostic routing</li>
+        <li>LangChain / LangGraph for agent orchestration</li>
+        <li>pgvector for semantic similarity search</li>
+        <li>NLLB-200 for multilingual support (200 languages)</li>
+        <li>Ollama for local/private model inference</li>
+        <li>Docling for document parsing and OCR</li>
+        <li>Custom fine-tuning pipeline (planned)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Infrastructure ────────────────────────────── -->
+<section class="section" id="infrastructure">
+  <div class="section-eyebrow">Infrastructure</div>
+  <h2>Infrastructure &amp; Deployment</h2>
+
+  <p>DocFusion runs on a dedicated Contabo EU VPS fleet, purpose-segmented by function. This eliminates noisy-neighbor risk and lets each tier scale and be secured independently.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Server</th><th>IP</th><th>Role</th><th>Key Services</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>docfusion</strong></td>
+          <td>37.60.225.7</td>
+          <td>Application host</td>
+          <td>FastAPI backend, Next.js frontend, Caddy reverse proxy</td>
+        </tr>
+        <tr>
+          <td><strong>db-main</strong></td>
+          <td>144.91.122.29</td>
+          <td>PostgreSQL 17 primary</td>
+          <td>All transactional data, pgvector embeddings</td>
+        </tr>
+        <tr>
+          <td><strong>db-backup</strong></td>
+          <td>144.91.112.190</td>
+          <td>PG hot standby</td>
+          <td>Streaming replication, point-in-time recovery</td>
+        </tr>
+        <tr>
+          <td><strong>search</strong></td>
+          <td>84.247.181.100</td>
+          <td>Discovery services</td>
+          <td>SearXNG :8888, Firecrawl :3002, Docling :3600, Soketi :6001</td>
+        </tr>
+        <tr>
+          <td><strong>ml/vault</strong></td>
+          <td>62.169.25.77</td>
+          <td>AI gateway &amp; secrets</td>
+          <td>LiteLLM :4000, OpenBao, Ollama, NLLB-200, TTS</td>
+        </tr>
+        <tr>
+          <td><strong>mail</strong></td>
+          <td>217.76.53.144</td>
+          <td>Comms &amp; monitoring</td>
+          <td>Stalwart SMTP, Grafana, Prometheus, Loki</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Automated Operations</h3>
+  <p>Background jobs run as systemd timers, not cron, for dependency tracking and clean journald logging:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Timer</th><th>Schedule</th><th>Function</th></tr></thead>
+      <tbody>
+        <tr><td><code>docfusion-daily-crawl.timer</code></td><td>06:00 UTC</td><td>Runs 40-query discovery sweep across all configured sources</td></tr>
+        <tr><td><code>docfusion-digest.timer</code></td><td>08:00 UTC</td><td>Scores, filters, groups, and emails opportunity digest</td></tr>
+        <tr><td><code>docfusion-memory-cleanup.timer</code></td><td>03:00 UTC</td><td>Evicts agent memory older than <code>MEMORY_TTL_DAYS</code> (default: 30)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr>
+
+<!-- ─── Opportunity Discovery ─────────────────────── -->
+<section class="section" id="opportunity-discovery">
+  <div class="section-eyebrow">Discovery Engine</div>
+  <h2>Opportunity Discovery Engine</h2>
+  <p>The discovery engine runs continuously, monitoring over 200 global sources for RFPs, grants, and tender notices relevant to the organization's configured profile. It is the upstream entry point for the entire platform.</p>
+
+  <h3 id="crawl-engine">Crawl Architecture</h3>
+
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="step-num">01</div>
+      <div class="step-name">Query Fan-Out</div>
+      <div class="step-desc">40 targeted queries across sectors, donors, geographies</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">02</div>
+      <div class="step-name">Source Fetch</div>
+      <div class="step-desc">SearXNG meta-search + direct portal scrapers + RSS</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">03</div>
+      <div class="step-name">Content Extract</div>
+      <div class="step-desc">Firecrawl → Playwright stealth → Docling fallback chain</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">04</div>
+      <div class="step-name">Relevance Score</div>
+      <div class="step-desc">NLP scoring: budget presence, deadline, title keywords, org fit</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">05</div>
+      <div class="step-name">Dedup &amp; Store</div>
+      <div class="step-desc">URL fingerprint deduplication, persist to opportunities table</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">06</div>
+      <div class="step-name">Digest Email</div>
+      <div class="step-desc">Sector-grouped HTML digest delivered by 08:00 UTC</div>
+    </div>
+  </div>
+
+  <h3 id="scoring">Source Coverage</h3>
+  <p>Discovery spans four source categories, queried with 40 pre-configured searches spanning sector, donor, and geography dimensions:</p>
+
+  <div class="two-col">
+    <div>
+      <h4>Government Portals</h4>
+      <ul class="feature-list">
+        <li>SAM.gov (US federal)</li>
+        <li>Grants.gov (US grants)</li>
+        <li>USAID Business Forecast</li>
+        <li>World Bank Group procurement</li>
+        <li>African Development Bank (AfDB)</li>
+        <li>UNGM (UN procurement)</li>
+        <li>TED EU (European tenders)</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Meta-Search &amp; RSS</h4>
+      <ul class="feature-list">
+        <li>SearXNG routing to 100+ search engines</li>
+        <li>BidSync, BidNet industry portals</li>
+        <li>Foundation databases (GrantStation)</li>
+        <li>Academic/research funding boards</li>
+        <li>Sector-specific RSS feeds</li>
+        <li>Custom BONUS_DOMAINS per tenant</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Relevance Scoring Model</h3>
+  <p>Each discovered opportunity receives a composite score before storage. Signals include:</p>
+  <ul class="feature-list">
+    <li>Budget presence and magnitude (+weight for explicit dollar figures)</li>
+    <li>Deadline proximity (adjustable urgency weighting)</li>
+    <li>Title keyword match against organization capability profile</li>
+    <li>Historical win pattern similarity (vector cosine against past wins)</li>
+    <li>Organizational capability alignment (57-factor pre-screen)</li>
+    <li>Competitive landscape density (estimated bid count from portal metadata)</li>
+  </ul>
+
+  <div class="callout">
+    <strong>Discovery insight:</strong> The system runs 40 targeted SearXNG queries each morning across 4 additional direct portal paths (UNGM, TED EU, USAID, AfDB), generating a sector-grouped email digest with scored opportunities before the team's workday begins. Opportunities below a configurable quality threshold are suppressed before digesting.
+  </div>
+</section>
+
+<!-- ─── RFP Analysis ───────────────────────────────── -->
+<section class="section" id="rfp-analysis">
+  <div class="section-eyebrow">RFP Intelligence</div>
+  <h2>RFP Analysis Engine</h2>
+  <p>Once an opportunity is selected for pursuit, the RFP document is ingested into a multi-stage analysis pipeline that transforms a raw PDF or DOCX into structured, actionable data.</p>
+
+  <h3 id="requirement-extraction">Requirement Extraction</h3>
+  <p>The <code>RequirementExtractor</code> parses RFP documents at a structural level, classifying every extractable element into a typed schema:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Dimension</th><th>Values</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>RequirementModality</code></td>
+          <td>MUST / SHOULD / MAY / WILL</td>
+          <td>RFC 2119-style obligation strength extracted from RFP language</td>
+        </tr>
+        <tr>
+          <td><code>RequirementCategory</code></td>
+          <td>Technical / Management / Compliance / Financial / Staffing / Past Performance</td>
+          <td>Semantic category for routing to the appropriate author/SME</td>
+        </tr>
+        <tr>
+          <td><code>RequirementType</code></td>
+          <td>Functional / Non-functional / Certification / Evaluation Criterion</td>
+          <td>Determines how the requirement should be addressed in the response</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="compliance-matrix">Compliance Matrix</h3>
+  <p>The <code>ComplianceMatrixGenerator</code> creates a bidirectional traceability matrix linking every extracted requirement to its response section. This is the authoritative compliance artifact for the proposal:</p>
+
+  <ul class="feature-list">
+    <li>Real-time gap detection — unaddressed requirements are flagged immediately</li>
+    <li>Coverage heatmap visualization (frontend) showing addressed vs. open</li>
+    <li>Evidence requirement mapping — identifies supporting documents needed per requirement</li>
+    <li>Risk scoring per requirement section based on non-compliance penalty language</li>
+    <li>Mandatory element checklist with expiration tracking for certifications</li>
+    <li>Auto-generates required attachments list and evidence package index</li>
+  </ul>
+
+  <h3>Traceability Analysis</h3>
+  <p>The <code>TraceabilityMatrixBuilder</code> supports bidirectional analysis: from requirement to response section and back, ensuring every claim maps to a source requirement and no requirement is left without a response address.</p>
+
+  <h3>Stakeholder Mapping</h3>
+  <p>The <code>StakeholderMapper</code> extracts and classifies named decision-makers and evaluation roles from RFP documentation, building a <code>StakeholderGraph</code> with typed relationships. This informs tone calibration and section prioritization during response composition.</p>
+
+  <div class="code-block">
+    <div class="code-label">RFP parse pipeline — entry point</div>
+    <pre>POST /api/v1/rfp/{rfp_id}/parse
+
+# Stages:
+# 1. load_rfp_document()        — fetch bytes from secure storage
+# 2. mark_parse_processing()    — optimistic lock on DB record
+# 3. run_analysis()             — parallel: extractor + analyzer + stakeholder mapper
+# 4. execute_parse_pipeline()   — build compliance matrix + traceability
+
+# Returns: ParsePipelineResult
+{
+  "requirements": [...],        # typed Requirement[]
+  "compliance_matrix": {...},   # ComplianceMatrix with gaps
+  "traceability_matrix": {...}, # TraceabilityMatrix bidirectional
+  "stakeholder_graph": {...},   # StakeholderGraph with roles
+  "ai_analysis": {...}          # RFPAnalysisResult narrative summary
+}</pre>
+  </div>
+</section>
+
+<!-- ─── Document Engine ───────────────────────────── -->
+<section class="section" id="document-engine">
+  <div class="section-eyebrow">Document Generation</div>
+  <h2>Document Generation Engine</h2>
+  <p>The document engine is the output layer of the platform. It assembles, formats, and renders proposal documents from structured content, AI-generated text, and reusable knowledge-base blocks.</p>
+
+  <h3 id="latex-arch">Git + LaTeX Architecture</h3>
+  <p>DocFusion uses Git-versioned LaTeX as the canonical document format. Each content block is a separate <code>.tex</code> file committed to the document's Git repository. Assembly is handled via <code>\input{}</code> directives, enabling:</p>
+
+  <ul class="feature-list">
+    <li>Granular version control — every content block has a complete edit history</li>
+    <li>Parallel authoring — SMEs can work on sections concurrently without merge conflicts</li>
+    <li>Reproducible compilation — any historical state can be rebuilt exactly</li>
+    <li>Diff-based review — proposal changes are reviewable at the LaTeX source level</li>
+    <li>Component reuse — blocks can be <code>\include{}</code>d across multiple proposals</li>
+    <li>Audit trail — immutable record of who changed what, when, and why</li>
+  </ul>
+
+  <h3>Rendering Pipeline</h3>
+  <div class="two-col">
+    <div class="card">
+      <h3>PDF (Primary)</h3>
+      <p>pdflatex + latexmk compilation. Full typographic control: tables, equations, diagrams. Submission-ready output with correct page numbering and formatting per RFP specifications.</p>
+    </div>
+    <div class="card">
+      <h3>DOCX</h3>
+      <p>Pandoc-based LaTeX → DOCX conversion for evaluators who require editable Word files. Style mapping preserves heading hierarchy and table structure.</p>
+    </div>
+    <div class="card">
+      <h3>HTML</h3>
+      <p>Accessible HTML5 output for web portal submissions and internal review. Responsive layout with proper semantic markup and accessible data tables.</p>
+    </div>
+    <div class="card">
+      <h3>Multi-format batch</h3>
+      <p>The batch endpoint generates all three formats in a single request, allowing simultaneous preparation of portal upload and print copy without duplicate effort.</p>
+    </div>
+  </div>
+
+  <h3>Brand Formatter</h3>
+  <p>The <code>BrandFormatter</code> applies organization-specific styling before compilation: logo injection, color palette enforcement, typography selection, and header/footer customization. Brand specs are stored per-tenant and versioned independently of content.</p>
+
+  <h3>Structure Builder</h3>
+  <p>The <code>StructureBuilder</code> generates a quality-scored structural outline before content is written. It computes a completeness ratio (addressed requirements ÷ total requirements) as the primary quality signal, ensuring the document skeleton addresses 100% of RFP sections before any prose is generated.</p>
+</section>
+
+<!-- ─── Agent System ───────────────────────────────── -->
+<section class="section" id="agent-system">
+  <div class="section-eyebrow">AI Orchestration</div>
+  <h2>Agent Orchestration System</h2>
+  <p>DocFusion's intelligence layer is built on a multi-agent architecture. Specialist agents handle discrete tasks (drafting a technical section, validating compliance, modeling a budget) while an orchestrator coordinates sequencing, memory, and human handoff points.</p>
+
+  <h3>Agent Taxonomy</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Technical Writer Agent</h3>
+      <p>Drafts solution architecture and technical approach sections. Calibrates complexity to the detected evaluator profile from stakeholder analysis.</p>
+    </div>
+    <div class="card">
+      <h3>Compliance Agent</h3>
+      <p>Monitors the compliance matrix in real time as drafting proceeds. Surfaces unaddressed requirements and suggests appropriate content from the knowledge base.</p>
+    </div>
+    <div class="card">
+      <h3>Financial Modeling Agent</h3>
+      <p>Generates budget narratives from cost data, applies indirect rate schedules, and formats according to funder-specific budget templates.</p>
+    </div>
+    <div class="card">
+      <h3>Competitive Intelligence Agent</h3>
+      <p>Analyzes the opportunity for competitive positioning, identifies differentiation opportunities, and surfaces relevant past-performance evidence.</p>
+    </div>
+    <div class="card">
+      <h3>Red Team Agent</h3>
+      <p>Evaluates the draft from the perspective of a skeptical evaluator, surfacing weaknesses and suggesting mitigation language.</p>
+    </div>
+    <div class="card">
+      <h3>Knowledge Harvest Agent</h3>
+      <p>Post-submission: extracts reusable content from submitted proposals and tags it for the knowledge base with AI-generated metadata.</p>
+    </div>
+  </div>
+
+  <h3>Agent Memory System</h3>
+  <p>Each agent instance maintains scoped memory across a proposal's lifecycle. Memory is persisted to PostgreSQL and evicted after a configurable TTL (default: 30 days). The <code>cleanup_job.py</code> service handles automated eviction on a nightly systemd timer.</p>
+
+  <div class="callout callout-blue">
+    <strong>Human oversight gates:</strong> All agent-generated content enters a review workflow before it can affect the document or be submitted. The platform enforces mandatory human checkpoints at: initial draft review, compliance sign-off, executive approval, and pre-submission validation. AI contributions are tracked separately from human edits in the version history.
+  </div>
+</section>
+
+<!-- ─── Knowledge Base ────────────────────────────── -->
+<section class="section" id="knowledge-base">
+  <div class="section-eyebrow">Knowledge Layer</div>
+  <h2>Knowledge Base &amp; RAG Pipeline</h2>
+  <p>DocFusion's corporate memory system stores, indexes, and retrieves organizational knowledge, including past proposals, case studies, certifications, staff profiles, and approved boilerplate, using a hybrid retrieval architecture.</p>
+
+  <h3>Retrieval Architecture</h3>
+  <ul class="feature-list">
+    <li><strong>Vector store:</strong> pgvector on PostgreSQL 17; embeddings stored co-located with metadata, no separate vector DB to manage</li>
+    <li><strong>Hybrid retrieval:</strong> semantic similarity (cosine) + BM25 keyword ranking, results fused and reranked</li>
+    <li><strong>Chunk strategy:</strong> section-aware chunking preserves document structure semantics across retrieval boundaries</li>
+    <li><strong>Metadata filtering:</strong> retrieval scoped by content type, date, client sector, and approval status</li>
+    <li><strong>Auto-tagging:</strong> AI generates metadata tags for ingested content, enabling discovery by theme, capability, and past-performance category</li>
+  </ul>
+
+  <h3>Knowledge Categories</h3>
+  <div class="two-col">
+    <div>
+      <ul class="feature-list">
+        <li>Approved proposal sections (version-controlled)</li>
+        <li>Past performance narratives with outcome data</li>
+        <li>Staff CVs and expertise profiles</li>
+        <li>Corporate certifications and accreditations</li>
+        <li>Technical capability descriptions</li>
+      </ul>
+    </div>
+    <div>
+      <ul class="feature-list">
+        <li>Win/loss analysis reports</li>
+        <li>Pricing and rate card data (access-controlled)</li>
+        <li>Partner capability statements</li>
+        <li>Competitor response library</li>
+        <li>Regulatory compliance templates (FAR, GDPR, NIH, NSF)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Voice DNA Profiling</h3>
+  <p>DocFusion ingests historical winning proposals to build a 250-dimension organizational voice profile: sentence structure patterns, preferred terminology, rhetorical strategy fingerprints. The composition engine uses this profile to ensure AI-generated content is indistinguishable in style from the organization's established voice.</p>
+</section>
+
+<!-- ─── Workflows ──────────────────────────────────── -->
+<section class="section" id="workflows">
+  <div class="section-eyebrow">Workflow Engine</div>
+  <h2>Workflow Automation</h2>
+  <p>DocFusion's workflow engine orchestrates the end-to-end proposal process, from Go/No-Go decision through submission. Workflows are configurable per organization and support both human-gated and autonomous execution paths.</p>
+
+  <h3>Standard RFP Workflow</h3>
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="step-num">Go/No-Go</div>
+      <div class="step-name">Decision</div>
+      <div class="step-desc">AI recommendation + team vote with override tracking</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">Kickoff</div>
+      <div class="step-name">Auto-Draft</div>
+      <div class="step-desc">First draft with compliance matrix within 5 minutes</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">Author</div>
+      <div class="step-name">SME Review</div>
+      <div class="step-desc">Section-locked parallel editing by role</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">Review</div>
+      <div class="step-name">Red Team</div>
+      <div class="step-desc">AI adversarial review + peer technical check</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">Approve</div>
+      <div class="step-name">Sign-Off</div>
+      <div class="step-desc">Multi-party approval chain with e-signature binding</div>
+    </div>
+    <div class="pipeline-step">
+      <div class="step-num">Submit</div>
+      <div class="step-name">Package</div>
+      <div class="step-desc">Format, validate, and deliver to portal</div>
+    </div>
+  </div>
+
+  <h3>Workflow Notifications</h3>
+  <p>The notification system delivers workflow state changes across multiple channels. The <code>workflow_notifications</code> table persists all events; the frontend queries unread counts via a server action on every page load. Notification channels:</p>
+  <ul class="feature-list">
+    <li>In-app notification bell (real-time via WebSocket)</li>
+    <li>Email (Stalwart SMTP via mail.lindela.io)</li>
+    <li>Configurable webhook endpoints for third-party integration</li>
+    <li>Soketi (Pusher-compatible) for mobile push</li>
+  </ul>
+</section>
+
+<!-- ─── Collaboration ─────────────────────────────── -->
+<section class="section" id="collaboration">
+  <div class="section-eyebrow">Collaboration</div>
+  <h2>Collaboration Layer</h2>
+  <p>Proposals involve multiple authors with different expertise, working under deadline pressure. DocFusion's collaboration features eliminate version chaos and ensure clear ownership without coordination overhead.</p>
+
+  <ul class="feature-list">
+    <li><strong>Section locking:</strong> Authors claim sections; others see read-only view with presence indicator during active editing</li>
+    <li><strong>Real-time co-authoring:</strong> WebSocket-synchronized editing for unlocked sections with operational transform conflict resolution</li>
+    <li><strong>Role-based workspaces:</strong> Technical, management, financial, and legal views surface only the sections and tools relevant to each contributor's role</li>
+    <li><strong>Expertise matching:</strong> Platform recommends internal SMEs for open sections based on skill profiles and past-performance tags</li>
+    <li><strong>Commenting and annotation:</strong> Section-threaded comments, AI-generated impact forecasts for suggested changes</li>
+    <li><strong>Presence radar:</strong> Shows collaborators' current editing location in the document</li>
+    <li><strong>Four-eyes approval:</strong> Configurable requirement for at least two independent reviewers before any section can advance to sign-off</li>
+  </ul>
+</section>
+
+<!-- ─── Notifications ─────────────────────────────── -->
+<section class="section" id="notifications">
+  <div class="section-eyebrow">Notifications</div>
+  <h2>Notification &amp; Alert System</h2>
+  <p>DocFusion functions as a 24/7 strategic partner, scanning, scoring, and alerting before the team's working day begins. The notification system is designed around the 6:30 AM local time delivery target for the morning opportunity digest.</p>
+
+  <div class="callout callout-green">
+    <strong>Morning Digest:</strong> By 08:00 UTC, the digest runner scores all overnight crawl results, filters below-threshold opportunities, groups by sector, and emails an HTML digest to configured recipients. Teams act on prioritized opportunities before competitors have begun their morning review.
+  </div>
+
+  <h3>Alert Types</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Alert</th><th>Trigger</th><th>Channel</th><th>Priority</th></tr></thead>
+      <tbody>
+        <tr><td>New opportunity (high fit)</td><td>Discovery score above threshold</td><td>Email + in-app</td><td>High</td></tr>
+        <tr><td>Deadline approaching</td><td>N days before submission cutoff</td><td>Email + push + in-app</td><td>Critical</td></tr>
+        <tr><td>Compliance gap detected</td><td>Requirement added with no response</td><td>In-app + email</td><td>High</td></tr>
+        <tr><td>Section ready for review</td><td>Author marks section complete</td><td>In-app + email</td><td>Normal</td></tr>
+        <tr><td>Approval needed</td><td>Section reaches sign-off stage</td><td>In-app + email + webhook</td><td>High</td></tr>
+        <tr><td>Submission confirmation</td><td>Portal delivery acknowledged</td><td>Email + in-app</td><td>Normal</td></tr>
+        <tr><td>Win/loss posted</td><td>Outcome recorded in system</td><td>Email + in-app</td><td>Normal</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr>
+
+<!-- ─── API ───────────────────────────────────────── -->
+<section class="section" id="api">
+  <div class="section-eyebrow">Platform</div>
+  <h2>REST API Reference</h2>
+  <p>All functionality is available via a versioned REST API at <code>/api/v1/</code>. The API is fully documented via OpenAPI (Swagger UI at <code>/docs</code>, ReDoc at <code>/redoc</code>). Authentication uses JWT bearer tokens issued by the auth service.</p>
+
+  <h3>API Modules</h3>
+
+  <h4>Opportunities</h4>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/opportunities</span><span class="endpoint-desc">List discovered opportunities with filtering and pagination</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/opportunities/{id}</span><span class="endpoint-desc">Retrieve full opportunity detail and scoring breakdown</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/opportunities/{id}/go-nogo</span><span class="endpoint-desc">Record Go/No-Go decision with rationale</span></div>
+
+  <h4>RFP Processing</h4>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/rfp/upload</span><span class="endpoint-desc">Upload RFP document and initiate parse pipeline</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/rfp/{id}/requirements</span><span class="endpoint-desc">Retrieve extracted and classified requirements</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/rfp/{id}/compliance-matrix</span><span class="endpoint-desc">Retrieve compliance matrix with gap analysis</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/rfp/{id}/traceability</span><span class="endpoint-desc">Bidirectional requirement-to-response traceability</span></div>
+
+  <h4>Documents</h4>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/documents/generate</span><span class="endpoint-desc">Initiate document generation from structured content</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/documents/{id}/export</span><span class="endpoint-desc">Export document in PDF / DOCX / HTML format</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/batch/generate</span><span class="endpoint-desc">Batch multi-format export in a single request</span></div>
+
+  <h4>Discovery</h4>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/discovery/crawl</span><span class="endpoint-desc">Trigger on-demand discovery crawl</span></div>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/discovery/sources</span><span class="endpoint-desc">List configured discovery sources and their status</span></div>
+
+  <h4>Predictions &amp; Intelligence</h4>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/predictions/win-probability</span><span class="endpoint-desc">Score a proposal draft against historical win/loss patterns</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/search</span><span class="endpoint-desc">Semantic search across the knowledge base</span></div>
+
+  <h4>Collaboration &amp; Workflows</h4>
+  <div class="endpoint"><span class="method method-get">GET</span><span class="endpoint-path">/api/v1/collaboration/{doc_id}/presence</span><span class="endpoint-desc">Real-time collaborator presence state</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/templates</span><span class="endpoint-desc">Create or clone a document template</span></div>
+  <div class="endpoint"><span class="method method-post">POST</span><span class="endpoint-path">/api/v1/webhooks</span><span class="endpoint-desc">Register webhook endpoint for workflow events</span></div>
+
+  <div class="code-block">
+    <div class="code-label">WebSocket — real-time collaboration</div>
+    <pre>WS /ws/collaboration/{document_id}
+
+# Messages:
+{ "type": "presence",    "user_id": "...", "section": "3.2" }
+{ "type": "lock",        "section": "3.2", "acquired_by": "..." }
+{ "type": "edit",        "section": "3.2", "delta": {...} }
+{ "type": "notification","event": "section_complete", "data": {...} }</pre>
+  </div>
+</section>
+
+<!-- ─── Integrations ──────────────────────────────── -->
+<section class="section" id="integrations">
+  <div class="section-eyebrow">Platform</div>
+  <h2>Integration Ecosystem</h2>
+  <p>DocFusion connects to the tools organizations already use. Integrations are bidirectional where meaningful, not one-way exports.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>CRM</h3>
+      <p>Salesforce, Microsoft Dynamics. Bidirectional opportunity sync, pipeline status updates, win/loss feedback loop to CRM records.</p>
+      <div class="tags"><span class="tag">Salesforce</span><span class="tag">Dynamics 365</span><span class="tag">Webhook</span></div>
+    </div>
+    <div class="card">
+      <h3>Document Storage</h3>
+      <p>SharePoint, Google Drive, Confluence. Bidirectional content sync, automatic capture of approved content into the knowledge base.</p>
+      <div class="tags"><span class="tag">SharePoint</span><span class="tag">Google Drive</span><span class="tag">Confluence</span></div>
+    </div>
+    <div class="card">
+      <h3>HRIS / Personnel</h3>
+      <p>Real-time staff data binding for CV and resume sections. Expertise profile sync ensures staffing plans reflect current availability and qualifications.</p>
+      <div class="tags"><span class="tag">Workday</span><span class="tag">BambooHR</span><span class="tag">REST</span></div>
+    </div>
+    <div class="card">
+      <h3>Financial Systems</h3>
+      <p>QuickBooks, Xero, SAP. Automated cost data import for budget narratives. Indirect cost rate application from live financial data.</p>
+      <div class="tags"><span class="tag">QuickBooks</span><span class="tag">SAP</span><span class="tag">Xero</span></div>
+    </div>
+    <div class="card">
+      <h3>E-Signature</h3>
+      <p>Embedded signing workflows with version-locked document binding. Compliance with eIDAS, ESIGN, and UETA. Audit trail tied to Git commit hash.</p>
+      <div class="tags"><span class="tag">DocuSign</span><span class="tag">eIDAS</span><span class="tag">ESIGN</span></div>
+    </div>
+    <div class="card">
+      <h3>Submission Portals</h3>
+      <p>Direct API submission to 85+ procurement and grant portals. Automated confirmation tracking and error recovery protocols.</p>
+      <div class="tags"><span class="tag">SAM.gov</span><span class="tag">Grants.gov</span><span class="tag">UNGM</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Security ──────────────────────────────────── -->
+<section class="section" id="security">
+  <div class="section-eyebrow">Platform</div>
+  <h2>Security &amp; Compliance</h2>
+
+  <div class="two-col">
+    <div>
+      <h3>Data Protection</h3>
+      <ul class="feature-list">
+        <li>AES-256 encryption at rest</li>
+        <li>TLS 1.3 in transit (enforced by Caddy)</li>
+        <li>Secure document storage via SecureStorageService (Linode E3 object store)</li>
+        <li>No sensitive content in local disk paths</li>
+        <li>Blockchain-backed audit trail for all approvals and submissions</li>
+        <li>Immutable change log — all document versions retained</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Access Control</h3>
+      <ul class="feature-list">
+        <li>Role-based access control (RBAC) with SpiceDB</li>
+        <li>Section-level permissions — granular content access</li>
+        <li>Tenancy isolation — organizations cannot access each other's data</li>
+        <li>Watermarking for sensitive sections on export</li>
+        <li>Biometric authentication support for executive sign-off</li>
+        <li>Session management via Keycloak (auth.lindela.io)</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Compliance Frameworks</h3>
+      <ul class="feature-list">
+        <li>SOC 2 Type II (documentation-ready)</li>
+        <li>GDPR / CCPA data handling templates</li>
+        <li>FAR / DFARS clause validation for US federal proposals</li>
+        <li>HIPAA-compatible data segmentation</li>
+        <li>Data residency controls (EU-hosted by default)</li>
+        <li>Automated compliance statement generation</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Observability</h3>
+      <ul class="feature-list">
+        <li>Structured JSON logging with request_id tracing</li>
+        <li>X-Request-ID middleware on all API responses</li>
+        <li>Prometheus metrics scraped by mail.lindela.io</li>
+        <li>Loki log aggregation + Grafana dashboards</li>
+        <li>Sentry error tracking with SDK integration</li>
+        <li>Health endpoint at <code>/health</code> returning JSON status</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Performance ───────────────────────────────── -->
+<section class="section" id="performance">
+  <div class="section-eyebrow">Platform</div>
+  <h2>Performance &amp; SLAs</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Target</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>RFP parse pipeline (20-page doc)</td><td class="td-good">&lt; 45 seconds</td><td>Parallel extraction stages; longer for complex PDFs with many images</td></tr>
+        <tr><td>Initial draft generation</td><td class="td-good">&lt; 5 minutes</td><td>80% complete compliance matrix + narrative framework</td></tr>
+        <tr><td>Opportunity digest delivery</td><td class="td-good">By 08:00 UTC daily</td><td>Crawl completes 06:00 UTC; scoring and email by 08:00</td></tr>
+        <tr><td>Knowledge base semantic search</td><td class="td-good">&lt; 800ms p99</td><td>pgvector cosine search on indexed embeddings</td></tr>
+        <tr><td>Document export (PDF)</td><td class="td-good">&lt; 30 seconds</td><td>LaTeX compilation; scales with document length</td></tr>
+        <tr><td>WebSocket presence latency</td><td class="td-good">&lt; 100ms</td><td>Via Soketi (Pusher-compatible) on search server</td></tr>
+        <tr><td>API response (read endpoints)</td><td class="td-good">&lt; 200ms p95</td><td>Connection pool: size=10, max_overflow=20</td></tr>
+        <tr><td>Database HA failover</td><td class="td-good">&lt; 30 seconds</td><td>PostgreSQL streaming replication to hot standby</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Multi-language Support</h3>
+  <p>The NLLB-200 model (hosted on ml/vault) provides translation across 200 languages for both discovery (non-English tender sources) and response generation (multilingual RFPs). Translation is applied transparently in the pipeline; extracted requirements and generated content can each be in different languages as needed.</p>
+</section>
+
+<!-- ─── Competitive ───────────────────────────────── -->
+<section class="section" id="competitive">
+  <div class="section-eyebrow">Market Position</div>
+  <h2>Competitive Positioning</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>DocFusion</th>
+          <th>Loopio / RFPIO</th>
+          <th>DocuSign CLM</th>
+          <th>Manual Process</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Proactive opportunity discovery</td>
+          <td class="td-good">200+ sources, automated daily</td>
+          <td class="td-na">None</td>
+          <td class="td-na">None</td>
+          <td class="td-warn">Manual monitoring</td>
+        </tr>
+        <tr>
+          <td>AI requirement extraction</td>
+          <td class="td-good">Typed schema, traceability</td>
+          <td class="td-warn">Basic keyword matching</td>
+          <td class="td-na">None</td>
+          <td class="td-warn">Manual review</td>
+        </tr>
+        <tr>
+          <td>Generative response drafting</td>
+          <td class="td-good">Multi-agent, voice-matched</td>
+          <td class="td-warn">Template fill-in</td>
+          <td class="td-na">None</td>
+          <td class="td-na">Entirely manual</td>
+        </tr>
+        <tr>
+          <td>Compliance matrix</td>
+          <td class="td-good">Auto-generated, bidirectional</td>
+          <td class="td-warn">Manual creation</td>
+          <td class="td-na">None</td>
+          <td class="td-na">Spreadsheet</td>
+        </tr>
+        <tr>
+          <td>Win probability scoring</td>
+          <td class="td-good">ML model, historical patterns</td>
+          <td class="td-na">None</td>
+          <td class="td-na">None</td>
+          <td class="td-na">Gut feel</td>
+        </tr>
+        <tr>
+          <td>Version-controlled documents</td>
+          <td class="td-good">Git at block level</td>
+          <td class="td-warn">File-level only</td>
+          <td class="td-warn">File-level only</td>
+          <td class="td-na">None</td>
+        </tr>
+        <tr>
+          <td>Embedded e-signature</td>
+          <td class="td-good">Workflow-embedded, version-bound</td>
+          <td class="td-warn">Third-party redirect</td>
+          <td class="td-good">Native</td>
+          <td class="td-na">None</td>
+        </tr>
+        <tr>
+          <td>Multi-language (200 langs)</td>
+          <td class="td-good">NLLB-200, transparent</td>
+          <td class="td-warn">Limited</td>
+          <td class="td-na">None</td>
+          <td class="td-na">Manual translation</td>
+        </tr>
+        <tr>
+          <td>On-premise / air-gapped</td>
+          <td class="td-good">Contabo VPS or on-prem</td>
+          <td class="td-na">SaaS only</td>
+          <td class="td-na">SaaS only</td>
+          <td class="td-good">Local files</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <strong>Key differentiator:</strong> DocFusion is the only platform that spans the full lifecycle from discovery through submission. Competitors address either content reuse (Loopio/RFPIO) or document signing (DocuSign) but not the end-to-end workflow. DocFusion's agent orchestration layer replaces coordination overhead that currently lives in email and shared drives.
+  </div>
+</section>
+
+<!-- ─── Roadmap ────────────────────────────────────── -->
+<section class="section" id="roadmap">
+  <div class="section-eyebrow">Direction</div>
+  <h2>Roadmap &amp; Open Work</h2>
+
+  <h3>In Progress (Q3 2026)</h3>
+  <ul class="feature-list">
+    <li><strong>Production Hardening (TASK-036):</strong> Health endpoint, SIGTERM graceful shutdown, structured JSON logging, DB pool tuning, Sentry integration</li>
+    <li><strong>Requirements Schema Unification (TASK-012):</strong> Alembic migration to consolidate requirements and rfpRequirements tables; unique constraint on (rfp_id, requirement_text)</li>
+    <li><strong>Grafana Dashboards (TASK-042):</strong> Runtime observability dashboards + Promtail log shipping from app server to monitoring stack</li>
+    <li><strong>SecureStorageService migration (TASK-048):</strong> Remove local disk paths from RFP write path; all documents via Linode E3 object storage</li>
+  </ul>
+
+  <h3>Planned (Q4 2026)</h3>
+  <ul class="feature-list">
+    <li><strong>LaTeX compilation pipeline:</strong> Full compiler.py + assembler.py + service.py with base templates per proposal type</li>
+    <li><strong>FastAPI RFP discovery endpoints + typed Next.js client:</strong> Typed API client at frontend/lib/api/ for all RFP and opportunity operations</li>
+    <li><strong>Custom fine-tuning:</strong> Org-specific model fine-tuning on historical winning proposals for higher voice fidelity</li>
+    <li><strong>Submission portal connectors:</strong> Direct integration with SAM.gov, Grants.gov, and UNGM submission APIs</li>
+  </ul>
+
+  <h3>Longer Horizon</h3>
+  <ul class="feature-list">
+    <li>Quantum-resistant cryptography for long-lived proposal archives</li>
+    <li>Mobile-first proposal review application (React Native)</li>
+    <li>Voice-controlled editing via on-device NLP assistant</li>
+    <li>Collaborative VR review environment for distributed teams</li>
+  </ul>
+</section>
+
+</main>
+</div><!-- /.layout (content column) -->
+
+</div><!-- /.layout (grid) -->
+
+<script>
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+}
+
+// Active nav highlighting on scroll
+const sections = document.querySelectorAll('.section[id]');
+const navItems = document.querySelectorAll('.nav-item, .nav-sub');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.getAttribute('id');
+      navItems.forEach(item => {
+        item.classList.toggle('active', item.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

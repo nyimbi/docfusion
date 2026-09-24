@@ -6,8 +6,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_092312.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:23:12.887341",
-    "last_accessed": "2026-04-24 09:51:07.968016",
-    "access_count": 8,
+    "last_accessed": "2026-06-02 14:51:14.997309",
+    "access_count": 14,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -204,8 +204,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_092909.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:29:09.786372",
-    "last_accessed": "2026-04-24 09:51:07.966752",
-    "access_count": 7,
+    "last_accessed": "2026-06-02 14:51:14.995011",
+    "access_count": 13,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -402,8 +402,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_093355.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:33:55.238632",
-    "last_accessed": "2026-04-24 09:51:07.965394",
-    "access_count": 6,
+    "last_accessed": "2026-06-02 14:51:14.992506",
+    "access_count": 12,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -600,8 +600,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_093816.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:38:16.657517",
-    "last_accessed": "2026-04-24 09:51:07.964170",
-    "access_count": 5,
+    "last_accessed": "2026-06-02 14:51:14.990079",
+    "access_count": 11,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -798,8 +798,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_094124.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:41:24.646724",
-    "last_accessed": "2026-04-24 09:51:07.962767",
-    "access_count": 4,
+    "last_accessed": "2026-06-02 14:51:14.987674",
+    "access_count": 10,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -996,8 +996,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_094457.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:44:57.232084",
-    "last_accessed": "2026-04-24 09:51:07.961437",
-    "access_count": 3,
+    "last_accessed": "2026-06-02 14:51:14.985339",
+    "access_count": 9,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -1194,8 +1194,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_094752.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:47:52.469164",
-    "last_accessed": "2026-04-24 09:51:07.960216",
-    "access_count": 2,
+    "last_accessed": "2026-06-02 14:51:14.981033",
+    "access_count": 8,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -1408,8 +1408,8 @@
     "storage_path": "intelligence_storage/data/historical_performance_test/data_20260424_095107.json",
     "file_size_bytes": 4780,
     "created_timestamp": "2026-04-24 09:51:07.957369",
-    "last_accessed": "2026-04-24 09:51:07.958954",
-    "access_count": 1,
+    "last_accessed": "2026-06-02 14:51:14.978690",
+    "access_count": 7,
     "metadata": {
       "data_type": "performance_test",
       "record_count": 100,
@@ -1597,6 +1597,1306 @@
         "id",
         "value"
       ]
+    }
+  },
+  "ca9b13c1-398c-42bb-a174-0de5c82a3907": {
+    "storage_id": "ca9b13c1-398c-42bb-a174-0de5c82a3907",
+    "data_type": "intelligence_reports",
+    "item_id": "762d06dd-2259-4294-8eb9-eb4f05b0d022",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_112632.json",
+    "file_size_bytes": 1121,
+    "created_timestamp": "2026-06-02 11:26:32.128948",
+    "last_accessed": "2026-06-02 11:26:32.131584",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 0.000157
+    }
+  },
+  "5264184d-7a98-4fbc-a0db-450aa148a226": {
+    "storage_id": "5264184d-7a98-4fbc-a0db-450aa148a226",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_112706.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 11:27:06.705595",
+    "last_accessed": "2026-06-02 14:51:14.976134",
+    "access_count": 6,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "b31224d2-4f73-47c2-981c-5ac474e24f18": {
+    "storage_id": "b31224d2-4f73-47c2-981c-5ac474e24f18",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.724438",
+    "last_accessed": "2026-06-02 11:27:06.724439",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "8ef07294-d652-4a67-8297-f59c6d61d9bd": {
+    "storage_id": "8ef07294-d652-4a67-8297-f59c6d61d9bd",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.726082",
+    "last_accessed": "2026-06-02 11:27:06.726083",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "2984985e-55f7-49d1-883e-43b9a8df62ea": {
+    "storage_id": "2984985e-55f7-49d1-883e-43b9a8df62ea",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.727915",
+    "last_accessed": "2026-06-02 11:27:06.727917",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "a406c2bc-9f7e-462d-8a61-032a2f088846": {
+    "storage_id": "a406c2bc-9f7e-462d-8a61-032a2f088846",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.729950",
+    "last_accessed": "2026-06-02 11:27:06.729951",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "e769c3a1-ecdb-414f-b6e3-84e2d5deae5a": {
+    "storage_id": "e769c3a1-ecdb-414f-b6e3-84e2d5deae5a",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.731800",
+    "last_accessed": "2026-06-02 11:27:06.731803",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "d467d854-54c3-43ce-bdf9-b435f9836d62": {
+    "storage_id": "d467d854-54c3-43ce-bdf9-b435f9836d62",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.733521",
+    "last_accessed": "2026-06-02 11:27:06.733522",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "2631e908-3ee7-4a58-acaf-574e9ba4f24d": {
+    "storage_id": "2631e908-3ee7-4a58-acaf-574e9ba4f24d",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.735123",
+    "last_accessed": "2026-06-02 11:27:06.735124",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "57794097-f080-455d-8236-f4cab2fa55f0": {
+    "storage_id": "57794097-f080-455d-8236-f4cab2fa55f0",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.736641",
+    "last_accessed": "2026-06-02 11:27:06.736641",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "db7059da-331f-40fa-8d7a-1885c02bfcab": {
+    "storage_id": "db7059da-331f-40fa-8d7a-1885c02bfcab",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.738183",
+    "last_accessed": "2026-06-02 11:27:06.738184",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "64d61d2f-a559-461c-b375-5fbd8d36d6c9": {
+    "storage_id": "64d61d2f-a559-461c-b375-5fbd8d36d6c9",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_112706",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_112706.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:27:06.739862",
+    "last_accessed": "2026-06-02 11:27:06.739865",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "b3cdebf0-926f-46f9-8709-9433a003cbc6": {
+    "storage_id": "b3cdebf0-926f-46f9-8709-9433a003cbc6",
+    "data_type": "intelligence_reports",
+    "item_id": "329501f4-9ad4-4af8-b278-987c05eb1c34",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_112914.json",
+    "file_size_bytes": 1121,
+    "created_timestamp": "2026-06-02 11:29:14.672003",
+    "last_accessed": "2026-06-02 11:29:14.674167",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 0.000175
+    }
+  },
+  "e9a3d51f-302d-4f0b-b058-94d67dea1189": {
+    "storage_id": "e9a3d51f-302d-4f0b-b058-94d67dea1189",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_113207.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 11:32:07.390722",
+    "last_accessed": "2026-06-02 14:51:14.973916",
+    "access_count": 5,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "df0b1381-3d4c-4b51-a0bf-1a947fcded87": {
+    "storage_id": "df0b1381-3d4c-4b51-a0bf-1a947fcded87",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.445549",
+    "last_accessed": "2026-06-02 11:32:07.445552",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "acac4b22-265e-48bc-9616-63788c51932b": {
+    "storage_id": "acac4b22-265e-48bc-9616-63788c51932b",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.450503",
+    "last_accessed": "2026-06-02 11:32:07.450506",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "5c8a9a6e-2ed9-480c-8d6a-c803014d6242": {
+    "storage_id": "5c8a9a6e-2ed9-480c-8d6a-c803014d6242",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.455389",
+    "last_accessed": "2026-06-02 11:32:07.455395",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "efa368d6-e2d5-4eed-9523-e6282c9cdd09": {
+    "storage_id": "efa368d6-e2d5-4eed-9523-e6282c9cdd09",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.460190",
+    "last_accessed": "2026-06-02 11:32:07.460192",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "afe4d881-5b66-439c-bd02-294347133867": {
+    "storage_id": "afe4d881-5b66-439c-bd02-294347133867",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.465859",
+    "last_accessed": "2026-06-02 11:32:07.465864",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "fa03e276-88ea-4944-926b-6fbc611d7ac1": {
+    "storage_id": "fa03e276-88ea-4944-926b-6fbc611d7ac1",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.470706",
+    "last_accessed": "2026-06-02 11:32:07.470710",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "1da8e60f-e584-42a9-9b33-2f8ca933bc4b": {
+    "storage_id": "1da8e60f-e584-42a9-9b33-2f8ca933bc4b",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.475968",
+    "last_accessed": "2026-06-02 11:32:07.475973",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "2020e69f-9b7e-41c4-96d6-0e6282d9ac3b": {
+    "storage_id": "2020e69f-9b7e-41c4-96d6-0e6282d9ac3b",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.480755",
+    "last_accessed": "2026-06-02 11:32:07.480758",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "e27b5505-f887-4c28-9ee7-8e306dfc839d": {
+    "storage_id": "e27b5505-f887-4c28-9ee7-8e306dfc839d",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.485952",
+    "last_accessed": "2026-06-02 11:32:07.485958",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "31e22ac2-1f54-42d3-92c5-7bdfc8fee8f3": {
+    "storage_id": "31e22ac2-1f54-42d3-92c5-7bdfc8fee8f3",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_113207",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_113207.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:32:07.491412",
+    "last_accessed": "2026-06-02 11:32:07.491416",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "54cc8ed8-66cc-4ae7-a6c5-e8b5c59b21bc": {
+    "storage_id": "54cc8ed8-66cc-4ae7-a6c5-e8b5c59b21bc",
+    "data_type": "intelligence_reports",
+    "item_id": "19a1d8c1-d390-43d1-85e5-5ce8b9e28cd6",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_113646.json",
+    "file_size_bytes": 1121,
+    "created_timestamp": "2026-06-02 11:36:46.544028",
+    "last_accessed": "2026-06-02 11:36:46.549324",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 0.000413
+    }
+  },
+  "e09a0698-cce9-4224-ba86-7369832b4726": {
+    "storage_id": "e09a0698-cce9-4224-ba86-7369832b4726",
+    "data_type": "intelligence_reports",
+    "item_id": "cb03b616-6d1a-48c2-99d5-e5bdf2306665",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_113930.json",
+    "file_size_bytes": 1121,
+    "created_timestamp": "2026-06-02 11:39:30.078600",
+    "last_accessed": "2026-06-02 11:39:30.084024",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 0.000358
+    }
+  },
+  "58d6f0d2-f7f8-4ba5-a102-5904de911c4d": {
+    "storage_id": "58d6f0d2-f7f8-4ba5-a102-5904de911c4d",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_114728.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 11:47:28.664066",
+    "last_accessed": "2026-06-02 14:51:14.971699",
+    "access_count": 4,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "131973cc-9597-4a58-a4c7-c7bba13d5293": {
+    "storage_id": "131973cc-9597-4a58-a4c7-c7bba13d5293",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.692998",
+    "last_accessed": "2026-06-02 11:47:28.693000",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "fdfe55ca-04ae-4423-90ca-d94dfc5cea60": {
+    "storage_id": "fdfe55ca-04ae-4423-90ca-d94dfc5cea60",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.695286",
+    "last_accessed": "2026-06-02 11:47:28.695287",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "2e37f515-ee32-40ee-a706-2bb6223b4674": {
+    "storage_id": "2e37f515-ee32-40ee-a706-2bb6223b4674",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.697687",
+    "last_accessed": "2026-06-02 11:47:28.697688",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "a8838ef9-ec91-4a41-ba64-1662ddd29e54": {
+    "storage_id": "a8838ef9-ec91-4a41-ba64-1662ddd29e54",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.700053",
+    "last_accessed": "2026-06-02 11:47:28.700054",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "49ef80ed-0dee-4b43-af63-ae92392841ae": {
+    "storage_id": "49ef80ed-0dee-4b43-af63-ae92392841ae",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.702493",
+    "last_accessed": "2026-06-02 11:47:28.702494",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "319d2ddb-1bec-4caa-b57d-82edc3b1c420": {
+    "storage_id": "319d2ddb-1bec-4caa-b57d-82edc3b1c420",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.705125",
+    "last_accessed": "2026-06-02 11:47:28.705126",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "6d704c08-25ba-43f7-8ed4-f78900775e2f": {
+    "storage_id": "6d704c08-25ba-43f7-8ed4-f78900775e2f",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.707419",
+    "last_accessed": "2026-06-02 11:47:28.707420",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "96653d3f-a3d4-46d3-9669-bb70feb5edeb": {
+    "storage_id": "96653d3f-a3d4-46d3-9669-bb70feb5edeb",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.709771",
+    "last_accessed": "2026-06-02 11:47:28.709772",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "eca6fc0e-dea0-4f7e-abae-7656f009f012": {
+    "storage_id": "eca6fc0e-dea0-4f7e-abae-7656f009f012",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.712104",
+    "last_accessed": "2026-06-02 11:47:28.712104",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "59e5381a-64d6-4c02-95e6-db4c2e9008f0": {
+    "storage_id": "59e5381a-64d6-4c02-95e6-db4c2e9008f0",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_114728",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_114728.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 11:47:28.714482",
+    "last_accessed": "2026-06-02 11:47:28.714483",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "6221f0e3-7236-4950-8b61-d07fd438c9c1": {
+    "storage_id": "6221f0e3-7236-4950-8b61-d07fd438c9c1",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_120504.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 12:05:04.278476",
+    "last_accessed": "2026-06-02 14:51:14.968978",
+    "access_count": 3,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "55bef681-11fd-4f47-86b2-eed282101342": {
+    "storage_id": "55bef681-11fd-4f47-86b2-eed282101342",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.305486",
+    "last_accessed": "2026-06-02 12:05:04.305489",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "6a71cb14-2355-4f34-8edc-13b59b2e5110": {
+    "storage_id": "6a71cb14-2355-4f34-8edc-13b59b2e5110",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.307659",
+    "last_accessed": "2026-06-02 12:05:04.307660",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "5639c2cd-ab02-47d2-9624-a5306feffa8f": {
+    "storage_id": "5639c2cd-ab02-47d2-9624-a5306feffa8f",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.309699",
+    "last_accessed": "2026-06-02 12:05:04.309699",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "b7b86f83-d513-4c94-8440-ed99dec07dbe": {
+    "storage_id": "b7b86f83-d513-4c94-8440-ed99dec07dbe",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.311807",
+    "last_accessed": "2026-06-02 12:05:04.311809",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "e0bce1a8-4611-4fa6-bc1b-4ad7451611a6": {
+    "storage_id": "e0bce1a8-4611-4fa6-bc1b-4ad7451611a6",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.313986",
+    "last_accessed": "2026-06-02 12:05:04.313987",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "0da2fb67-dd62-4675-8fe4-4e05dab3a200": {
+    "storage_id": "0da2fb67-dd62-4675-8fe4-4e05dab3a200",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.316129",
+    "last_accessed": "2026-06-02 12:05:04.316130",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "7db65c7a-3704-4c1a-8209-f6c5c8a0584f": {
+    "storage_id": "7db65c7a-3704-4c1a-8209-f6c5c8a0584f",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.318269",
+    "last_accessed": "2026-06-02 12:05:04.318270",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "c03b7cd9-9424-4f52-9aed-da6fa804f624": {
+    "storage_id": "c03b7cd9-9424-4f52-9aed-da6fa804f624",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.320564",
+    "last_accessed": "2026-06-02 12:05:04.320565",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "88cba1b0-d95d-420f-97fe-1098bc5e13ab": {
+    "storage_id": "88cba1b0-d95d-420f-97fe-1098bc5e13ab",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.325909",
+    "last_accessed": "2026-06-02 12:05:04.325912",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "479a6f61-1043-4ef8-993a-7bc7edb251e8": {
+    "storage_id": "479a6f61-1043-4ef8-993a-7bc7edb251e8",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_120504",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_120504.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:05:04.331800",
+    "last_accessed": "2026-06-02 12:05:04.331801",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "8adc84b6-f4c8-4830-9ca0-3fa37bfe01c4": {
+    "storage_id": "8adc84b6-f4c8-4830-9ca0-3fa37bfe01c4",
+    "data_type": "intelligence_reports",
+    "item_id": "f845e5f7-def5-4e28-a307-26d9f362d291",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_120651.json",
+    "file_size_bytes": 1121,
+    "created_timestamp": "2026-06-02 12:06:51.260098",
+    "last_accessed": "2026-06-02 12:06:51.263768",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 0.000141
+    }
+  },
+  "a7e18aa6-6be4-4ed1-a2f7-335b55d1df4c": {
+    "storage_id": "a7e18aa6-6be4-4ed1-a2f7-335b55d1df4c",
+    "data_type": "intelligence_reports",
+    "item_id": "b018519e-419f-453b-8867-9643451aeab7",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_120735.json",
+    "file_size_bytes": 1120,
+    "created_timestamp": "2026-06-02 12:07:35.134784",
+    "last_accessed": "2026-06-02 12:07:35.137017",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 9.3e-05
+    }
+  },
+  "1e8a5c03-ad81-4848-8e37-51b93f98e623": {
+    "storage_id": "1e8a5c03-ad81-4848-8e37-51b93f98e623",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_120851.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 12:08:51.493903",
+    "last_accessed": "2026-06-02 14:51:14.966599",
+    "access_count": 2,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "0de9b71e-22aa-4123-8724-12edc33bd7df": {
+    "storage_id": "0de9b71e-22aa-4123-8724-12edc33bd7df",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.525805",
+    "last_accessed": "2026-06-02 12:08:51.525805",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "bdfa0b43-2494-417c-ba2f-c3ad7e831e51": {
+    "storage_id": "bdfa0b43-2494-417c-ba2f-c3ad7e831e51",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.527963",
+    "last_accessed": "2026-06-02 12:08:51.527964",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "398ab4d9-a72e-40ca-8d33-f07b1b38a062": {
+    "storage_id": "398ab4d9-a72e-40ca-8d33-f07b1b38a062",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.530343",
+    "last_accessed": "2026-06-02 12:08:51.530344",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "4145da46-f6e7-4dae-a998-a04a79e5f559": {
+    "storage_id": "4145da46-f6e7-4dae-a998-a04a79e5f559",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.532592",
+    "last_accessed": "2026-06-02 12:08:51.532593",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "72be4b89-bd84-4492-b60d-d465ff659318": {
+    "storage_id": "72be4b89-bd84-4492-b60d-d465ff659318",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.535128",
+    "last_accessed": "2026-06-02 12:08:51.535129",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "e2f2c908-7343-48c3-b80f-00b4431f46db": {
+    "storage_id": "e2f2c908-7343-48c3-b80f-00b4431f46db",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.537262",
+    "last_accessed": "2026-06-02 12:08:51.537263",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "84cd01dc-654e-4a57-9ceb-fba8d7515f4a": {
+    "storage_id": "84cd01dc-654e-4a57-9ceb-fba8d7515f4a",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.539334",
+    "last_accessed": "2026-06-02 12:08:51.539335",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "8866b711-aed7-47d0-911f-a8aeb6fc688f": {
+    "storage_id": "8866b711-aed7-47d0-911f-a8aeb6fc688f",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.541387",
+    "last_accessed": "2026-06-02 12:08:51.541387",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "174f5cd0-81a0-417f-988c-74db785868e0": {
+    "storage_id": "174f5cd0-81a0-417f-988c-74db785868e0",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.543464",
+    "last_accessed": "2026-06-02 12:08:51.543464",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "80b5e24a-e6ca-4e44-93b4-f5192c3dd3f7": {
+    "storage_id": "80b5e24a-e6ca-4e44-93b4-f5192c3dd3f7",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_120851",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_120851.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 12:08:51.545640",
+    "last_accessed": "2026-06-02 12:08:51.545641",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "2a1cc7c9-4204-4eb6-8b54-5a5d88b0d8c0": {
+    "storage_id": "2a1cc7c9-4204-4eb6-8b54-5a5d88b0d8c0",
+    "data_type": "historical_data",
+    "item_id": "performance_test_20260602_145114",
+    "storage_path": "intelligence_storage/data/historical_performance_test/data_20260602_145114.json",
+    "file_size_bytes": 4780,
+    "created_timestamp": "2026-06-02 14:51:14.961030",
+    "last_accessed": "2026-06-02 14:51:14.964160",
+    "access_count": 1,
+    "metadata": {
+      "data_type": "performance_test",
+      "record_count": 100,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "f905dae0-1001-4e86-a8cc-30735e2fe942": {
+    "storage_id": "f905dae0-1001-4e86-a8cc-30735e2fe942",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_0_20260602_145114",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_0/data_20260602_145114.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.000081",
+    "last_accessed": "2026-06-02 14:51:15.000085",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_0",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "074bda96-1836-442f-bb6c-54221befe331": {
+    "storage_id": "074bda96-1836-442f-bb6c-54221befe331",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_1_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_1/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.002601",
+    "last_accessed": "2026-06-02 14:51:15.002602",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_1",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "0197b67e-d299-4264-895b-e595085b1b0a": {
+    "storage_id": "0197b67e-d299-4264-895b-e595085b1b0a",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_2_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_2/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.005075",
+    "last_accessed": "2026-06-02 14:51:15.005076",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_2",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "74f3069b-ad42-49f8-9be6-4474e9bb7a27": {
+    "storage_id": "74f3069b-ad42-49f8-9be6-4474e9bb7a27",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_3_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_3/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.007414",
+    "last_accessed": "2026-06-02 14:51:15.007415",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_3",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "00d0ff4c-d047-48aa-9e8f-953fc5681913": {
+    "storage_id": "00d0ff4c-d047-48aa-9e8f-953fc5681913",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_4_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_4/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.009651",
+    "last_accessed": "2026-06-02 14:51:15.009652",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_4",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "7e312c67-78c4-4a4c-aadd-bddd0145d1b6": {
+    "storage_id": "7e312c67-78c4-4a4c-aadd-bddd0145d1b6",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_5_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_5/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.012281",
+    "last_accessed": "2026-06-02 14:51:15.012282",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_5",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "f19967cc-74fa-4c56-9038-11f389789e00": {
+    "storage_id": "f19967cc-74fa-4c56-9038-11f389789e00",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_6_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_6/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.014620",
+    "last_accessed": "2026-06-02 14:51:15.014621",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_6",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "29d5d967-2c6a-461a-83eb-c7756909b6a5": {
+    "storage_id": "29d5d967-2c6a-461a-83eb-c7756909b6a5",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_7_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_7/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.016835",
+    "last_accessed": "2026-06-02 14:51:15.016836",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_7",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "b0e0d620-3e6a-471a-bdb7-68bf53aba2ba": {
+    "storage_id": "b0e0d620-3e6a-471a-bdb7-68bf53aba2ba",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_8_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_8/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.018974",
+    "last_accessed": "2026-06-02 14:51:15.018974",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_8",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "c6537aa2-e19e-415c-bc88-a1e5515a5a3f": {
+    "storage_id": "c6537aa2-e19e-415c-bc88-a1e5515a5a3f",
+    "data_type": "historical_data",
+    "item_id": "bulk_test_9_20260602_145115",
+    "storage_path": "intelligence_storage/data/historical_bulk_test_9/data_20260602_145115.json",
+    "file_size_bytes": 2382,
+    "created_timestamp": "2026-06-02 14:51:15.021901",
+    "last_accessed": "2026-06-02 14:51:15.021905",
+    "access_count": 0,
+    "metadata": {
+      "data_type": "bulk_test_9",
+      "record_count": 50,
+      "sample_fields": [
+        "id",
+        "value"
+      ]
+    }
+  },
+  "660206e5-2599-46cb-8f8e-7ef21f417657": {
+    "storage_id": "660206e5-2599-46cb-8f8e-7ef21f417657",
+    "data_type": "intelligence_reports",
+    "item_id": "a2a866c1-b677-49d6-87eb-d3805cfd60f1",
+    "storage_path": "intelligence_storage/reports/intelligence/test_opp_001_20260602_145300.json",
+    "file_size_bytes": 1120,
+    "created_timestamp": "2026-06-02 14:53:00.328500",
+    "last_accessed": "2026-06-02 14:53:00.331960",
+    "access_count": 1,
+    "metadata": {
+      "opportunity_id": "test_opp_001",
+      "intelligence_level": "enhanced",
+      "confidence_score": 0.5,
+      "analysis_duration": 8.1e-05
     }
   }
 }

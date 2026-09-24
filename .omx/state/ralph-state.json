@@ -1,7 +1,7 @@
 {
   "active": true,
-  "iteration": 16,
-  "max_iterations": 20,
+  "iteration": 356,
+  "max_iterations": 360,
   "current_phase": "executing",
   "started_at": "2026-05-05T09:50:00Z",
   "task_description": "Implement .omx/plans/full-jtbd-enhancements-implementation-plan.md exhaustively using Ralph.",
@@ -10,7 +10,7 @@
   "test_spec_path": ".omx/plans/test-spec-full-jtbd-enhancements-implementation.md",
   "facility_ledger_path": ".omx/state/platform-e2e-facility-ledger.md",
   "topology_matrix_path": ".omx/state/platform-e2e-topology-matrix.md",
-  "last_turn_at": "2026-05-05T19:32:09.209Z",
+  "last_turn_at": "2026-06-02T08:07:31.921Z",
   "notes": [
     "docs/shared/agent-tiers.md is absent in this checkout; using AGENTS.md role table and scoped local verification.",
     "Codex native subagents returned Azure deployment 404 during Phase 0; architect verification later completed successfully.",
@@ -149,6 +149,6 @@
     "focused_tests": "22 passed in discovery-RFP slice; 37 passed in opportunity lifecycle slice",
     "architect_review": "APPROVE after fixing early confidence-review task creation, completing/cancelling review tasks on human action, blocking failed/incomplete parse review, rendering every actionable low-confidence parse review, and removing the server-side newest-N fetch cap. Opportunity lifecycle slice approved after fixing header shortlist workflow bypass, analysis state persistence, timezone-explicit deadlines, and stale Wave 2 state rows."
   },
-  "max_iterations_auto_expand_count": 1,
-  "max_iterations_auto_expanded_at": "2026-05-05T13:20:51.769Z"
+  "max_iterations_auto_expand_count": 35,
+  "max_iterations_auto_expanded_at": "2026-06-01T00:22:47.169Z"
 }

@@ -4,7 +4,7 @@ title: BrandFormatter must handle brand specs with no logo
 status: Done
 assignee: []
 created_date: '2026-05-11 20:52'
-updated_date: '2026-05-14 10:28'
+updated_date: '2026-07-11 05:47'
 labels: []
 dependencies: []
 ---
@@ -23,5 +23,5 @@ After the document-engine honesty pass (PR-pending), the orchestrator no longer 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-BrandFormatter._apply_logo_placements now checks asset_library.logo_variants before invoking LogoManager.place_logo; missing variants are logged at INFO and skipped, allowing brand specs with only colors/fonts to format successfully. xfail markers removed from test_generate_document_with_brand_compliance, test_brand_focused_workflow, test_brand_and_style_integration. Bundled with TASK-045 (Optional[float] quality fields).
+added logo None guard and test
 <!-- SECTION:NOTES:END -->

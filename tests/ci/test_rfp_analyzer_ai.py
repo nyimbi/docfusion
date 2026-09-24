@@ -5,7 +5,12 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from docfusion.rfp.rfp_analyzer import RFPAnalyzer, RFPAnalysisResult, create_rfp_analyzer
+from docfusion.rfp.rfp_analyzer import (
+	RFPAnalysisError,
+	RFPAnalysisResult,
+	RFPAnalyzer,
+	create_rfp_analyzer,
+)
 from docfusion.rfp.requirement_extractor import Requirement, RequirementModality, RequirementType
 
 
@@ -49,9 +54,9 @@ class TestAIAnalysis:
 				"RFP text about support and security.",
 			)
 
-		assert result["compliance_narrative"] == "The RFP requires SOC 2 and GDPR compliance."
-		assert result["risk_narrative"] == "Tight timeline and legacy integration pose risks."
-		assert result["strategic_recommendations"] == "- Allocate senior engineers\n- Plan for certification delays"
+		assert result.compliance_narrative == "The RFP requires SOC 2 and GDPR compliance."
+		assert result.risk_narrative == "Tight timeline and legacy integration pose risks."
+		assert result.strategic_recommendations == "- Allocate senior engineers\n- Plan for certification delays"
 
 	@pytest.mark.asyncio
 	async def test_narratives_none_when_ai_disabled(self):
@@ -79,7 +84,8 @@ class TestAIAnalysis:
 				"RFP text.",
 			)
 
-		assert result == {}
+		assert isinstance(result, RFPAnalysisError)
+		assert "LLM unavailable" in result.reason
 
 	@pytest.mark.asyncio
 	async def test_ai_parses_markdown_fences(self, sample_requirements):
@@ -104,9 +110,9 @@ class TestAIAnalysis:
 				"RFP text.",
 			)
 
-		assert result["compliance_narrative"] == "Compliance summary here."
-		assert result["risk_narrative"] == "Risk summary here."
-		assert result["strategic_recommendations"] == "Recommendations here."
+		assert result.compliance_narrative == "Compliance summary here."
+		assert result.risk_narrative == "Risk summary here."
+		assert result.strategic_recommendations == "Recommendations here."
 
 	@pytest.mark.asyncio
 	async def test_ai_ignores_extra_keys(self, sample_requirements):
@@ -129,11 +135,11 @@ class TestAIAnalysis:
 				"RFP text.",
 			)
 
-		assert result["compliance_narrative"] == "Valid compliance."
-		assert result["risk_narrative"] == "Valid risk."
-		assert result["strategic_recommendations"] == "Valid recommendations."
-		assert "unexpected_field" not in result
-		assert "score" not in result
+		assert result.compliance_narrative == "Valid compliance."
+		assert result.risk_narrative == "Valid risk."
+		assert result.strategic_recommendations == "Valid recommendations."
+		assert not hasattr(result, "unexpected_field")
+		assert not hasattr(result, "score")
 
 	@pytest.mark.asyncio
 	async def test_ai_skips_empty_requirements(self):
@@ -143,7 +149,8 @@ class TestAIAnalysis:
 		with patch("docfusion.rfp.rfp_analyzer.complete_with_fallback", new_callable=AsyncMock) as mock_llm:
 			result = await analyzer._analyze_with_ai([], "Hello world.")
 
-		assert result == {}
+		assert isinstance(result, RFPAnalysisError)
+		assert "returned no data" in result.reason
 		mock_llm.assert_not_called()
 
 	def test_ai_model_result_fields_exist(self):

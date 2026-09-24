@@ -800,6 +800,29 @@ class TestBrandFormatter:
 		assert formatter.logo_manager is not None
 		assert formatter.enforcement_engine is not None
 		assert formatter.type_classifier is not None
+
+	async def test_brand_spec_dict_without_logo_does_not_raise(self, sample_document_content):
+		"""Test request-style brand specs without logo fields skip logo placement."""
+		formatter = BrandFormatter({
+			"brand_name": "No Logo Brand",
+			"primary_color": "#1f2937",
+			"secondary_color": "#6b7280",
+			"font_family": "Inter",
+		})
+		formatting_context = {
+			"enforcement_level": "moderate",
+			"colors_used": ["#1f2937"],
+			"text_elements": [{"font_family": "Inter", "color": "#1f2937"}],
+		}
+
+		result = await formatter.apply_brand_formatting(
+			sample_document_content,
+			formatting_context,
+			["html"],
+		)
+
+		assert result.formatting_successful is True
+		assert result.logo_placements == []
 	
 	async def test_apply_brand_formatting_success(self, brand_formatter, sample_document_content):
 		"""Test successful brand formatting application"""

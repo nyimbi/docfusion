@@ -8,6 +8,7 @@ with multiple email service providers (SMTP, SendGrid, AWS SES, etc.).
 
 import asyncio
 import logging
+import re
 import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
@@ -19,13 +20,15 @@ from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from pydantic import EmailStr
 
 from ..delivery.notification_delivery import (
 	NotificationChannel, NotificationMessage, DeliveryResult,
 	DeliveryStatus, ChannelType, Priority
 )
 from ...config.secrets import SecretsManager
+
+
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class EmailProvider(str, Enum):
@@ -90,9 +93,9 @@ class EmailConfiguration(BaseModel):
 	postmark_api_key: Optional[str] = Field(None, description="Postmark API key")
 	
 	# Sender Configuration
-	from_email: EmailStr = Field(..., description="Default sender email address")
+	from_email: str = Field(..., description="Default sender email address")
 	from_name: Optional[str] = Field(None, description="Default sender display name")
-	reply_to_email: Optional[EmailStr] = Field(None, description="Reply-to email address")
+	reply_to_email: Optional[str] = Field(None, description="Reply-to email address")
 	
 	# Delivery Settings
 	max_recipients_per_message: int = Field(50, description="Maximum recipients per email")
@@ -111,6 +114,16 @@ class EmailConfiguration(BaseModel):
 		"""Validate SMTP port range."""
 		if not 1 <= v <= 65535:
 			raise ValueError("SMTP port must be between 1 and 65535")
+		return v
+
+	@field_validator('from_email', 'reply_to_email')
+	@classmethod
+	def validate_email_address(cls, v):
+		"""Validate email fields without requiring pydantic[email]."""
+		if v is None:
+			return v
+		if not _EMAIL_PATTERN.match(v):
+			raise ValueError("Invalid email address")
 		return v
 
 

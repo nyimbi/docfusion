@@ -992,7 +992,7 @@ function getStalwartSmtpConfig() {
 	const host = process.env.STALWART_SMTP_HOST ?? process.env.SMTP_HOST ?? "mail.lindela.io";
 	const port = Number(process.env.STALWART_SMTP_PORT ?? process.env.SMTP_PORT ?? 587);
 	const username = process.env.STALWART_SMTP_USER ?? process.env.SMTP_USER;
-	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS;
+	const password = process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD;
 	const from = process.env.WORKFLOW_EMAIL_FROM ?? process.env.SMTP_FROM ?? "alerts@lindela.io";
 	if (!username || !password) {
 		throw new Error("Stalwart SMTP credentials are not configured");

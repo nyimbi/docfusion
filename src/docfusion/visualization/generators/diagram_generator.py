@@ -10,6 +10,7 @@ Copyright (c) 2025
 """
 
 import logging
+import importlib.util
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -24,15 +25,40 @@ try:
 except ImportError:
     GRAPHVIZ_AVAILABLE = False
 
-try:
-    import matplotlib.patches as patches
-    import matplotlib.pyplot as plt
-    import numpy as np
-    from matplotlib.patches import FancyBboxPatch
+MATPLOTLIB_AVAILABLE = (
+    importlib.util.find_spec("matplotlib") is not None
+    and importlib.util.find_spec("numpy") is not None
+)
+patches = None
+plt = None
+np = None
+FancyBboxPatch = None
 
-    MATPLOTLIB_AVAILABLE = True
-except ImportError:
-    MATPLOTLIB_AVAILABLE = False
+
+def _load_matplotlib() -> bool:
+    """Load Matplotlib lazily so optional import failures do not break collection."""
+    global MATPLOTLIB_AVAILABLE, patches, plt, np, FancyBboxPatch
+    if not MATPLOTLIB_AVAILABLE:
+        return False
+    if plt is not None:
+        return True
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg", force=True)
+        import matplotlib.patches as loaded_patches
+        import matplotlib.pyplot as loaded_plt
+        import numpy as loaded_np
+        from matplotlib.patches import FancyBboxPatch as loaded_fancy_box_patch
+    except Exception:
+        MATPLOTLIB_AVAILABLE = False
+        return False
+
+    patches = loaded_patches
+    plt = loaded_plt
+    np = loaded_np
+    FancyBboxPatch = loaded_fancy_box_patch
+    return True
 
 from ...core.utils import uuid7str
 
@@ -712,7 +738,7 @@ class DiagramGenerator:
         self, data: DiagramData, config: DiagramConfiguration
     ) -> Dict[str, Any]:
         """Generate diagram using Matplotlib"""
-        if not MATPLOTLIB_AVAILABLE:
+        if not _load_matplotlib():
             raise RuntimeError("Matplotlib is required for diagram generation")
 
         fig = None

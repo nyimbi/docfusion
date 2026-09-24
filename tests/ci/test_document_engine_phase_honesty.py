@@ -35,7 +35,11 @@ from docfusion.document_engine.document_engine import (
 	DocumentGenerationResult,
 )
 from docfusion.document_engine.assembler.content_assembler import ContentBlock
-from docfusion.document_engine.assembler.structure_builder import StructureBuilder
+from docfusion.document_engine.assembler.structure_builder import (
+	DocumentSection,
+	DocumentStructure,
+	StructureBuilder,
+)
 from docfusion.document_engine.formatter.brand_formatter import BrandFormattingResult
 from docfusion.document_engine.formatter.document_formatter import FormattingResult
 
@@ -114,28 +118,50 @@ class TestStructureBuildingFallback:
 		assert result.structure_quality_score is None
 		assert "boom" in result.failure_reason
 
-	async def test_structure_builder_score_is_mapped_content_coverage(self):
+	def test_structure_builder_score_uses_section_completeness_with_short_penalty(self):
 		builder = StructureBuilder()
-		mapped = ContentBlock(
+		long_block = ContentBlock(
+			block_id="long",
 			block_type="text",
-			content="Executive summary content",
+			content="Executive summary content with enough detail to clear the short section limit.",
 			title="Executive Summary",
 		)
-		unmapped = ContentBlock(
-			block_type="video",
-			content="A media artifact with no proposal section mapping",
-			title="Walkthrough",
+		short_block = ContentBlock(
+			block_id="short",
+			block_type="text",
+			content="Brief.",
+			title="Brief Note",
 		)
-
-		structure = await builder.create_document_structure(
-			template_name="proposal",
+		structure = DocumentStructure(
 			document_id="doc-1",
-			content_blocks=[mapped, unmapped],
+			template_name="test",
+			sections=[
+				DocumentSection(
+					section_id="s1",
+					title="Long Section",
+					section_type="content",
+					content_block_ids=["long"],
+				),
+				DocumentSection(
+					section_id="s2",
+					title="Short Section",
+					section_type="content",
+					content_block_ids=["short"],
+				),
+				DocumentSection(
+					section_id="s3",
+					title="Empty Section",
+					section_type="content",
+				),
+			],
 		)
 
-		assert structure.structure_quality_score == pytest.approx(0.5)
+		assert builder._calculate_structure_quality_score(
+			structure,
+			[long_block, short_block],
+		) == pytest.approx((2 / 3) - 0.2)
 
-	async def test_structure_builder_score_is_none_without_content_blocks(self):
+	async def test_structure_builder_score_is_zero_without_content_blocks(self):
 		builder = StructureBuilder()
 
 		structure = await builder.create_document_structure(
@@ -144,7 +170,7 @@ class TestStructureBuildingFallback:
 			content_blocks=[],
 		)
 
-		assert structure.structure_quality_score is None
+		assert structure.structure_quality_score == 0.0
 
 
 # ---------------------------------------------------------------------------

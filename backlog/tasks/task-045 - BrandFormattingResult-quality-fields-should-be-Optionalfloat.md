@@ -4,7 +4,7 @@ title: 'BrandFormattingResult quality fields should be Optional[float]'
 status: Done
 assignee: []
 created_date: '2026-05-11 20:56'
-updated_date: '2026-05-14 10:28'
+updated_date: '2026-07-11 05:47'
 labels: []
 dependencies: []
 ---
@@ -23,5 +23,5 @@ Reviewer finding from the document-engine honesty pass: BrandFormattingResult.br
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-BrandFormattingResult.formatting_quality_score, .brand_consistency_score, and .accessibility_compliance_score are now Optional[float] = None. The orchestrator fallback in document_engine._execute_brand_formatting no longer needs to pass brand_consistency_score=0.0 — the default None flows through and the quality aggregator skips it cleanly. Bundled with TASK-044.
+changed float fields to float-or-None
 <!-- SECTION:NOTES:END -->

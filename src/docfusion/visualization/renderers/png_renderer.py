@@ -26,13 +26,31 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
-try:
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
+MATPLOTLIB_AVAILABLE = importlib.util.find_spec("matplotlib") is not None
+plt = None
+FigureCanvasAgg = None
 
-    MATPLOTLIB_AVAILABLE = True
-except ImportError:
-    MATPLOTLIB_AVAILABLE = False
+
+def _load_matplotlib() -> bool:
+    """Load Matplotlib lazily so optional import failures do not break collection."""
+    global MATPLOTLIB_AVAILABLE, plt, FigureCanvasAgg
+    if not MATPLOTLIB_AVAILABLE:
+        return False
+    if plt is not None:
+        return True
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as loaded_plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as loaded_canvas
+    except Exception:
+        MATPLOTLIB_AVAILABLE = False
+        return False
+
+    plt = loaded_plt
+    FigureCanvasAgg = loaded_canvas
+    return True
 
 from ...core.utils import uuid7str
 
@@ -442,6 +460,9 @@ class PNGRenderer:
         self, figure, config: PNGConfiguration
     ) -> bytes:
         """Render Matplotlib figure to PNG"""
+        if not _load_matplotlib():
+            raise RuntimeError("Matplotlib is required for PNG rendering")
+
         try:
             # Set figure size and DPI
             figure.set_size_inches(

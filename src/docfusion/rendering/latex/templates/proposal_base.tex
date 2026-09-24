@@ -1,0 +1,34 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{titlesec}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lfoot{DocuFusion RFP Response}
+\rfoot{Page \thepage\ of \pageref{LastPage}}
+
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.75em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.75em}{}
+
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{0.5in}
+{\Huge\bfseries Proposal Response\par}
+\vspace{0.35in}
+{\Large Prepared by DocuFusion\par}
+\vfill
+\IfFileExists{logo.pdf}{\includegraphics[width=1.75in]{logo.pdf}}{\fbox{\parbox[c][1in][c]{2.25in}{\centering Logo Placeholder}}}
+\vfill
+{\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% DOCFUSION_CONTENT
+
+\end{document}

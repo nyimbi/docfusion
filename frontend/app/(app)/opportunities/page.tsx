@@ -21,13 +21,13 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import {
-	getOpportunities,
 	getOpportunityStats,
 	getFilterOptions,
 	bulkUpdateStatus,
 	bulkUpdatePriority,
 	markAsReviewed,
 } from "@/lib/actions/opportunities";
+import { getOpportunities } from "@/lib/api/opportunities";
 import {
 	transitionOpportunityTriage,
 	type OpportunityTriageAction,
@@ -48,10 +48,6 @@ import {
 	Search,
 	Upload,
 	RefreshCw,
-	Clock,
-	Globe,
-	Eye,
-	EyeOff,
 	Database,
 	Activity,
 	Briefcase,
@@ -59,7 +55,15 @@ import {
 	CheckCircle,
 	BookmarkCheck,
 	ClipboardCheck,
+	MoreHorizontal,
 } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useSession } from "@/lib/auth-client";
 
 import { StatsBanner } from "@/components/opportunities/OpportunityStats";
@@ -136,7 +140,8 @@ function OpportunitiesContent() {
 	});
 	const [page, setPage] = React.useState(1);
 	const pageSize = 25;
-	const [showExpired, setShowExpired] = React.useState(false);
+	type ExpiryMode = "active" | "all" | "expired";
+	const [expiryMode, setExpiryMode] = React.useState<ExpiryMode>("active");
 	const [voteStatusFilter, setVoteStatusFilter] = React.useState<string[]>([]);
 	const [showShortlistPanel, setShowShortlistPanel] = React.useState(false);
 	const [compareIds, setCompareIds] = React.useState<string[]>([]);
@@ -157,11 +162,10 @@ function OpportunitiesContent() {
 			...filters,
 			search: debouncedSearch || undefined,
 		};
-		if (!showExpired) {
-			result.isExpired = false;
-		}
+		if (expiryMode === "active") result.isExpired = false;
+		else if (expiryMode === "expired") result.isExpired = true;
 		return result;
-	}, [filters, debouncedSearch, showExpired]);
+	}, [filters, debouncedSearch, expiryMode]);
 
 	// ========================================================================
 	// Queries
@@ -171,12 +175,12 @@ function OpportunitiesContent() {
 		data: opportunitiesData,
 		isLoading: isOpportunitiesLoading,
 		isFetching: isOpportunitiesFetching,
-	} = useQuery<PaginatedResponse<OpportunityListItem>, Error>({
-		queryKey: opportunitiesKeys.list(queryFilters, sort, page),
-		queryFn: () => getOpportunities(queryFilters, sort, { page, pageSize }),
-		staleTime: OPPORTUNITIES_STALE_TIME,
-		gcTime: OPPORTUNITIES_GC_TIME,
-	});
+		} = useQuery<PaginatedResponse<OpportunityListItem>, Error>({
+			queryKey: opportunitiesKeys.list(queryFilters, sort, page),
+			queryFn: () => getOpportunities({ ...queryFilters, sort, page, pageSize }),
+			staleTime: OPPORTUNITIES_STALE_TIME,
+			gcTime: OPPORTUNITIES_GC_TIME,
+		});
 
 	const { data: stats } = useQuery<OpportunityStats, Error>({
 		queryKey: opportunitiesKeys.stats(queryFilters),
@@ -339,12 +343,12 @@ function OpportunitiesContent() {
 	React.useEffect(() => {
 		if (page < totalPages) {
 			const nextPage = page + 1;
-			queryClient.prefetchQuery({
-				queryKey: opportunitiesKeys.list(queryFilters, sort, nextPage),
-				queryFn: () =>
-					getOpportunities(queryFilters, sort, { page: nextPage, pageSize }),
-				staleTime: OPPORTUNITIES_STALE_TIME,
-			});
+				queryClient.prefetchQuery({
+					queryKey: opportunitiesKeys.list(queryFilters, sort, nextPage),
+					queryFn: () =>
+						getOpportunities({ ...queryFilters, sort, page: nextPage, pageSize }),
+					staleTime: OPPORTUNITIES_STALE_TIME,
+				});
 		}
 	}, [page, totalPages, queryFilters, sort, queryClient]);
 
@@ -445,22 +449,6 @@ function OpportunitiesContent() {
 		await queryClient.invalidateQueries({ queryKey: opportunitiesKeys.all });
 	};
 
-	const handleToggleExpired = () => {
-		setShowExpired((prev) => {
-			const newValue = !prev;
-			if (newValue) {
-				setFilters((prev) => {
-					const { isExpired, ...rest } = prev;
-					return rest;
-				});
-			} else {
-				setFilters((prev) => ({ ...prev, isExpired: false }));
-			}
-			return newValue;
-		});
-		setPage(1);
-	};
-
 	const handleRefresh = () => {
 		queryClient.invalidateQueries({ queryKey: opportunitiesKeys.all });
 	};
@@ -478,59 +466,59 @@ function OpportunitiesContent() {
 			{/* Page Header */}
 			<div className="flex items-center justify-between mb-6">
 				<div>
-					<h1 className="text-2xl font-bold text-foreground mb-1">
+					<h1 className="text-2xl font-semibold text-foreground mb-1">
 						Opportunities
 					</h1>
 					<p className="text-sm text-muted-foreground">
 						Track and manage RFPs, tenders, and procurement opportunities
 					</p>
 				</div>
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-2">
 					<Button
 						variant="ghost"
+						size="sm"
 						onClick={handleRefresh}
+						title="Refresh"
 						className="text-muted-foreground hover:text-foreground"
 					>
-						<RefreshCw
-							className={cn(
-								"h-4 w-4",
-								isOpportunitiesFetching && "animate-spin"
-							)}
-						/>
+						<RefreshCw className={cn("h-4 w-4", isOpportunitiesFetching && "animate-spin")} />
 					</Button>
-					<Button
-						variant="outline"
-						onClick={() => setShowDiscoveryRun(true)}
-					>
+					<Button variant="outline" onClick={() => setShowDiscoveryRun(true)}>
 						<Search className="h-4 w-4" />
-						<span className="hidden sm:inline">Discover</span>
+						<span className="hidden sm:inline ml-2">Discover</span>
 					</Button>
-					<Link href="/opportunities/sources">
-						<Button variant="outline">
-							<Database className="h-4 w-4" />
-							<span className="hidden sm:inline">Sources</span>
-						</Button>
-					</Link>
-					<Link href="/opportunities/live-handoff">
-						<Button variant="outline">
-							<ClipboardCheck className="h-4 w-4" />
-							<span className="hidden sm:inline">Handoff</span>
-						</Button>
-					</Link>
-					<Button
-						variant="outline"
-						onClick={() => setShowShortlistPanel(true)}
-						className="gap-1.5"
-					>
+					<Button variant="outline" onClick={() => setShowShortlistPanel(true)}>
 						<BookmarkCheck className="h-4 w-4 text-amber-500" />
-						<span className="hidden sm:inline">Shortlist</span>
+						<span className="hidden sm:inline ml-2">Shortlist</span>
 					</Button>
-					<Link href="/opportunities/import">
-						<Button>
-							<Upload className="h-4 w-4" />
-							<span className="hidden sm:inline">Import</span>
-						</Button>
-					</Link>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm" title="More actions">
+								<MoreHorizontal className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem asChild>
+								<Link href="/opportunities/sources">
+									<Database className="mr-2 h-4 w-4" />
+									Sources
+								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuItem asChild>
+								<Link href="/opportunities/live-handoff">
+									<ClipboardCheck className="mr-2 h-4 w-4" />
+									Handoff
+								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem asChild>
+								<Link href="/opportunities/import">
+									<Upload className="mr-2 h-4 w-4" />
+									Import
+								</Link>
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			</div>
 
@@ -609,60 +597,23 @@ function OpportunitiesContent() {
 						onChange={(values) => setVoteStatusFilter(values)}
 					/>
 
-					{/* Show Expired Toggle */}
-					<button
-						onClick={handleToggleExpired}
-						className={cn(
-							"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
-							showExpired
-								? "bg-red-500/10 text-red-500 border border-red-500/20"
-								: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
-						)}
-						title={
-							showExpired ? "Hide expired opportunities" : "Show expired opportunities"
-						}
-					>
-						{showExpired ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-						Show Expired
-					</button>
-
-					{/* Quick filter: Active only */}
-					<button
-						onClick={() =>
-							handleFilterChange(
-								"isExpired",
-								filters.isExpired === false ? undefined : false
-							)
-						}
-						className={cn(
-							"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
-							filters.isExpired === false && !showExpired
-								? "bg-green-500/10 text-green-600 border border-green-500/20"
-								: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
-						)}
-					>
-						<Clock className="w-4 h-4" />
-						Active Only
-					</button>
-
-					{/* Quick filter: Africa */}
-					<button
-						onClick={() =>
-							handleFilterChange(
-								"continent",
-								filters.continent === "africa" ? undefined : "africa"
-							)
-						}
-						className={cn(
-							"flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150",
-							filters.continent === "africa"
-								? "bg-primary/10 text-primary border border-primary/20"
-								: "bg-muted text-muted-foreground border border-transparent hover:text-foreground"
-						)}
-					>
-						<Globe className="w-4 h-4" />
-						Africa
-					</button>
+					{/* Expiry filter — 3-state segmented control */}
+					<div className="flex items-center rounded-lg border border-input overflow-hidden text-sm flex-shrink-0">
+						{(["active", "all", "expired"] as ExpiryMode[]).map((mode) => (
+							<button
+								key={mode}
+								onClick={() => { setExpiryMode(mode); setPage(1); }}
+								className={cn(
+									"px-3 py-2 font-medium transition-colors capitalize",
+									expiryMode === mode
+										? "bg-primary text-primary-foreground"
+										: "text-muted-foreground hover:text-foreground hover:bg-muted"
+								)}
+							>
+								{mode}
+							</button>
+						))}
+					</div>
 
 					{userId && (
 						<SavedSearches
@@ -700,7 +651,7 @@ function OpportunitiesContent() {
 				) : opportunities.length === 0 ? (
 					<EmptyState
 						hasFilters={
-							Object.keys(filters).length > 0 || !!searchQuery || !showExpired
+							Object.keys(filters).length > 0 || !!searchQuery || expiryMode !== "all"
 						}
 					/>
 				) : viewMode === "grid" ? (

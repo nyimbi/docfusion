@@ -61,8 +61,8 @@ async function loadFixtureDocuments() {
 }
 
 async function addSessionCookie(context: BrowserContext) {
-	const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
-	if (!secret) throw new Error("NEXTAUTH_SECRET/AUTH_SECRET is required");
+	const secret = process.env.NEXTAUTH_SECRET;
+	if (!secret) throw new Error("NEXTAUTH_SECRET is required");
 	const sessionCookie = await encode({
 		secret,
 		salt: "authjs.session-token",

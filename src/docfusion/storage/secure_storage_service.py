@@ -6,11 +6,15 @@ Security-enhanced storage service that integrates authentication, authorization,
 encryption, and audit logging with the existing storage system.
 """
 
+import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import timezone, datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .blob_store import LocalBlobStore
 from ..security import (
     AuditEventType,
     AuditSeverity,
@@ -32,6 +36,11 @@ class SecureStorageConfiguration:
     # Base RAG storage configuration
     rag_config: RAGStorageConfiguration
 
+    # Raw blob storage configuration for uploaded binary assets such as RFPs.
+    # Defaults to the legacy local RFP storage root when Linode E3 is not
+    # configured.
+    blob_storage_root: Optional[Path] = None
+
     # Security configuration
     security_config: Optional[SecurityManagerConfiguration] = None
 
@@ -50,6 +59,131 @@ class SecureStorageConfiguration:
     encrypt_sensitive_fields: List[str] = None
     encryption_key_rotation_days: int = 90
 
+
+class _LocalRawBlobStore:
+    """Local-disk raw blob backend used when Linode E3 is not configured."""
+
+    def __init__(self, root: Path | str) -> None:
+        self._store = LocalBlobStore(root=root)
+
+    async def store(
+        self,
+        key: str,
+        data: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> None:
+        del content_type
+        await self._store.store(key, data)
+
+    async def retrieve(self, key: str) -> bytes | None:
+        return await self._store.retrieve(key)
+
+
+class _LinodeE3RawBlobStore:
+    """S3-compatible Linode E3 raw blob backend implemented with boto3."""
+
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        endpoint_url: str,
+        region_name: str,
+        access_key: str,
+        secret_key: str,
+    ) -> None:
+        import boto3
+        from botocore.config import Config
+
+        self._bucket = bucket
+        self._client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            region_name=region_name,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=Config(
+                signature_version="s3v4",
+                s3={"addressing_style": "path"},
+            ),
+        )
+
+    async def store(
+        self,
+        key: str,
+        data: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            self._put_object,
+            key,
+            data,
+            content_type,
+        )
+
+    async def retrieve(self, key: str) -> bytes | None:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._get_object, key)
+
+    def _put_object(self, key: str, data: bytes, content_type: str) -> None:
+        self._client.put_object(
+            Bucket=self._bucket,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+        )
+
+    def _get_object(self, key: str) -> bytes | None:
+        from botocore.exceptions import ClientError
+
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+            if error_code in {"NoSuchKey", "404", "NotFound"}:
+                return None
+            raise
+
+        body = response["Body"]
+        try:
+            return body.read()
+        finally:
+            body.close()
+
+
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _raw_blob_store_from_env(config: SecureStorageConfiguration):
+    bucket = _first_env("LINODE_E3_BUCKET")
+    if bucket:
+        access_key = _first_env("LINODE_E3_ACCESS_KEY", "LINODE_E3_ACCESS_KEY_ID")
+        secret_key = _first_env("LINODE_E3_SECRET_KEY", "LINODE_E3_SECRET_ACCESS_KEY")
+        if not access_key or not secret_key:
+            raise ValueError(
+                "LINODE_E3_BUCKET is set, but Linode E3 credentials are missing. "
+                "Set LINODE_E3_ACCESS_KEY and LINODE_E3_SECRET_KEY, or unset "
+                "LINODE_E3_BUCKET to use local disk storage."
+            )
+        return _LinodeE3RawBlobStore(
+            bucket=bucket,
+            endpoint_url=_first_env("LINODE_E3_ENDPOINT")
+            or "https://gb-lon-1.linodeobjects.com",
+            region_name=_first_env("LINODE_E3_REGION") or "gb-lon-1",
+            access_key=access_key,
+            secret_key=secret_key,
+        )
+
+    return _LocalRawBlobStore(config.blob_storage_root or Path("./storage/rfp"))
+
 class SecureStorageService:
     """Security-enhanced storage service"""
 
@@ -63,6 +197,9 @@ class SecureStorageService:
         # Initialize base RAG storage service
         self.rag_storage = RAGStorageService(config.rag_config)
 
+        # Initialize raw byte storage used by upload/parse flows.
+        self._raw_blob_store = _raw_blob_store_from_env(config)
+
         # Security settings
         self.encrypt_sensitive_fields = config.encrypt_sensitive_fields or [
             "content",
@@ -72,6 +209,24 @@ class SecureStorageService:
         ]
 
         self.logger.info("Secure storage service initialized")
+
+    async def store(
+        self,
+        key: str,
+        data: bytes,
+        *,
+        content_type: str = "application/octet-stream",
+    ) -> None:
+        """Persist raw bytes under a stable storage key."""
+        await self._raw_blob_store.store(
+            key,
+            data,
+            content_type=content_type,
+        )
+
+    async def retrieve(self, key: str) -> bytes | None:
+        """Retrieve raw bytes by storage key, returning None when absent."""
+        return await self._raw_blob_store.retrieve(key)
 
     # ==================== SECURE DOCUMENT OPERATIONS ====================
 

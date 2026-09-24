@@ -45,6 +45,22 @@ class RFPAnalysisResult(BaseModel):
 	processing_time: float = Field(default=0.0)
 	analyzed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class RFPAnalysisNarrative(BaseModel):
+	"""Optional AI-generated narrative fields for an RFP analysis."""
+
+	model_config = ConfigDict(extra='forbid')
+
+	compliance_narrative: str | None = None
+	risk_narrative: str | None = None
+	strategic_recommendations: str | None = None
+
+class RFPAnalysisError(BaseModel):
+	"""Typed error returned when optional AI analysis cannot produce data."""
+
+	model_config = ConfigDict(extra='forbid')
+
+	reason: str
+
 class RFPAnalyzer:
 	"""
 	RFP Document Analyzer.
@@ -184,9 +200,7 @@ class RFPAnalyzer:
 					result.requirements,
 					extraction_result.document_metadata.get("text", ""),
 				)
-				result.compliance_narrative = narrative.get("compliance_narrative")
-				result.risk_narrative = narrative.get("risk_narrative")
-				result.strategic_recommendations = narrative.get("strategic_recommendations")
+				self._apply_ai_analysis(result, narrative)
 
 			result.success = True
 
@@ -249,9 +263,7 @@ class RFPAnalyzer:
 					result.requirements,
 					extraction_result.document_metadata.get("text", ""),
 				)
-				result.compliance_narrative = narrative.get("compliance_narrative")
-				result.risk_narrative = narrative.get("risk_narrative")
-				result.strategic_recommendations = narrative.get("strategic_recommendations")
+				self._apply_ai_analysis(result, narrative)
 
 			result.success = True
 
@@ -314,9 +326,7 @@ class RFPAnalyzer:
 					result.requirements,
 					text,
 				)
-				result.compliance_narrative = narrative.get("compliance_narrative")
-				result.risk_narrative = narrative.get("risk_narrative")
-				result.strategic_recommendations = narrative.get("strategic_recommendations")
+				self._apply_ai_analysis(result, narrative)
 
 			result.success = True
 
@@ -331,18 +341,38 @@ class RFPAnalyzer:
 
 		return result
 
+	def _apply_ai_analysis(
+		self,
+		result: RFPAnalysisResult,
+		narrative: RFPAnalysisNarrative | RFPAnalysisError,
+	) -> None:
+		"""Attach optional AI narrative output to the main analysis result."""
+		if isinstance(narrative, RFPAnalysisError):
+			result.warnings.append(narrative.reason)
+			return
+
+		result.compliance_narrative = narrative.compliance_narrative
+		result.risk_narrative = narrative.risk_narrative
+		result.strategic_recommendations = narrative.strategic_recommendations
+
+	def _ai_error(self, reason: str, document_text: str) -> RFPAnalysisError:
+		preview = document_text[:120]
+		return RFPAnalysisError(
+			reason=f"rfp_analyzer: _analyze_with_ai {reason} for document_text={preview!r}"
+		)
+
 	async def _analyze_with_ai(
 		self,
 		requirements: list[Requirement],
 		document_text: str,
-	) -> dict[str, str]:
+	) -> RFPAnalysisNarrative | RFPAnalysisError:
 		"""Run an AI pass over the analyzed requirements.
 
-		Returns a dict with `compliance_narrative`, `risk_narrative`,
-		`strategic_recommendations`. Missing keys if the call failed.
+		Returns typed narrative data, or a typed error for optional partial
+		analysis failures that callers can attach as warnings.
 		"""
 		if not requirements:
-			return {}
+			return self._ai_error("returned no data", document_text)
 
 		prompt = self._build_analysis_prompt(requirements, document_text)
 		try:
@@ -357,18 +387,26 @@ class RFPAnalyzer:
 				content = __import__("re").sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=__import__("re").MULTILINE)
 			data = json.loads(content)
 			if not isinstance(data, dict):
-				return {}
-			return {
-				k: str(v)
-				for k, v in data.items()
-				if k in ("compliance_narrative", "risk_narrative", "strategic_recommendations")
-				and v is not None
-			}
+				return self._ai_error("returned non-object data", document_text)
+			narrative = RFPAnalysisNarrative(
+				compliance_narrative=str(data["compliance_narrative"])
+				if data.get("compliance_narrative") is not None
+				else None,
+				risk_narrative=str(data["risk_narrative"])
+				if data.get("risk_narrative") is not None
+				else None,
+				strategic_recommendations=str(data["strategic_recommendations"])
+				if data.get("strategic_recommendations") is not None
+				else None,
+			)
+			if not narrative.model_dump(exclude_none=True):
+				return self._ai_error("returned no narrative fields", document_text)
+			return narrative
 		except (KeyboardInterrupt, SystemExit):
 			raise
-		except Exception:
+		except Exception as exc:
 			self.logger.warning("AI analysis failed", exc_info=True)
-			return {}
+			return self._ai_error(f"failed: {exc}", document_text)
 
 	def _build_analysis_prompt(
 		self,

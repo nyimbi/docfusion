@@ -8,7 +8,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
-import { getOpportunity } from "@/lib/actions/opportunities";
+import { Building2, Globe, Calendar, ExternalLink } from "lucide-react";
+import { APIError, getOpportunity } from "@/lib/api/opportunities";
 import { getVoteSummary, getVotes } from "@/lib/actions/opportunity-votes";
 import { getLatestScores } from "@/lib/actions/opportunity-ai";
 import { getOpportunityDocuments } from "@/lib/services/rfp-document-service";
@@ -31,10 +32,12 @@ interface PageProps {
 export default async function OpportunityDetailPage({ params }: PageProps) {
 	const { id } = await params;
 
-	const opportunity = await getOpportunity(id);
-	if (!opportunity) {
-		notFound();
-	}
+	const opportunity = await getOpportunity(id).catch((error: unknown) => {
+		if (error instanceof APIError && error.status === 404) {
+			notFound();
+		}
+		throw error;
+	});
 
 	// Fetch dependent data only after the opportunity access gate passes.
 	const [voteSummary, votes, aiScores, documents, commandCenter] = await Promise.all([
@@ -48,86 +51,84 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 	const sourceIngestUrl = opportunity.documentUrl || opportunity.portalUrl || opportunity.rfpLink;
 
 	return (
-		<div className="min-h-screen bg-background">
-			{/* Header */}
-			<header className="border-b bg-background">
-				<div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-					{/* Breadcrumb */}
-					<nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-						<Link
-							href="/opportunities"
-							className="hover:text-foreground transition-colors"
-						>
-							Opportunities
-						</Link>
-						<span>/</span>
-						<span className="text-foreground font-medium truncate max-w-[300px]">
-							{opportunity.sourceId || opportunity.title.slice(0, 30)}
-						</span>
-					</nav>
+		<div className="h-full overflow-y-auto bg-background">
+			{/* Page header */}
+			<div className="border-b bg-background sticky top-0 z-10 px-6 py-4">
+				{/* Breadcrumb */}
+				<nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+					<Link
+						href="/opportunities"
+						className="hover:text-foreground transition-colors"
+					>
+						Opportunities
+					</Link>
+					<span>/</span>
+					<span className="text-foreground font-medium truncate max-w-[300px]">
+						{opportunity.title.slice(0, 40)}
+					</span>
+				</nav>
 
-					{/* Title and status */}
-					<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-						<div className="min-w-0 flex-1">
-							<h1 className="text-2xl font-semibold text-foreground leading-tight">
-								{opportunity.title}
-							</h1>
-							<div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-[var(--foreground-muted)]">
-								{opportunity.organization && (
-									<span className="flex items-center gap-1">
-										<BuildingIcon className="h-4 w-4" />
-										{opportunity.organization}
-									</span>
-								)}
-								{opportunity.countryRegion && (
-									<span className="flex items-center gap-1">
-										<GlobeIcon className="h-4 w-4" />
-										{opportunity.countryRegion}
-									</span>
-								)}
-								{opportunity.deadline && (
-									<span className="flex items-center gap-1">
-										<CalendarIcon className="h-4 w-4" />
-										{formatDate(opportunity.deadline)}
-										{opportunity.daysLeft !== null && (
-											<span
-												className={`ml-1 ${opportunity.daysLeft < 7
-														? "text-destructive"
-														: opportunity.daysLeft < 14
-															? "text-amber-500"
-															: "text-green-500"
-													}`}
-											>
-												({opportunity.daysLeft}d)
-											</span>
-										)}
-									</span>
-								)}
-							</div>
-						</div>
-
-						{/* Status badge and actions */}
-						<div className="flex items-center gap-3 flex-wrap">
-							<StatusBadge status={opportunity.decisionStatus} />
-							<ShortlistButton
-								opportunityId={id}
-								isShortlisted={opportunity.decisionStatus === "shortlisted"}
-							/>
-							<OpportunityHeaderActions
-								opportunityId={id}
-								opportunityTitle={opportunity.title}
-								sourceUrl={sourceIngestUrl}
-								rfpLink={sourceDocumentUrl}
-								documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
-								documents={documents}
-							/>
+				{/* Title and status */}
+				<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div className="min-w-0 flex-1">
+						<h1 className="text-2xl font-semibold text-foreground leading-tight">
+							{opportunity.title}
+						</h1>
+						<div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
+							{opportunity.organization && (
+								<span className="flex items-center gap-1">
+									<Building2 className="h-4 w-4" />
+									{opportunity.organization}
+								</span>
+							)}
+							{opportunity.countryRegion && (
+								<span className="flex items-center gap-1">
+									<Globe className="h-4 w-4" />
+									{opportunity.countryRegion}
+								</span>
+							)}
+							{opportunity.deadline && (
+								<span className="flex items-center gap-1">
+									<Calendar className="h-4 w-4" />
+									{formatDate(opportunity.deadline)}
+									{opportunity.daysLeft !== null && (
+										<span
+											className={`ml-1 ${opportunity.daysLeft < 7
+													? "text-destructive"
+													: opportunity.daysLeft < 14
+														? "text-amber-500"
+														: "text-green-500"
+												}`}
+										>
+											({opportunity.daysLeft}d)
+										</span>
+									)}
+								</span>
+							)}
 						</div>
 					</div>
+
+					{/* Status badge and actions */}
+					<div className="flex items-center gap-3 flex-wrap">
+						<StatusBadge status={opportunity.decisionStatus} />
+						<ShortlistButton
+							opportunityId={id}
+							isShortlisted={opportunity.decisionStatus === "shortlisted"}
+						/>
+						<OpportunityHeaderActions
+							opportunityId={id}
+							opportunityTitle={opportunity.title}
+							sourceUrl={sourceIngestUrl}
+							rfpLink={sourceDocumentUrl}
+							documentsDiscovered={opportunity.documentsDiscovered || documents.length > 0}
+							documents={documents}
+						/>
+					</div>
 				</div>
-			</header>
+			</div>
 
 			{/* Main content */}
-			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+			<div className="px-6 py-6">
 				<div className="mb-6">
 					<OpportunityCommandCenter projection={commandCenter} />
 				</div>
@@ -233,7 +234,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 												className="text-primary hover:underline flex items-center gap-1 text-sm font-medium"
 												title="Opens the actual RFP document in a new tab"
 											>
-												<ExternalLinkIcon className="h-4 w-4" />
+												<ExternalLink className="h-4 w-4" />
 												Open RFP
 											</a>
 										</div>
@@ -248,7 +249,7 @@ export default async function OpportunityDetailPage({ params }: PageProps) {
 						</Card>
 					</div>
 				</div>
-			</main>
+			</div>
 		</div>
 	);
 }
@@ -327,60 +328,4 @@ function formatDate(date: Date): string {
 		day: "numeric",
 		year: "numeric",
 	}).format(new Date(date));
-}
-
-// ============================================================================
-// Icons
-// ============================================================================
-
-function BuildingIcon({ className }: { className?: string }) {
-	return (
-		<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth={1.5}
-				d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-			/>
-		</svg>
-	);
-}
-
-function GlobeIcon({ className }: { className?: string }) {
-	return (
-		<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth={1.5}
-				d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-			/>
-		</svg>
-	);
-}
-
-function CalendarIcon({ className }: { className?: string }) {
-	return (
-		<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth={1.5}
-				d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-			/>
-		</svg>
-	);
-}
-
-function ExternalLinkIcon({ className }: { className?: string }) {
-	return (
-		<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth={1.5}
-				d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-			/>
-		</svg>
-	);
 }

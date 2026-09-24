@@ -8,7 +8,13 @@ endpoints, middleware, validation, and documentation.
 __version__ = "1.0.0"
 __author__ = "Proposal Writer Team"
 
-# Import minimal app for now - full API has import issues to be fixed
-from .app import app
+def __getattr__(name: str):
+	"""Lazy app export so endpoint imports do not initialize the full API."""
+	if name == "app":
+		from .app import app
+
+		return app
+	raise AttributeError(name)
+
 
 __all__ = ["app"]

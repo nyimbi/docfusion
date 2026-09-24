@@ -1165,7 +1165,7 @@ class DocumentEngine:
 				score = container.get(score_attr)
 			else:
 				score = getattr(container, score_attr, None)
-			if isinstance(score, (int, float)):
+			if score is not None and isinstance(score, (int, float)):
 				quality_scores.append(float(score))
 
 		# Assembly is upstream of the six audited phases; keep its dual-attr
@@ -1174,7 +1174,7 @@ class DocumentEngine:
 			assembly_score = getattr(result.assembly_result, 'performance_score', None)
 			if assembly_score is None:
 				assembly_score = getattr(result.assembly_result, 'quality_score', None)
-			if isinstance(assembly_score, (int, float)):
+			if assembly_score is not None and isinstance(assembly_score, (int, float)):
 				quality_scores.append(float(assembly_score))
 
 		_contribute('structure_building', result.structure_result,
@@ -1193,7 +1193,7 @@ class DocumentEngine:
 		# Render-format scores are computed elsewhere and known to be real.
 		quality_scores.extend(
 			s for s in result.format_quality_scores.values()
-			if isinstance(s, (int, float))
+			if s is not None and isinstance(s, (int, float))
 		)
 
 		if quality_scores:

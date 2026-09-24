@@ -1,0 +1,27 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.75in,landscape]{geometry}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lfoot{Compliance Matrix}
+\rfoot{Page \thepage\ of \pageref{LastPage}}
+
+\begin{document}
+\section*{Compliance Matrix}
+\begin{longtable}{|p{0.34\textwidth}|p{0.2\textwidth}|p{0.12\textwidth}|p{0.24\textwidth}|}
+\hline
+\textbf{Requirement} & \textbf{Reference} & \textbf{Compliant} & \textbf{Notes} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Requirement} & \textbf{Reference} & \textbf{Compliant} & \textbf{Notes} \\
+\hline
+\endhead
+% DOCFUSION_CONTENT
+\hline
+\end{longtable}
+\end{document}

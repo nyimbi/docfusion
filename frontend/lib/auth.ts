@@ -154,6 +154,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			issuer: process.env.KEYCLOAK_ISSUER!,
 		}),
 	],
+	secret: process.env.NEXTAUTH_SECRET,
 	session: { strategy: "jwt" },
 	pages: { signIn: "/auth/sign-in" },
 	trustHost: true,

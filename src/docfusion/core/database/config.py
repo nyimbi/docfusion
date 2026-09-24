@@ -222,6 +222,9 @@ def get_database_config() -> DatabaseConfig:
 		if pool_size := os.getenv("DB_POOL_SIZE"):
 			config_data["pool_size"] = int(pool_size)
 		
+		if max_overflow := os.getenv("DB_MAX_OVERFLOW"):
+			config_data["max_overflow"] = int(max_overflow)
+		
 		if pool_timeout := os.getenv("DB_POOL_TIMEOUT"):
 			config_data["pool_timeout"] = int(pool_timeout)
 		

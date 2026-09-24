@@ -108,7 +108,7 @@ async function runPreflight() {
 		databaseNow: dbProbe.rows?.[0]?.now ?? null,
 		baseUrl: BASE_URL,
 		stalwartConfigured: Boolean(process.env.STALWART_SMTP_USER ?? process.env.SMTP_USER)
-			&& Boolean(process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD ?? process.env.SMTP_PASS),
+			&& Boolean(process.env.STALWART_SMTP_PASSWORD ?? process.env.SMTP_PASSWORD),
 		mailRecipientConfigured: Boolean(MAIL_RECIPIENT_EMAIL),
 	};
 }
@@ -403,8 +403,8 @@ async function ensureUser(id: string, email: string, role: string) {
 }
 
 async function createSessionCookie() {
-	const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
-	if (!secret) throw new Error("AUTH_SECRET or NEXTAUTH_SECRET is required for authenticated proof");
+	const secret = process.env.NEXTAUTH_SECRET;
+	if (!secret) throw new Error("NEXTAUTH_SECRET is required for authenticated proof");
 	return encode({
 		secret,
 		salt: "authjs.session-token",

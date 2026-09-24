@@ -21,7 +21,7 @@ import re
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field, ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass, rebuild_dataclass
@@ -132,6 +132,168 @@ class LogoAssetLibrary:
 	# Validation and compliance
 	asset_validation_status: dict[str, bool] = Field(default_factory=dict)
 	compliance_check_results: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+def _empty_logo_asset_library(brand_name: str = "Default Brand") -> LogoAssetLibrary:
+	"""Create a valid logo library that deliberately contains no placeable variants."""
+	return LogoAssetLibrary(
+		primary_logo=LogoAsset(
+			asset_name=f"{brand_name} Logo",
+			variant_type="primary",
+		),
+		logo_variants={},
+	)
+
+
+def _logo_path_from_brand_data(brand_data: dict[str, Any]) -> str:
+	"""Extract an optional logo path/url from a loose brand-spec dictionary."""
+	for key in ("logo_url", "logo_path"):
+		value = brand_data.get(key)
+		if isinstance(value, str) and value.strip():
+			return value.strip()
+
+	logo_value = brand_data.get("logo")
+	if isinstance(logo_value, str) and logo_value.strip():
+		return logo_value.strip()
+	if isinstance(logo_value, dict):
+		for key in ("url", "path", "file_path"):
+			value = logo_value.get(key)
+			if isinstance(value, str) and value.strip():
+				return value.strip()
+
+	return ""
+
+
+def _logo_asset_from_data(
+	value: Any,
+	brand_name: str,
+	variant_type: str = "primary",
+) -> LogoAsset | None:
+	"""Coerce a loose logo value into a LogoAsset, or None when empty."""
+	if isinstance(value, LogoAsset):
+		return value
+	if isinstance(value, str):
+		file_path = value.strip()
+		if not file_path:
+			return None
+		return LogoAsset(
+			asset_name=f"{brand_name} Logo",
+			variant_type=variant_type,
+			file_path=file_path,
+			file_format=Path(file_path).suffix.lower().lstrip(".") or "svg",
+		)
+	if isinstance(value, dict):
+		file_path = value.get("file_path")
+		logo_path = _logo_path_from_brand_data(value)
+		if not logo_path and isinstance(file_path, str) and file_path.strip():
+			logo_path = file_path.strip()
+		if not logo_path and not value.get("asset_name"):
+			return None
+		return LogoAsset(
+			asset_name=value.get("asset_name") or f"{brand_name} Logo",
+			variant_type=value.get("variant_type") or variant_type,
+			file_path=logo_path,
+			file_format=(
+				value.get("file_format")
+				or (Path(logo_path).suffix.lower().lstrip(".") if logo_path else "svg")
+				or "svg"
+			),
+			min_size=value.get("min_size", "20px"),
+			max_size=value.get("max_size", "400px"),
+		)
+
+	return None
+
+
+def _coerce_logo_asset_library(
+	logo_data: Any,
+	brand_name: str,
+	brand_data: dict[str, Any] | None = None,
+) -> LogoAssetLibrary:
+	"""Build a logo library from optional loose logo data."""
+	if isinstance(logo_data, LogoAssetLibrary):
+		return logo_data
+
+	brand_data = brand_data or {}
+	if isinstance(logo_data, dict):
+		primary_logo = _logo_asset_from_data(
+			logo_data.get("primary_logo") or logo_data.get("primary"),
+			brand_name,
+			"primary",
+		)
+		if primary_logo is None:
+			primary_logo = _logo_asset_from_data(logo_data, brand_name, "primary")
+
+		variants: dict[str, LogoAsset] = {}
+		raw_variants = logo_data.get("logo_variants", {})
+		if isinstance(raw_variants, dict):
+			for variant_name, variant_data in raw_variants.items():
+				logo_asset = _logo_asset_from_data(
+					variant_data,
+					brand_name,
+					str(variant_name),
+				)
+				if logo_asset is not None and logo_asset.file_path:
+					variants[str(variant_name)] = logo_asset
+
+		if primary_logo is not None and primary_logo.file_path:
+			variants.setdefault("primary", primary_logo)
+
+		return LogoAssetLibrary(
+			primary_logo=primary_logo or _empty_logo_asset_library(brand_name).primary_logo,
+			logo_variants=variants,
+		)
+
+	logo_asset = _logo_asset_from_data(logo_data, brand_name, "primary")
+	if logo_asset is None:
+		logo_asset = _logo_asset_from_data(_logo_path_from_brand_data(brand_data), brand_name, "primary")
+
+	if logo_asset is None:
+		return _empty_logo_asset_library(brand_name)
+
+	return LogoAssetLibrary(
+		primary_logo=logo_asset,
+		logo_variants={"primary": logo_asset} if logo_asset.file_path else {},
+	)
+
+
+def _coerce_brand_specification(
+	brand_specification: BrandSpecification | dict[str, Any],
+) -> BrandSpecification:
+	"""Accept strict BrandSpecification objects or loose request-style dictionaries."""
+	if isinstance(brand_specification, BrandSpecification):
+		return brand_specification
+	if not isinstance(brand_specification, dict):
+		raise TypeError("brand_specification must be a BrandSpecification or dict")
+
+	brand_name = (
+		brand_specification.get("brand_name")
+		or brand_specification.get("name")
+		or "Default Brand"
+	)
+	logo_assets = _coerce_logo_asset_library(
+		brand_specification.get("logo_assets"),
+		brand_name,
+		brand_specification,
+	)
+
+	return BrandSpecification(
+		brand_name=brand_name,
+		logo_assets=logo_assets,
+		color_system=BrandColorSystem(
+			primary_color=brand_specification.get("primary_color", "#1f2937"),
+			secondary_color=brand_specification.get("secondary_color", "#6b7280"),
+			accent_color=brand_specification.get("accent_color", "#3b82f6"),
+		),
+		typography_system=BrandTypographySystem(
+			primary_font=brand_specification.get("font_family", "Inter"),
+			heading_font=brand_specification.get(
+				"heading_font",
+				brand_specification.get("font_family", "Inter"),
+			),
+			code_font=brand_specification.get("code_font", "JetBrains Mono"),
+		),
+	)
 
 @pydantic_dataclass(config=ConfigDict(extra='forbid', validate_assignment=True))
 class BrandRule:
@@ -494,9 +656,9 @@ class BrandFormattingResult:
 	# contributors rather than averaging them in as 0.0. The successful
 	# code path inside apply_brand_formatting still sets concrete floats
 	# via _calculate_formatting_quality and brand_compliance_report.
-	formatting_quality_score: Optional[float] = None
-	brand_consistency_score: Optional[float] = None
-	accessibility_compliance_score: Optional[float] = None
+	formatting_quality_score: float | None = None
+	brand_consistency_score: float | None = None
+	accessibility_compliance_score: float | None = None
 	
 	# Format outputs
 	latex_brand_output: str = ""
@@ -549,8 +711,8 @@ class BrandFormatterMetrics:
 class LogoManager:
 	"""Comprehensive logo management and placement system"""
 	
-	def __init__(self, asset_library: LogoAssetLibrary):
-		self.asset_library = asset_library
+	def __init__(self, asset_library: LogoAssetLibrary | None):
+		self.asset_library = asset_library or _empty_logo_asset_library()
 		self.placement_cache = {}
 		self.optimization_cache = {}
 		
@@ -1444,14 +1606,14 @@ class BrandFormatter:
 	
 	def __init__(
 		self,
-		brand_specification: BrandSpecification,
+		brand_specification: BrandSpecification | dict[str, Any],
 		logo_manager: LogoManager | None = None,
 		enforcement_engine: BrandEnforcementEngine | None = None,
 		type_classifier: DocumentTypeClassifier | None = None
 	):
-		self.brand_spec = brand_specification
-		self.logo_manager = logo_manager or LogoManager(brand_specification.logo_assets)
-		self.enforcement_engine = enforcement_engine or BrandEnforcementEngine(brand_specification)
+		self.brand_spec = _coerce_brand_specification(brand_specification)
+		self.logo_manager = logo_manager or LogoManager(self.brand_spec.logo_assets)
+		self.enforcement_engine = enforcement_engine or BrandEnforcementEngine(self.brand_spec)
 		self.type_classifier = type_classifier or DocumentTypeClassifier()
 		
 		# Performance optimization
@@ -1630,7 +1792,11 @@ class BrandFormatter:
 		score rather than failing the phase outright.
 		"""
 		placements = []
-		available_variants = self.logo_manager.asset_library.logo_variants
+		asset_library = getattr(self.logo_manager, "asset_library", None)
+		available_variants = getattr(asset_library, "logo_variants", None) or {}
+		if not available_variants:
+			logger.info("Skipping logo placement: no logo variants configured in asset_library.")
+			return placements
 
 		logo_config = brand_template.get('logo_configuration', {})
 
@@ -1832,7 +1998,9 @@ class BrandFormatter:
 		"""Estimate memory usage in MB"""
 		base_usage = 15.0  # Base brand formatter overhead
 		cache_usage = (len(self.brand_cache) + len(self.template_cache)) * 0.5  # ~500KB per cache entry
-		asset_usage = len(self.brand_spec.logo_assets.logo_variants) * 2.0  # ~2MB per logo asset
+		logo_assets = getattr(self.brand_spec, "logo_assets", None)
+		logo_variants = getattr(logo_assets, "logo_variants", None) or {}
+		asset_usage = len(logo_variants) * 2.0  # ~2MB per logo asset
 		
 		return base_usage + cache_usage + asset_usage
 

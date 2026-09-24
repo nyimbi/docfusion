@@ -7,8 +7,10 @@ testing, and monitoring for the proposal writer system.
 """
 
 import logging
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Annotated, Dict, Optional, Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -44,10 +46,10 @@ from .serializers.template_serializers import (
 from ..security import SecurityManager, create_security_manager
 from ..storage.secure_storage_service import SecureStorageService
 from ..document_engine.secure_document_engine import SecureDocumentEngine
+from ..logging_config import setup_logging
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 AuthenticatedUser = Annotated[dict[str, Any], Depends(get_current_user)]
@@ -212,6 +214,13 @@ class APIApplication:
 			allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
 			allow_headers=["*"],
 		)
+
+		@app.middleware("http")
+		async def request_id_middleware(request: Request, call_next):
+			request_id = request.headers.get("X-Request-ID") or str(uuid4())
+			response = await call_next(request)
+			response.headers["X-Request-ID"] = request_id
+			return response
 		
 		# Custom middleware would be added here
 		# Note: Custom middleware requires the app to be running
@@ -451,9 +460,13 @@ class APIApplication:
 		async def health_check():
 			return {
 				"status": "healthy",
-				"timestamp": "2024-01-01T00:00:00Z",
 				"version": self.version,
-				"environment": self.environment
+				"checks": {
+					"db": "unavailable" if self.storage_service is None else "ready",
+					"cache": "not_configured",
+				},
+				"environment": self.environment,
+				"timestamp": datetime.now(timezone.utc).isoformat(),
 			}
 		
 		@app.get("/health/detailed", tags=["system"])
